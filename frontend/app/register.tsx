@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import {
 import { useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../lib/auth';
+import { api } from '../lib/api';
+import { loadOnboarding, clearOnboarding } from '../lib/onboardingStore';
 import { colors, radius, spacing } from '../lib/theme';
 
 export default function Register() {
@@ -23,6 +25,14 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [prefilledMusic, setPrefilledMusic] = useState<string[]>([]);
+
+  useEffect(() => {
+    loadOnboarding().then((data) => {
+      if (data.name) setName(data.name);
+      if (data.music) setPrefilledMusic(data.music);
+    });
+  }, []);
 
   const onSubmit = async () => {
     setErr(null);
@@ -33,6 +43,11 @@ export default function Register() {
     setLoading(true);
     try {
       await signUp(email.trim(), password, name.trim());
+      // Push onboarding music prefs to profile
+      if (prefilledMusic.length > 0) {
+        api.updateProfile({ music_prefs: prefilledMusic }).catch(() => {});
+      }
+      await clearOnboarding();
       router.replace('/(tabs)');
     } catch (e: any) {
       setErr(e.message || "Inscription impossible");
