@@ -28,16 +28,15 @@ const QUICK_FILTERS: { key: string; label: string; icon: keyof typeof Ionicons.g
 export default function Discover() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { clubs, loading, favorites, refresh, toggleFavorite, filters, setFilters } = useClubs();
+  const { clubs, loading, favorites, refresh, toggleFavorite, filters, setFilters, setCoords } = useClubs();
   const loc = useLocation();
   const [search, setSearch] = useState('');
   const [active, setActive] = useState('all');
 
   useEffect(() => {
-    if (!loc.loading) {
-      refresh(loc.permission === 'granted' ? loc.coords : null);
-    }
-  }, [loc.loading, loc.permission]); // eslint-disable-line
+    if (loc.loading) return;
+    setCoords(loc.permission === 'granted' ? loc.coords : null);
+  }, [loc.loading, loc.permission, loc.coords.lat, loc.coords.lng, setCoords]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
