@@ -1,0 +1,185 @@
+{
+  "project_name": "Night Finder",
+  "app_type": "mobile_web_app",
+  "theme_archetype": {
+    "theme": "dark",
+    "archetype_id": 5,
+    "archetype_name": "Luxury",
+    "accents": "Electric & Neon (Archetype 7)",
+    "rationale": "For a premium nightclub discovery app comparable to Resy/Airbnb, we use a Luxury cinematic dark base (Archetype 5) mixed with selective high-energy neon accents (Archetype 7) to reflect nightlife energy without feeling cheap or cluttered. The design avoids pure black, utilizing a deep obsidian base."
+  },
+  "colors": {
+    "background": {
+      "base": "#09090B",
+      "description": "Deepest Obsidian (Tailwind Zinc 950) - not pure black. Keeps interface rich."
+    },
+    "surface": {
+      "default": "#18181B",
+      "elevated": "#27272A",
+      "glass": "rgba(24, 24, 27, 0.7)",
+      "description": "Zinc 900 and 800 for cards, bottom sheets, and elevated elements."
+    },
+    "brand_accents": {
+      "primary": "#E01A4F",
+      "primary_label": "Magenta Pink",
+      "primary_usage": "Main CTA buttons, Swipe 'Like' actions, Heart icons",
+      "secondary": "#F2C94C",
+      "secondary_label": "Warm Gold",
+      "secondary_usage": "VIP tags, Rating stars, Premium events",
+      "tertiary": "#00F0FF",
+      "tertiary_label": "Cyan",
+      "tertiary_usage": "Map markers, 'Open Now' indicators, active tab indicator"
+    },
+    "text": {
+      "primary": "#F8FAFC",
+      "secondary": "#A1A1AA",
+      "tertiary": "#52525B",
+      "inverse": "#09090B"
+    },
+    "borders": {
+      "subtle": "rgba(255,255,255,0.1)",
+      "focus": "#E01A4F"
+    }
+  },
+  "typography": {
+    "primary_family": "Outfit",
+    "primary_fallback": "sans-serif",
+    "secondary_family": "Manrope",
+    "secondary_fallback": "sans-serif",
+    "scale": {
+      "h1": "text-4xl sm:text-5xl font-black tracking-tighter",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
+      "h3": "text-xl font-semibold tracking-tight",
+      "h4": "text-lg font-medium",
+      "body": "text-base font-normal leading-relaxed text-zinc-300",
+      "small": "text-sm font-medium tracking-wide text-zinc-400",
+      "overline": "text-xs font-bold uppercase tracking-[0.2em] text-zinc-500"
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Generous Spacing Philosophy. Use large padding for screens to feel premium.",
+    "screen_padding": "px-6 py-8",
+    "card_padding": "p-4 or p-6",
+    "gap": "gap-6",
+    "border_radius": {
+      "cards": "rounded-3xl",
+      "buttons": "rounded-full",
+      "chips": "rounded-full",
+      "bottom_sheet": "rounded-t-3xl"
+    },
+    "glassmorphism": {
+      "bottom_tab_bar": "backdrop-blur-xl bg-zinc-950/70 border-t border-white/10 saturate-150",
+      "top_nav": "backdrop-blur-xl bg-zinc-950/70 border-b border-white/10 saturate-150"
+    }
+  },
+  "components": {
+    "swipe_card": {
+      "layout": "Absolute positioned stack. Full bleed image.",
+      "gradient_overlay": "bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent",
+      "interaction": "framer-motion drag. Rotate on drag. Opacity overlays for 'Like' (Magenta) and 'Nope' (Zinc).",
+      "metadata": "Anchored to bottom: Club Name (H2), Distance, Music Genres (Chips)."
+    },
+    "chips": {
+      "style": "bg-white/10 backdrop-blur-md border border-white/5 text-white text-xs px-3 py-1 rounded-full"
+    },
+    "map_markers": {
+      "style": "Cyan (#00F0FF) glow effect on dark map theme. Custom HTML markers if React Leaflet, or styled SVGs."
+    },
+    "bottom_tab_bar": {
+      "items": ["Discover", "Map", "Swipe", "Events", "Profile"],
+      "active_state": "Text and Icon colored Cyan (#00F0FF). Inactive is Zinc-500."
+    }
+  },
+  "screens": {
+    "Onboarding": [
+      "Screen 1: Discover. Full screen background image. H1 text.",
+      "Screen 2: Swipe. Interactive preview.",
+      "Screen 3: Geolocation prompt with Gold accent button."
+    ],
+    "Auth": "Email/Google. Minimalist. Glassmorphism inputs. Bottom sheet style on top of blurred background.",
+    "Home_Discovery": "Vertical feed. 'Open Now' pulse animations. Premium club cards.",
+    "Map": "Interactive map (React Leaflet or Mapbox). Dark theme styling. Floating search/filter pill at top.",
+    "Swipe": "Tinder-style deck. 80vh card height. Floating action buttons at bottom (X and Heart).",
+    "Club_Detail": "Hero image gallery with parallax. Sticky header on scroll. 'Reserve' or 'Add to Favorites' fixed bottom bar.",
+    "Filters": "Bottom sheet modal. Distance slider. Music genre multi-select chips.",
+    "Events": "List of upcoming parties. Calendar row at top. Event cards with DJ names and entry price.",
+    "Favorites": "Grid of saved clubs.",
+    "Profile": "Avatar, Settings list, Music Preferences.",
+    "Notifications": "Chronological list of alerts (Promotions, new events)."
+  },
+  "animations": {
+    "micro_interactions": {
+      "button_press": "scale-95 transition-transform",
+      "heart_burst": "Scale up to 1.5, rotate slightly, fade out (framer-motion)",
+      "list_stagger": "Fade in and slide up (y: 20 -> 0) with 0.1s staggerChildren"
+    }
+  },
+  "icons": {
+    "library": "lucide-react",
+    "rules": "Use stroke-width 1.5 or 2. No emojis. Consistent sizing (w-6 h-6 for tabs)."
+  },
+  "images": {
+    "paris_nightclubs": [
+      {
+        "url": "https://images.pexels.com/photos/31923252/pexels-photo-31923252.jpeg",
+        "description": "DJ Neon Booth - Club Rex"
+      },
+      {
+        "url": "https://images.pexels.com/photos/14577027/pexels-photo-14577027.jpeg",
+        "description": "DJ Mixing - L'Arc Paris"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1578736641330-3155e606cd40?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODd8MHwxfHNlYXJjaHw0fHxwYXJ0eSUyMGNyb3dkJTIwY2x1YmJpbmclMjBkYXJrfGVufDB8fHx8MTc4MDQ5ODMzM3ww&ixlib=rb-4.1.0&q=85",
+        "description": "Green Lasers - Concrete"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1545128485-c400e7702796?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODd8MHwxfHNlYXJjaHwzfHxwYXJ0eSUyMGNyb3dkJTIwY2x1YmJpbmclMjBkYXJrfGVufDB8fHx8MTc4MDQ5ODMzM3ww&ixlib=rb-4.1.0&q=85",
+        "description": "Dark Party Room - Silencio"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1630395822970-acd6a691d97e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODd8MHwxfHNlYXJjaHwxfHxwYXJ0eSUyMGNyb3dkJTIwY2x1YmJpbmclMjBkYXJrfGVufDB8fHx8MTc4MDQ5ODMzM3ww&ixlib=rb-4.1.0&q=85",
+        "description": "Concert Crowd - La Machine du Moulin Rouge"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1581417478175-a9ef18f210c2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODd8MHwxfHNlYXJjaHwyfHxwYXJ0eSUyMGNyb3dkJTIwY2x1YmJpbmclMjBkYXJrfGVufDB8fHx8MTc4MDQ5ODMzM3ww&ixlib=rb-4.1.0&q=85",
+        "description": "Stage Lights - Wanderlust"
+      },
+      {
+        "url": "https://images.pexels.com/photos/5191480/pexels-photo-5191480.jpeg",
+        "description": "Silhouettes - Djoon"
+      },
+      {
+        "url": "https://images.pexels.com/photos/3696396/pexels-photo-3696396.jpeg",
+        "description": "Thrilled Crowd - Faust"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1708449530105-ea7d453a6f89?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHwzfHxuaWdodGNsdWIlMjBkcmlua3MlMjBwYXJ0eXxlbnwwfHx8fDE3ODA0OTgzNTF8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Sparklers VIP - Matignon"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1569924995012-c4c706bfcd51?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHwyfHxuaWdodGNsdWIlMjBkcmlua3MlMjBwYXJ0eXxlbnwwfHx8fDE3ODA0OTgzNTF8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Bar Scene - Le Syndicat"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1579450887097-6def9f204eeb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHw0fHxuaWdodGNsdWIlMjBkcmlua3MlMjBwYXJ0eXxlbnwwfHx8fDE3ODA0OTgzNTF8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Neon Portrait - Le Comptoir Général"
+      },
+      {
+        "url": "https://images.pexels.com/photos/15648325/pexels-photo-15648325.jpeg",
+        "description": "Colorful Drink - Pachamama"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "This is a mobile web app acting like a native app. Build it mobile-first (max-w-md mx-auto h-screen overflow-hidden relative) to simulate a mobile device if viewed on desktop.",
+    "Use react-router-dom for screen transitions.",
+    "Build the Swipe screen using framer-motion (drag='x', useTransform for rotation and opacity overlays).",
+    "Ensure the bottom tab bar is fixed at the bottom with z-50 and glassmorphism styling.",
+    "All interactive elements MUST have data-testid attributes (e.g., data-testid='tab-discover', data-testid='swipe-like-btn').",
+    "Use lucide-react for all icons.",
+    "Apply the Typography scales precisely. Do NOT use default Inter font for headings.",
+    "For the map, if react-leaflet is used, ensure the tile layer is a dark theme variant (e.g., CartoDB Dark Matter).",
+    "Do NOT use pure white or pure black. Use the hex codes provided in this JSON.",
+    "Implement tactile feedback (scale animations on click) for all buttons and cards."
+  ]
+}
