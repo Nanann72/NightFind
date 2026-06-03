@@ -1,0 +1,55 @@
+{
+  "summary": "Night Finder MVP — 1st iteration. Backend pytest suite (22/22 PASSED, 100%) validates clubs listing (12 seeded, distance calc/sort, filters music/max_price/vip/terrasse/open_now/search), club detail with events, auth register/login/me/forgot-password (JWT + duplicate/bad-pwd negative cases), events listing+reserve, favorites CRUD, swipe-like→auto-favorite, notifications (3 seeded), and absence of Mongo _id in all JSON responses. Frontend (Expo web preview, mobile viewport 390x844) end-to-end flow works after one critical fix applied by tester: onboarding→login(demo)→discover(12 clubs)→notifications(3 rows)→filters→club detail(fav+directions)→swipe(like)→events(reserve)→map web fallback(12 rows)→profile→signout. Critical bug fixed: ClubsProvider was only wrapped around the (tabs) group, causing crashes (\"useClubs must be used inside ClubsProvider\") on /filters, /favorites, /club/[id], /notifications screens. Hoisted ClubsProvider to root _layout.tsx.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Filters apply (VIP switch)",
+        "issue": "After enabling VIP switch and tapping Apply, the discover list still shows 12 cards (no filter visible). Backend logs show /api/clubs is being requested but the network trace during the run mostly showed only radius_km=50 without vip=true. Backend filter logic is verified correct via pytest (test_filter_vip). Likely the apply flow does not always trigger refresh or filters.vip serialization issue. Please verify lib/clubs.tsx refresh deps and api.listClubs param building.",
+        "affected_testIDs": ["switch-vip", "filters-apply-btn", "open-filters-btn"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "expo-notifications (web)",
+        "issue": "Repeated warning '[expo-notifications] Listening to push token changes is not yet fully supported on web.' Consider gating notification listeners with Platform.OS !== 'web' to avoid noise. Reference: usage in app likely from a Notifications.addPushTokenListener call."
+      },
+      {
+        "component": "pointerEvents prop",
+        "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Likely from a TouchableOpacity / View. Replace pointerEvents prop with style.pointerEvents."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_night_finder.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Verify why VIP/terrasse/music filters from the Filters screen don't visibly reduce the Discover list (the api.listClubs payload may be omitting boolean false→undefined cleanup; backend filter is verified working).",
+    "Replace deprecated `pointerEvents` prop with `style.pointerEvents` wherever used.",
+    "Optionally guard expo-notifications listeners with Platform.OS check to silence web warnings."
+  ],
+  "critical_code_review_comments": [
+    "FIXED by tester: ClubsProvider was only mounted in app/(tabs)/_layout.tsx so any screen outside the tabs group (filters, favorites, club/[id], notifications when they call useClubs) crashed with 'useClubs must be used inside ClubsProvider'. Hoisted to root app/_layout.tsx (kept inner one is no longer needed; main agent may remove the inner ClubsProvider to avoid duplicate context).",
+    "server.py is 839 lines — close to the 700-line guideline; consider splitting routes (auth, clubs, events, favorites, notifications) into modules.",
+    "Open-now filter uses datetime.now(UTC) but compares against Paris-local hours stored as local strings — minor business-logic mismatch (works because _is_open_now only checks if a hours entry exists for the weekday)."
+  ],
+  "updated_files": [
+    "/app/frontend/app/_layout.tsx (added ClubsProvider wrap)",
+    "/app/backend/tests/test_night_finder.py (created — 22 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (22/22)",
+    "frontend": "~90% — all primary navigation, auth, discover, notifications, club detail, swipe, events, map web fallback, profile working; one filter-application visible-effect issue"
+  },
+  "seed_data_creation": "Backend auto-seeds 12 Paris clubs + 8 events + 3 notifications on startup. Demo account demo@nightfinder.app/demo1234 already created. Tests create transient test_user_<rand>@nightfinder.app accounts (not cleaned up explicitly but isolated by UUID).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "ClubsProvider duplication: I added one in root _layout.tsx. The (tabs)/_layout.tsx still has its own ClubsProvider (harmless but duplicate). Main agent may want to remove the inner one. Filter screen visible-effect bug needs frontend investigation — backend filtering is fully tested and correct. Test demo account: demo@nightfinder.app / demo1234. Public base URL: https://fan-culture-app.preview.emergentagent.com.",
+  "rca_of_issue": "ClubsProvider scoping bug — RCA: ClubsProvider was placed only inside app/(tabs)/_layout.tsx. Screens routed outside that group (filters, favorites, club/[id], notifications) consumed useClubs from a missing provider → React threw 'useClubs must be used inside ClubsProvider'. Reproduction: login → tap header settings icon on Discover → red error screen. Mitigation applied: moved <ClubsProvider> to root app/_layout.tsx wrapping <Stack/> (kept inner one as no-op duplicate). Verified by re-running E2E: filters, club detail, favorites all render correctly."
+}

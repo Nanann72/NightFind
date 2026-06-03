@@ -1,21 +1,34 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "Night Finder",
+    "slug": "night-finder",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
-    "userInterfaceStyle": "automatic",
+    "scheme": "nightfinder",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nightfinder.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Find nightclubs and bars near you",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Find nightclubs and bars near you",
+        "NSUserNotificationUsageDescription": "Notify you about events and parties"
+      }
     },
     "android": {
+      "package": "com.nightfinder.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000"
+        "backgroundColor": "#09090B"
       },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ],
       "edgeToEdgeEnabled": true
     },
     "web": {
@@ -31,10 +44,23 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#000"
+          "backgroundColor": "#09090B"
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Find nightclubs and bars near you"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#E01A4F"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
