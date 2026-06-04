@@ -19,11 +19,11 @@ import { useLocation } from '../../lib/useLocation';
 import { SafeImage } from '../../components/SafeImage';
 import { colors, radius, spacing } from '../../lib/theme';
 
-const QUICK_FILTERS: { key: string; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: 'all', label: 'Tous', icon: 'sparkles' },
-  { key: 'open_now', label: 'Ouvert', icon: 'time' },
-  { key: 'vip', label: 'VIP', icon: 'diamond' },
-  { key: 'terrasse', label: 'Terrasse', icon: 'leaf' },
+const QUICK_FILTERS: { key: string; label: string; emoji: string }[] = [
+  { key: 'all', label: 'Tous', emoji: '✨' },
+  { key: 'open_now', label: 'Ouvert', emoji: '🕒' },
+  { key: 'vip', label: 'VIP', emoji: '💎' },
+  { key: 'terrasse', label: 'Terrasse', emoji: '🌿' },
 ];
 
 export default function Discover() {
@@ -111,11 +111,7 @@ export default function Discover() {
               onPress={() => onQuickFilter(item.key)}
               testID={`chip-${item.key}`}
             >
-              <Ionicons
-                name={item.icon}
-                size={14}
-                color={isActive ? colors.bg : colors.textPrimary}
-              />
+              <Text style={styles.chipEmoji}>{item.emoji}</Text>
               <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
                 {item.label}
               </Text>
@@ -283,6 +279,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   chipActive: { backgroundColor: colors.tertiary, borderColor: colors.tertiary },
+  chipEmoji: { fontSize: 14 },
   chipText: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
   chipTextActive: { color: colors.bg, fontWeight: '800' },
   card: {
