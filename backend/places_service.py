@@ -2,17 +2,32 @@
 
 Calls places:searchNearby and places/{id} from our backend (IP restricted key),
 caches results in MongoDB and maps them to the Night Finder Club schema.
+
+Uses the synchronous `requests` library (forced IPv4) wrapped in
+`asyncio.to_thread` so we can guarantee the outbound IP matches the IPv4
+whitelist on the restricted API key — Kubernetes egress defaults to IPv6.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import socket
 import math
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 import httpx
+import requests
+import urllib3.util.connection as urllib3_connection
 from motor.motor_asyncio import AsyncIOMotorDatabase
+
+# Force urllib3 (used by `requests`) to allow IPv4 only.
+def _allowed_gai_family() -> int:
+    return socket.AF_INET
+
+
+urllib3_connection.allowed_gai_family = _allowed_gai_family  # type: ignore[assignment]
 
 LOG = logging.getLogger("places")
 
@@ -95,13 +110,12 @@ async def _search_nearby_raw(
         "X-Goog-FieldMask": NEARBY_FIELD_MASK,
     }
     try:
-        resp = await client.post(url, json=body, headers=headers, timeout=15.0)
-        resp.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        LOG.warning(
-            "Places nearby failed: %s — %s", exc.response.status_code, exc.response.text[:200]
-        )
-        return []
+        def _do_call():
+            return requests.post(url, json=body, headers=headers, timeout=15)
+        resp = await asyncio.to_thread(_do_call)
+        if resp.status_code >= 400:
+            LOG.warning("Places nearby failed: %s — %s", resp.status_code, resp.text[:300])
+            return []
     except Exception as exc:  # noqa: BLE001
         LOG.warning("Places nearby error: %s", exc)
         return []
@@ -208,14 +222,18 @@ async def search_places_nearby(
 
     if not force_refresh:
         cached = await db.places_cache.find_one({"_id": bucket})
-        if cached and cached.get("expires_at") and cached["expires_at"] > now:
-            ids = cached.get("place_ids", [])
-            if ids:
-                docs = await db.places.find(
-                    {"place_id": {"$in": ids}}, {"_id": 0}
-                ).to_list(200)
-                if docs:
-                    return docs
+        if cached and cached.get("expires_at"):
+            exp = cached["expires_at"]
+            if isinstance(exp, datetime) and exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            if isinstance(exp, datetime) and exp > now:
+                ids = cached.get("place_ids", [])
+                if ids:
+                    docs = await db.places.find(
+                        {"place_id": {"$in": ids}}, {"_id": 0}
+                    ).to_list(200)
+                    if docs:
+                        return docs
 
     raw_places = await _search_nearby_raw(
         client, lat, lng, radius_km, max_results=max_results
