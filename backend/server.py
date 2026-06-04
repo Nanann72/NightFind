@@ -14,6 +14,8 @@ import httpx
 import jwt
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
+import io
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
 from starlette.middleware.cors import CORSMiddleware
@@ -29,8 +31,27 @@ mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ.get("DB_NAME", "night_finder")]
 
+# Shared HTTP client (reused across all outbound requests)
+http_client: Optional[httpx.AsyncClient] = None
+
+# Local import so server.py can be loaded even if file is missing
+import places_service  # noqa: E402
+
 app = FastAPI(title="Night Finder API")
 api_router = APIRouter(prefix="/api")
+
+
+@app.on_event("startup")
+async def _startup() -> None:
+    global http_client
+    http_client = httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0))
+    await places_service.ensure_indexes(db)
+
+
+@app.on_event("shutdown")
+async def _shutdown() -> None:
+    if http_client is not None:
+        await http_client.aclose()
 
 # -------------- Models -------------- #
 
@@ -347,6 +368,7 @@ async def list_clubs(
     vip: Optional[bool] = None,
     terrasse: Optional[bool] = None,
     search: Optional[str] = None,
+    source: Optional[str] = None,  # "google" | "seed" | None (auto)
 ):
     query: dict = {}
     if music:
@@ -363,16 +385,60 @@ async def list_clubs(
             {"description": {"$regex": search, "$options": "i"}},
         ]
 
-    cursor = db.clubs.find(query, {"_id": 0})
-    items = await cursor.to_list(500)
+    items: List[dict] = []
+
+    # Try Google Places first when we have coordinates and the API key is configured
+    use_google = (
+        source != "seed"
+        and lat is not None
+        and lng is not None
+        and places_service._is_enabled()
+    )
+    if use_google and http_client is not None:
+        try:
+            google_clubs = await places_service.search_places_nearby(
+                db, http_client, lat, lng, min(radius_km, 50.0), max_results=20
+            )
+            # Apply same query filters in Python
+            for c in google_clubs:
+                if music and music not in (c.get("music_styles") or []):
+                    continue
+                if max_price is not None and (c.get("avg_price") or 0) > max_price:
+                    continue
+                if vip and "vip" not in (c.get("features") or []):
+                    continue
+                if terrasse and "terrasse" not in (c.get("features") or []):
+                    continue
+                if search:
+                    s = search.lower()
+                    if s not in (c.get("name") or "").lower() and s not in (
+                        c.get("description") or ""
+                    ).lower():
+                        continue
+                items.append(c)
+        except Exception as exc:  # noqa: BLE001
+            logging.warning("Google Places fallback to seed: %s", exc)
+
+    # Fall back to seed clubs if Google returned nothing OR source explicitly seed
+    if not items or source == "seed":
+        cursor = db.clubs.find(query, {"_id": 0})
+        items_seed = await cursor.to_list(500)
+        # When mixing, prefer to dedupe by name
+        existing_names = {c.get("name", "").lower() for c in items}
+        for c in items_seed:
+            if c.get("name", "").lower() not in existing_names:
+                items.append(c)
 
     if lat is not None and lng is not None:
         for c in items:
+            if c.get("lat") is None or c.get("lng") is None:
+                c["distance_km"] = None
+                continue
             c["distance_km"] = round(
                 haversine_km(lat, lng, c["lat"], c["lng"]), 2
             )
         items = [c for c in items if c.get("distance_km", 1e9) <= radius_km]
-        items.sort(key=lambda c: c["distance_km"])
+        items.sort(key=lambda c: c.get("distance_km") or 1e9)
     else:
         for c in items:
             c["distance_km"] = None
@@ -383,9 +449,30 @@ async def list_clubs(
     return items
 
 
+@api_router.get("/places/photo")
+async def proxy_place_photo(name: str = Query(...), max_width: int = 1200):
+    """Stream a Google Places photo through our backend so the API key stays
+    server-side."""
+    if http_client is None:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    result = await places_service.fetch_place_photo(http_client, name, max_width)
+    if not result:
+        raise HTTPException(status_code=404, detail="Photo not available")
+    content, ctype = result
+    return StreamingResponse(io.BytesIO(content), media_type=ctype)
+
+
 @api_router.get("/clubs/{club_id}")
 async def get_club(club_id: str):
+    # Try seed clubs first
     club = await db.clubs.find_one({"club_id": club_id}, {"_id": 0})
+    if not club:
+        # Try cached Google Places clubs (club_id format: "gp_<place_id>")
+        club = await db.places.find_one({"club_id": club_id}, {"_id": 0})
+        if not club and club_id.startswith("gp_") and http_client is not None:
+            # Refresh from Google
+            place_id = club_id[3:]
+            club = await places_service.get_place_by_id(db, http_client, place_id)
     if not club:
         raise HTTPException(status_code=404, detail="Club not found")
     events = await db.events.find({"club_id": club_id}, {"_id": 0}).to_list(50)
