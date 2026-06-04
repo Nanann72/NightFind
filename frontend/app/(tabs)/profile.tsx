@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/auth';
 import { useClubs } from '../../lib/clubs';
 import { api } from '../../lib/api';
+import { usePremium } from '../../lib/premium';
 import {
   startBackgroundLocation,
   stopBackgroundLocation,
@@ -48,6 +49,7 @@ export default function Profile() {
   const router = useRouter();
   const { user, signOut, refresh } = useAuth();
   const { favorites, clubs } = useClubs();
+  const { isPremium, devMode, devReset, customerInfo } = usePremium();
   const [editingName, setEditingName] = useState(false);
   const [editingMusic, setEditingMusic] = useState(false);
   const [savingName, setSavingName] = useState(false);
@@ -266,6 +268,58 @@ export default function Profile() {
               })}
             </View>
           )}
+        </View>
+
+        <View style={styles.section}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={[styles.premiumCard, isPremium && styles.premiumCardActive]}
+            onPress={() => router.push('/paywall')}
+            testID="premium-card"
+          >
+            <View style={styles.premiumIconWrap}>
+              <Ionicons
+                name={isPremium ? 'diamond' : 'diamond-outline'}
+                size={26}
+                color={isPremium ? '#FFD700' : colors.primary}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.premiumTitle}>
+                {isPremium ? 'Night Finder Premium' : 'Passer en Premium'}
+              </Text>
+              <Text style={styles.premiumSub}>
+                {isPremium
+                  ? `Actif${devMode ? ' (DEV)' : ''} • Swipes illimités, rayon 200km`
+                  : 'Swipes illimités • Rayon 200km • Sans pub'}
+              </Text>
+            </View>
+            {isPremium ? (
+              <View style={styles.premiumBadge}>
+                <Text style={styles.premiumBadgeText}>ACTIF</Text>
+              </View>
+            ) : (
+              <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+            )}
+          </TouchableOpacity>
+          {isPremium && devMode ? (
+            <TouchableOpacity
+              style={styles.devResetBtn}
+              onPress={() => {
+                Alert.alert(
+                  'Reset Premium (DEV)',
+                  'Désactiver le Premium simulé pour retester le paywall ?',
+                  [
+                    { text: 'Annuler', style: 'cancel' },
+                    { text: 'Reset', style: 'destructive', onPress: () => devReset() },
+                  ],
+                );
+              }}
+              testID="dev-reset-premium"
+            >
+              <Text style={styles.devResetText}>⚙️ Reset Premium (DEV)</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <View style={styles.section}>
@@ -595,6 +649,40 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   bgRowSub: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+  premiumCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: 'rgba(224,26,79,0.10)',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: 'rgba(224,26,79,0.5)',
+  },
+  premiumCardActive: {
+    backgroundColor: 'rgba(255,215,0,0.08)',
+    borderColor: 'rgba(255,215,0,0.5)',
+  },
+  premiumIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  premiumTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: '800' },
+  premiumSub: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+  premiumBadge: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  premiumBadgeText: { color: '#0a0a0a', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  devResetBtn: { marginTop: 8, alignSelf: 'flex-start' },
+  devResetText: { color: colors.textTertiary, fontSize: 11, fontWeight: '600' },
   version: { color: colors.textTertiary, textAlign: 'center', marginTop: spacing.lg, fontSize: 11 },
 
   // Modal

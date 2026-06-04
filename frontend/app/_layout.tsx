@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../lib/auth';
 import { ClubsProvider } from '../lib/clubs';
+import { PremiumProvider } from '../lib/premium';
 import { attachNotificationActionListeners } from '../lib/notificationsSetup';
 import { colors } from '../lib/theme';
 
@@ -22,16 +23,23 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <ClubsProvider>
-            <StatusBar style="light" />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: colors.bg },
-                animation: 'fade',
-              }}
-            />
-          </ClubsProvider>
+          <PremiumProvider>
+            <ClubsProvider>
+              <StatusBar style="light" />
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: colors.bg },
+                  animation: 'fade',
+                }}
+              >
+                <Stack.Screen
+                  name="paywall"
+                  options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+                />
+              </Stack>
+            </ClubsProvider>
+          </PremiumProvider>
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

@@ -24,28 +24,64 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { useClubs } from '../../lib/clubs';
 import { api, Club } from '../../lib/api';
+import { usePremium } from '../../lib/premium';
+import { storage } from '../../lib/storage';
 import { colors, radius, spacing } from '../../lib/theme';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const CARD_W = Math.min(SCREEN_W - 32, 380);
 const CARD_H = Math.min(SCREEN_H * 0.6, 560);
 const SWIPE_THRESHOLD = 120;
+const FREE_SWIPE_LIMIT = 10;
+const SWIPE_COUNT_KEY = 'nf_swipes_today';
+
+function todayKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
 
 export default function Swipe() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { clubs, loading, toggleFavorite } = useClubs();
+  const { isPremium } = usePremium();
   const [index, setIndex] = useState(0);
   const [done, setDone] = useState(false);
+  const [swipesToday, setSwipesToday] = useState(0);
 
   const x = useSharedValue(0);
   const y = useSharedValue(0);
 
   const deck = useMemo(() => clubs.slice(index, index + 3), [clubs, index]);
+  const limitReached = !isPremium && swipesToday >= FREE_SWIPE_LIMIT;
 
   useEffect(() => {
     if (clubs.length > 0 && index >= clubs.length) setDone(true);
   }, [clubs, index]);
+
+  // Load swipe count for today
+  useEffect(() => {
+    (async () => {
+      const raw = await storage.get(SWIPE_COUNT_KEY);
+      if (raw) {
+        try {
+          const { date, count } = JSON.parse(raw);
+          if (date === todayKey()) setSwipesToday(count);
+        } catch {
+          // ignore
+        }
+      }
+    })();
+  }, []);
+
+  const bumpSwipeCount = async () => {
+    const next = swipesToday + 1;
+    setSwipesToday(next);
+    await storage.set(
+      SWIPE_COUNT_KEY,
+      JSON.stringify({ date: todayKey(), count: next }),
+    );
+  };
 
   const goNext = (liked: boolean) => {
     const current = clubs[index];
@@ -54,6 +90,7 @@ export default function Swipe() {
       if (liked) {
         toggleFavorite(current.club_id).catch?.(() => {});
       }
+      if (!isPremium) bumpSwipeCount();
     }
     x.value = 0;
     y.value = 0;
@@ -61,10 +98,18 @@ export default function Swipe() {
   };
 
   const onLike = () => {
+    if (limitReached) {
+      router.push({ pathname: '/paywall', params: { reason: 'Swipes illimités' } });
+      return;
+    }
     Haptics.impactAsync?.(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     x.value = withTiming(SCREEN_W, { duration: 250 }, () => runOnJS(goNext)(true));
   };
   const onSkip = () => {
+    if (limitReached) {
+      router.push({ pathname: '/paywall', params: { reason: 'Swipes illimités' } });
+      return;
+    }
     Haptics.impactAsync?.(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     x.value = withTiming(-SCREEN_W, { duration: 250 }, () => runOnJS(goNext)(false));
   };

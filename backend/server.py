@@ -1107,6 +1107,78 @@ async def root():
     return {"service": "night-finder", "status": "ok"}
 
 
+# ---------------------------------------------------------------------------
+# Billing — RevenueCat webhook & premium status
+# ---------------------------------------------------------------------------
+PREMIUM_ENTITLEMENT_ID = os.environ.get("PREMIUM_ENTITLEMENT_ID", "premium")
+REVENUECAT_WEBHOOK_SECRET = os.environ.get("REVENUECAT_WEBHOOK_SECRET", "")
+
+
+async def _apply_rc_event(payload: dict) -> None:
+    event = (payload or {}).get("event") or {}
+    subscriber = event.get("subscriber") or (payload or {}).get("subscriber") or {}
+    app_user_id = event.get("app_user_id") or subscriber.get("app_user_id")
+    if not app_user_id:
+        return
+    entitlements = subscriber.get("entitlements") or {}
+    ent = entitlements.get(PREMIUM_ENTITLEMENT_ID) or {}
+    is_active = bool(ent.get("expires_date")) or event.get("type") in (
+        "INITIAL_PURCHASE",
+        "RENEWAL",
+        "PRODUCT_CHANGE",
+        "UNCANCELLATION",
+        "NON_RENEWING_PURCHASE",
+    )
+    if event.get("type") in (
+        "EXPIRATION",
+        "CANCELLATION",
+        "BILLING_ISSUE",
+        "SUBSCRIPTION_PAUSED",
+    ):
+        is_active = False
+
+    await db.users.update_one(
+        {"user_id": app_user_id},
+        {
+            "$set": {
+                "is_premium": is_active,
+                "premium_product_id": ent.get("product_identifier") or event.get("product_id"),
+                "premium_expires_at": ent.get("expires_date") or event.get("expiration_at_ms"),
+                "rc_last_event": event.get("type"),
+                "rc_updated_at": datetime.now(timezone.utc),
+            }
+        },
+        upsert=False,
+    )
+
+
+@api_router.post("/billing/webhook")
+async def revenuecat_webhook(request: Request):
+    if REVENUECAT_WEBHOOK_SECRET:
+        auth = request.headers.get("authorization", "")
+        if auth != REVENUECAT_WEBHOOK_SECRET:
+            raise HTTPException(status_code=401, detail="invalid webhook secret")
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid json")
+    try:
+        await _apply_rc_event(payload)
+    except Exception as exc:  # noqa: BLE001
+        logging.warning("RC webhook processing error: %s", exc)
+    return {"ok": True}
+
+
+@api_router.get("/billing/me")
+async def get_my_billing(user_id: str = Depends(get_current_user)):
+    u = await db.users.find_one({"user_id": user_id}, {"_id": 0}) or {}
+    return {
+        "is_premium": bool(u.get("is_premium")),
+        "product_id": u.get("premium_product_id"),
+        "expires_at": u.get("premium_expires_at"),
+    }
+
+
 app.include_router(api_router)
 
 app.add_middleware(
