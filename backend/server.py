@@ -54,6 +54,17 @@ class GoogleSession(BaseModel):
     session_token: str
 
 
+class AppleSignIn(BaseModel):
+    identity_token: str
+    email: Optional[str] = None
+    name: Optional[str] = None
+
+
+class CheckInBody(BaseModel):
+    club_id: str
+    confirmed: bool
+
+
 class UserPublic(BaseModel):
     user_id: str
     email: str
@@ -234,6 +245,48 @@ async def google_session(body: GoogleSession):
         upsert=True,
     )
     return {"token": session_token, "user": public_user(user)}
+
+
+@api_router.post("/auth/apple")
+async def apple_signin(body: AppleSignIn):
+    """Sign in with Apple. Decodes identity_token without verifying (MVP).
+    For production, validate with Apple's public keys.
+    """
+    sub: Optional[str] = None
+    email: Optional[str] = body.email
+    try:
+        payload = jwt.decode(body.identity_token, options={"verify_signature": False})
+        sub = payload.get("sub")
+        if not email:
+            email = payload.get("email")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid Apple identity token")
+
+    if not sub:
+        raise HTTPException(status_code=400, detail="Missing Apple user id")
+
+    apple_email = (email or f"{sub}@privaterelay.apple").lower()
+    user = await db.users.find_one({"$or": [{"apple_sub": sub}, {"email": apple_email}]}, {"_id": 0})
+    if not user:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        user = {
+            "user_id": user_id,
+            "email": apple_email,
+            "name": body.name or (apple_email.split("@")[0]),
+            "picture": None,
+            "music_prefs": [],
+            "auth_provider": "apple",
+            "apple_sub": sub,
+            "created_at": datetime.now(timezone.utc),
+        }
+        await db.users.insert_one(user)
+    elif not user.get("apple_sub"):
+        await db.users.update_one(
+            {"user_id": user["user_id"]}, {"$set": {"apple_sub": sub}}
+        )
+
+    token = make_jwt(user["user_id"])
+    return {"token": token, "user": public_user(user)}
 
 
 @api_router.get("/auth/me")
@@ -448,6 +501,44 @@ async def list_notifications(user: dict = Depends(get_current_user)):
         {"_id": 0},
     ).sort("created_at", -1).to_list(100)
     return notifs
+
+
+@api_router.post("/checkins")
+async def checkin(body: CheckInBody, user: dict = Depends(get_current_user)):
+    club = await db.clubs.find_one({"club_id": body.club_id}, {"_id": 0})
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+    ci_id = f"ci_{uuid.uuid4().hex[:10]}"
+    await db.checkins.insert_one(
+        {
+            "checkin_id": ci_id,
+            "user_id": user["user_id"],
+            "club_id": body.club_id,
+            "confirmed": body.confirmed,
+            "created_at": datetime.now(timezone.utc),
+        }
+    )
+    if body.confirmed:
+        # Create a friendly notification for the user
+        await db.notifications.insert_one(
+            {
+                "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+                "user_id": user["user_id"],
+                "title": f"Bonne soirée à {club['name']} 🎉",
+                "body": f"On garde l'œil sur les meilleurs sons {club['music_styles'][0]} pour toi.",
+                "type": "checkin",
+                "created_at": datetime.now(timezone.utc),
+            }
+        )
+    return {"ok": True, "checkin_id": ci_id, "confirmed": body.confirmed}
+
+
+@api_router.get("/checkins")
+async def list_checkins(user: dict = Depends(get_current_user)):
+    items = await db.checkins.find(
+        {"user_id": user["user_id"], "confirmed": True}, {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    return items
 
 
 # -------------- Seed data -------------- #
@@ -786,30 +877,71 @@ async def startup():
     # Seed sample notifications
     notif_count = await db.notifications.count_documents({})
     if notif_count == 0:
+        now = datetime.now(timezone.utc)
         await db.notifications.insert_many([
             {
                 "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
                 "user_id": None,
                 "title": "Nouveaux événements ce week-end 🎉",
-                "body": "Découvrez les soirées les plus chaudes de Paris.",
+                "body": "Découvre les soirées les plus chaudes de Paris.",
                 "type": "event",
-                "created_at": datetime.now(timezone.utc) - timedelta(hours=2),
+                "created_at": now - timedelta(minutes=12),
             },
             {
                 "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
                 "user_id": None,
                 "title": "-20% sur Club Rex jusqu'à minuit",
-                "body": "Profitez d'un tarif réduit pour la nuit prochaine.",
+                "body": "Profite d'un tarif réduit pour la nuit prochaine.",
                 "type": "promo",
-                "created_at": datetime.now(timezone.utc) - timedelta(hours=10),
+                "created_at": now - timedelta(minutes=34),
             },
             {
                 "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
                 "user_id": None,
-                "title": "Une soirée près de chez vous",
-                "body": "L'Arc Paris ouvre dans 2h, à 3km de votre position.",
+                "title": "Une soirée près de chez toi 📍",
+                "body": "L'Arc Paris ouvre dans 2h, à 3km de ta position.",
                 "type": "nearby",
-                "created_at": datetime.now(timezone.utc) - timedelta(days=1),
+                "created_at": now - timedelta(minutes=58),
+            },
+            {
+                "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+                "user_id": None,
+                "title": "🔥 Folamour confirmé ce vendredi",
+                "body": "Une nuit techno-house qui s'annonce mémorable au Concrete.",
+                "type": "event",
+                "created_at": now - timedelta(hours=2, minutes=5),
+            },
+            {
+                "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+                "user_id": None,
+                "title": "Tu es dans une nouvelle ville ? 🌍",
+                "body": "On a déjà 23 spots à te recommander dans le coin.",
+                "type": "nearby",
+                "created_at": now - timedelta(hours=4),
+            },
+            {
+                "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+                "user_id": None,
+                "title": "🎟 Last call : Pachamama",
+                "body": "Plus que 12 entrées disponibles pour samedi.",
+                "type": "promo",
+                "created_at": now - timedelta(hours=6),
+            },
+            {
+                "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+                "user_id": None,
+                "title": "Ton style musical bouge 🎧",
+                "body": "On a détecté 4 nouveaux clubs Afro-House à tester ce mois-ci.",
+                "type": "event",
+                "created_at": now - timedelta(hours=12),
+            },
+            {
+                "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+                "user_id": None,
+                "title": "🥇 Top spot de la semaine",
+                "body": "Silencio domine les avis des fêtards avec 4.8★ cette semaine.",
+                "type": "event",
+                "created_at": now - timedelta(days=1),
             },
         ])
 

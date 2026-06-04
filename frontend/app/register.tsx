@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { loadOnboarding, clearOnboarding } from '../lib/onboardingStore';
+import { SocialAuthButtons } from '../components/SocialAuthButtons';
 import { colors, radius, spacing } from '../lib/theme';
 
 export default function Register() {
@@ -136,6 +137,14 @@ export default function Register() {
           )}
         </TouchableOpacity>
 
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>OU</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <SocialAuthButtons />
+
         <View style={styles.bottom}>
           <Text style={styles.bottomText}>Déjà inscrit ? </Text>
           <Link href="/login" asChild>
@@ -195,6 +204,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   primaryBtnText: { color: colors.bg, fontWeight: '800', fontSize: 16 },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginVertical: spacing.lg,
+  },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  dividerText: { color: colors.textTertiary, fontSize: 12, letterSpacing: 2 },
   bottom: {
     flexDirection: 'row',
     justifyContent: 'center',

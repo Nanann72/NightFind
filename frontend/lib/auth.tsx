@@ -17,6 +17,7 @@ type AuthCtx = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -113,6 +114,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(res.user);
   }, []);
 
+  const signInWithApple = useCallback(async () => {
+    if (Platform.OS !== 'ios') {
+      throw new Error('Apple Sign In disponible uniquement sur iOS');
+    }
+    const AppleAuthentication = await import('expo-apple-authentication');
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+    if (!credential.identityToken) throw new Error('Apple Sign In échoué');
+    const fullName = credential.fullName
+      ? [credential.fullName.givenName, credential.fullName.familyName].filter(Boolean).join(' ')
+      : undefined;
+    const res = await api.appleSignIn(
+      credential.identityToken,
+      credential.email || undefined,
+      fullName,
+    );
+    await saveToken(res.token);
+    setUser(res.user);
+  }, []);
+
   const signOut = useCallback(async () => {
     try {
       await api.logout();
@@ -122,7 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ user, loading, signIn, signUp, signInWithGoogle, signOut, refresh }}>
+    <Ctx.Provider value={{ user, loading, signIn, signUp, signInWithGoogle, signInWithApple, signOut, refresh }}>
       {children}
     </Ctx.Provider>
   );

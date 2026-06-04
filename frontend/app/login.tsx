@@ -18,12 +18,11 @@ import { colors, radius, spacing } from '../lib/theme';
 
 export default function Login() {
   const router = useRouter();
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const onSubmit = async () => {
@@ -40,23 +39,6 @@ export default function Login() {
       setErr(e.message || 'Connexion impossible');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const onGoogle = async () => {
-    setErr(null);
-    setGoogleLoading(true);
-    try {
-      await signInWithGoogle();
-      router.replace('/(tabs)');
-    } catch (e: any) {
-      if (Platform.OS === 'web') {
-        // web redirect already navigated away
-      } else {
-        Alert.alert('Erreur', e.message || 'Connexion Google impossible');
-      }
-    } finally {
-      setGoogleLoading(false);
     }
   };
 
@@ -144,22 +126,7 @@ export default function Login() {
           <View style={styles.line} />
         </View>
 
-        <TouchableOpacity
-          style={styles.googleBtn}
-          onPress={onGoogle}
-          disabled={googleLoading}
-          testID="login-google-btn"
-          activeOpacity={0.85}
-        >
-          {googleLoading ? (
-            <ActivityIndicator color={colors.textPrimary} />
-          ) : (
-            <>
-              <Ionicons name="logo-google" size={18} color={colors.textPrimary} />
-              <Text style={styles.googleBtnText}>Continuer avec Google</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        <SocialAuthButtons />
 
         <View style={styles.bottom}>
           <Text style={styles.bottomText}>Pas encore de compte ? </Text>

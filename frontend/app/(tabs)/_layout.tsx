@@ -3,10 +3,13 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../lib/theme';
+import { GeofenceCheckIn } from '../../components/GeofenceCheckIn';
 
 export default function TabsLayout() {
   return (
-    <Tabs
+    <>
+      <GeofenceCheckIn />
+      <Tabs
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: true,
@@ -100,5 +103,6 @@ export default function TabsLayout() {
           }}
         />
       </Tabs>
+    </>
   );
 }

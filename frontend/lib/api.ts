@@ -90,6 +90,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ session_token }),
     }),
+  appleSignIn: (identity_token: string, email?: string, name?: string) =>
+    request<{ token: string; user: User }>('/auth/apple', {
+      method: 'POST',
+      body: JSON.stringify({ identity_token, email, name }),
+    }),
   me: () => request<User>('/auth/me'),
   logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
   updateProfile: (data: Partial<Pick<User, 'name' | 'picture' | 'music_prefs'>>) =>
@@ -137,6 +142,14 @@ export const api = {
       body: JSON.stringify({ club_id, action }),
     }),
   swipeHistory: () => request<any[]>('/swipes/history'),
+
+  // Check-ins
+  checkIn: (club_id: string, confirmed: boolean) =>
+    request<{ ok: boolean; checkin_id: string; confirmed: boolean }>('/checkins', {
+      method: 'POST',
+      body: JSON.stringify({ club_id, confirmed }),
+    }),
+  listCheckIns: () => request<any[]>('/checkins'),
 
   // Notifications
   listNotifications: () => request<any[]>('/notifications'),
