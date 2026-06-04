@@ -17,6 +17,8 @@
         "NSLocationAlwaysUsageDescription": "Detecter ton arrivée en club pour confirmer la soirée",
         "NSUserNotificationUsageDescription": "Te prévenir des événements à proximité",
         "NSMicrophoneUsageDescription": "Identifier les musiques jouées au club",
+        "NSCalendarsUsageDescription": "Ajouter les soirées à ton agenda",
+        "NSCalendarsFullAccessUsageDescription": "Ajouter les soirées à ton agenda",
         "UIBackgroundModes": [
           "location",
           "fetch",
@@ -74,6 +76,12 @@
         "expo-notifications",
         {
           "color": "#E01A4F"
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Ajouter les soirées à ton agenda"
         }
       ],
       "expo-task-manager",

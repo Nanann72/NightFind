@@ -7,20 +7,22 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api, NFEvent } from '../../lib/api';
-import { scheduleEventReminder } from '../../lib/notifications';
+import { useClubs } from '../../lib/clubs';
+import { addToCalendar } from '../../lib/calendar';
 import { colors, radius, spacing } from '../../lib/theme';
 
 export default function Events() {
   const insets = useSafeAreaInsets();
+  const { clubs } = useClubs();
   const [events, setEvents] = useState<NFEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [reserving, setReserving] = useState<string | null>(null);
+  const [adding, setAdding] = useState<string | null>(null);
+  const [added, setAdded] = useState<Record<string, boolean>>({});
 
   const load = async () => {
     setLoading(true);
@@ -38,25 +40,33 @@ export default function Events() {
     load();
   }, []);
 
-  const onReserve = async (ev: NFEvent) => {
-    setReserving(ev.event_id);
+  const onAddToCalendar = async (ev: NFEvent) => {
+    setAdding(ev.event_id);
     try {
-      await api.reserveEvent(ev.event_id);
-      // Schedule local notification 2h before
-      const date = new Date(ev.date);
-      const reminderTime = new Date(date.getTime() - 2 * 60 * 60 * 1000);
-      if (reminderTime.getTime() > Date.now() + 5000) {
-        await scheduleEventReminder(
-          `🎉 ${ev.title}`,
-          `Rendez-vous dans 2h${ev.club_name ? ` à ${ev.club_name}` : ''}`,
-          reminderTime,
-        );
-      }
-      Alert.alert('Réservation confirmée', `Vous êtes inscrit à "${ev.title}". Un rappel sera envoyé 2h avant.`);
-    } catch (e: any) {
-      Alert.alert('Erreur', e.message || 'Réservation impossible');
+      const club = clubs.find((c) => c.club_id === ev.club_id);
+      const start = new Date(ev.date);
+      const end = new Date(start.getTime() + 4 * 60 * 60 * 1000);
+      const location = club
+        ? `${club.name} — ${club.address || ''}${
+            club.lat && club.lng ? ` (${club.lat.toFixed(5)},${club.lng.toFixed(5)})` : ''
+          }`
+        : ev.club_name || 'Night Finder';
+      const notes =
+        `${ev.description || ''}\n\n` +
+        `DJ : ${ev.dj || '—'}\n` +
+        `Prix d'entrée : ${ev.entry_price ? `${ev.entry_price.toFixed(0)}€` : 'libre'}\n` +
+        (ev.booking_url ? `Réservation : ${ev.booking_url}` : '');
+      const ok = await addToCalendar({
+        title: `${ev.title}${ev.club_name ? ` @ ${ev.club_name}` : ''}`,
+        startsAt: start,
+        endsAt: end,
+        location,
+        notes,
+        url: ev.booking_url,
+      });
+      if (ok) setAdded((m) => ({ ...m, [ev.event_id]: true }));
     } finally {
-      setReserving(null);
+      setAdding(null);
     }
   };
 
@@ -117,18 +127,23 @@ export default function Events() {
                   <Text style={styles.priceText}>{item.entry_price.toFixed(0)}€</Text>
                 </View>
                 <TouchableOpacity
-                  style={styles.reserveBtn}
-                  onPress={() => onReserve(item)}
-                  disabled={reserving === item.event_id}
-                  testID={`reserve-btn-${item.event_id}`}
+                  style={[styles.reserveBtn, added[item.event_id] && styles.reserveBtnDone]}
+                  onPress={() => onAddToCalendar(item)}
+                  disabled={adding === item.event_id}
+                  testID={`agenda-btn-${item.event_id}`}
                   activeOpacity={0.85}
                 >
-                  {reserving === item.event_id ? (
+                  {adding === item.event_id ? (
                     <ActivityIndicator color={colors.bg} />
+                  ) : added[item.event_id] ? (
+                    <>
+                      <Ionicons name="checkmark-circle" size={16} color={colors.bg} />
+                      <Text style={styles.reserveText}>Ajouté</Text>
+                    </>
                   ) : (
                     <>
-                      <Text style={styles.reserveText}>Réserver</Text>
-                      <Ionicons name="arrow-forward" size={16} color={colors.bg} />
+                      <Ionicons name="calendar-outline" size={16} color={colors.bg} />
+                      <Text style={styles.reserveText}>Agenda</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -211,7 +226,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: colors.primary,
     borderRadius: radius.full,
+    minWidth: 130,
+    justifyContent: 'center',
   },
+  reserveBtnDone: { backgroundColor: '#22c55e' },
   reserveText: { color: colors.bg, fontWeight: '800', fontSize: 14 },
   empty: { color: colors.textSecondary, textAlign: 'center', marginTop: 60 },
 });
