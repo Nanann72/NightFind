@@ -1044,7 +1044,8 @@ async def startup():
     await db.clubs.create_index("club_id", unique=True)
     await db.events.create_index("event_id", unique=True)
 
-    # Seed clubs
+    # Seed clubs — initial Paris set
+    from clubs_extra import EXTRA_CLUBS
     count = await db.clubs.count_documents({})
     if count == 0:
         seeded = []
@@ -1074,6 +1075,59 @@ async def startup():
             )
         await db.events.insert_many(events)
         logging.info(f"Seeded {len(seeded)} clubs and {len(events)} events.")
+
+    # Backfill extra clubs (Lyon, Marseille, Le Mans, etc.) so users
+    # outside Paris also see a populated map and swipe deck.
+    existing_names = set(
+        c["name"] for c in await db.clubs.find({}, {"name": 1, "_id": 0}).to_list(2000)
+    )
+    new_extra = [c for c in EXTRA_CLUBS if c["name"] not in existing_names]
+    if new_extra:
+        DEFAULT_HOURS = {
+            "mon": {"open": False},
+            "tue": {"open": False},
+            "wed": {"open": True, "from": "22:00", "to": "04:00"},
+            "thu": {"open": True, "from": "22:00", "to": "04:00"},
+            "fri": {"open": True, "from": "23:00", "to": "06:00"},
+            "sat": {"open": True, "from": "23:00", "to": "06:00"},
+            "sun": {"open": False},
+        }
+        seeded_extra = []
+        for c in new_extra:
+            seeded_extra.append(
+                {
+                    "club_id": f"club_{uuid.uuid4().hex[:10]}",
+                    "hours": DEFAULT_HOURS,
+                    **c,
+                }
+            )
+        await db.clubs.insert_many(seeded_extra)
+        # Add a couple of events around the new clubs
+        extra_djs = [
+            "Vitalic", "Laurent Garnier", "Joris Voorn", "Maceo Plex",
+            "DJ Koze", "Adam Beyer", "Cassius", "Justice",
+            "Solomun", "Tale of Us", "Nicolas Jaar", "Bicep",
+        ]
+        extra_events = []
+        for i, club in enumerate(seeded_extra[:12]):
+            extra_events.append(
+                {
+                    "event_id": f"evt_{uuid.uuid4().hex[:10]}",
+                    "club_id": club["club_id"],
+                    "title": f"{extra_djs[i % len(extra_djs)]} live at {club['name']}",
+                    "description": f"Soirée exclusive avec {extra_djs[i % len(extra_djs)]} — line-up éclectique jusqu'à l'aube.",
+                    "dj": extra_djs[i % len(extra_djs)],
+                    "date": _event_date(i + 1, 23).isoformat(),
+                    "entry_price": 12.0 + (i * 2),
+                    "photo": club["photos"][0],
+                    "booking_url": _booking_url(club["name"]),
+                }
+            )
+        if extra_events:
+            await db.events.insert_many(extra_events)
+        logging.info(
+            f"Seeded {len(seeded_extra)} extra clubs and {len(extra_events)} extra events."
+        )
 
     # Seed sample notifications
     notif_count = await db.notifications.count_documents({})
