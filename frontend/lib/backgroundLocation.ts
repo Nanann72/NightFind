@@ -8,7 +8,7 @@ export const NOTIF_CATEGORY_CHECKIN = 'checkin-actions';
 export const NOTIF_ACTION_YES = 'CHECKIN_YES';
 export const NOTIF_ACTION_NO = 'CHECKIN_NO';
 
-const GEOFENCE_RADIUS_KM = 0.15; // 150 m
+const GEOFENCE_RADIUS_KM = 0.05; // 50 m
 const NOTIF_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6h per club
 const CLUBS_CACHE_KEY = 'nf_bg_clubs_cache';
 const COOLDOWN_KEY = 'nf_bg_cooldown';

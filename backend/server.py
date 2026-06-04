@@ -673,6 +673,80 @@ async def list_checkins(user: dict = Depends(get_current_user)):
     return items
 
 
+class SongDetected(BaseModel):
+    club_id: str
+    title: str
+    artist: Optional[str] = None
+    detected_at: Optional[str] = None  # ISO datetime
+    source: Optional[str] = "auto"  # "auto" | "manual"
+
+
+@api_router.post("/checkins/song")
+async def add_detected_song(
+    body: SongDetected, user: dict = Depends(get_current_user)
+):
+    """Record a track recognised (or manually added) while the user is at a
+    club. Stored under the user profile, grouped by club."""
+    club = await db.clubs.find_one({"club_id": body.club_id}, {"_id": 0})
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+    now = datetime.now(timezone.utc)
+    entry = {
+        "song_id": f"sng_{uuid.uuid4().hex[:10]}",
+        "user_id": user["user_id"],
+        "club_id": body.club_id,
+        "club_name": club.get("name"),
+        "title": body.title.strip(),
+        "artist": (body.artist or "").strip() or None,
+        "source": body.source or "auto",
+        "detected_at": body.detected_at or now.isoformat(),
+        "created_at": now,
+    }
+    await db.user_songs.insert_one(entry)
+    return {"ok": True, "song_id": entry["song_id"]}
+
+
+@api_router.get("/profile/songs")
+async def list_user_songs(user: dict = Depends(get_current_user)):
+    """Return all detected songs grouped by club for the current user."""
+    cursor = db.user_songs.find(
+        {"user_id": user["user_id"]}, {"_id": 0}
+    ).sort("created_at", -1)
+    items = await cursor.to_list(1000)
+    by_club: dict = {}
+    for s in items:
+        k = s["club_id"]
+        if k not in by_club:
+            by_club[k] = {
+                "club_id": s["club_id"],
+                "club_name": s.get("club_name"),
+                "songs": [],
+            }
+        by_club[k]["songs"].append(
+            {
+                "song_id": s.get("song_id"),
+                "title": s.get("title"),
+                "artist": s.get("artist"),
+                "detected_at": s.get("detected_at"),
+                "source": s.get("source"),
+            }
+        )
+    return {
+        "total": len(items),
+        "clubs": list(by_club.values()),
+    }
+
+
+@api_router.delete("/profile/songs/{song_id}")
+async def delete_user_song(song_id: str, user: dict = Depends(get_current_user)):
+    res = await db.user_songs.delete_one(
+        {"song_id": song_id, "user_id": user["user_id"]}
+    )
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Song not found")
+    return {"ok": True}
+
+
 # -------------- Seed data -------------- #
 
 PARIS_CLUBS = [

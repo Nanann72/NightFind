@@ -156,6 +156,30 @@ export const api = {
     }),
   listCheckIns: () => request<any[]>('/checkins'),
 
+  // Detected songs (live listening)
+  addDetectedSong: (
+    club_id: string,
+    title: string,
+    artist?: string,
+    detected_at?: string,
+    source: 'auto' | 'manual' = 'auto',
+  ) =>
+    request<{ ok: boolean; song_id: string }>('/checkins/song', {
+      method: 'POST',
+      body: JSON.stringify({ club_id, title, artist, detected_at, source }),
+    }),
+  listProfileSongs: () =>
+    request<{
+      total: number;
+      clubs: {
+        club_id: string;
+        club_name: string;
+        songs: { song_id: string; title: string; artist?: string; detected_at?: string; source?: string }[];
+      }[];
+    }>('/profile/songs'),
+  deleteProfileSong: (song_id: string) =>
+    request<{ ok: boolean }>(`/profile/songs/${song_id}`, { method: 'DELETE' }),
+
   // Notifications
   listNotifications: () => request<any[]>('/notifications'),
 };

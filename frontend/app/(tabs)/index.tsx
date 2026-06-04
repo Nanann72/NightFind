@@ -62,7 +62,9 @@ export default function Discover() {
       <View style={styles.header}>
         <View>
           <Text style={styles.brand}>NIGHT FINDER</Text>
-          <Text style={styles.h1}>Ce soir à Paris 🌃</Text>
+          <Text style={styles.h1}>
+            Ce soir à {loc.city || 'Paris'} 🌃
+          </Text>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity

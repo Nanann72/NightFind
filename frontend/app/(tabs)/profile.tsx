@@ -323,6 +323,24 @@ export default function Profile() {
         </View>
 
         <View style={styles.section}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            style={styles.songsLink}
+            onPress={() => router.push('/my-songs')}
+            testID="my-songs-link"
+          >
+            <View style={styles.songsIconWrap}>
+              <Ionicons name="musical-notes" size={20} color={colors.tertiary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Mes musiques par club</Text>
+              <Text style={styles.bgRowSub}>Toutes les pépites entendues en soirée</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Détection en arrière-plan</Text>
           <View style={styles.bgRow}>
             <View style={styles.rowIcon}>
@@ -683,6 +701,27 @@ const styles = StyleSheet.create({
   premiumBadgeText: { color: '#0a0a0a', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
   devResetBtn: { marginTop: 8, alignSelf: 'flex-start' },
   devResetText: { color: colors.textTertiary, fontSize: 11, fontWeight: '600' },
+  songsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  songsIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(34,211,238,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(34,211,238,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   version: { color: colors.textTertiary, textAlign: 'center', marginTop: spacing.lg, fontSize: 11 },
 
   // Modal
