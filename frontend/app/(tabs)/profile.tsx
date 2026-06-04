@@ -72,32 +72,41 @@ export default function Profile() {
   }, []);
 
   const toggleBg = async (value: boolean) => {
-    if (Platform.OS === 'web') {
-      Alert.alert(
-        'Indisponible sur le web',
-        'La détection en arrière-plan nécessite un build mobile (Expo Go ne suffit pas).',
-      );
-      return;
-    }
     setTogglingBg(true);
     try {
       if (value) {
-        const ok = await startBackgroundLocation();
-        if (!ok) {
+        const res = await startBackgroundLocation();
+        if (res.ok) {
+          setBgLocation(true);
+          await storage.set(BG_PREF_KEY, '1');
+          if (res.mode === 'foreground') {
+            Alert.alert(
+              'Activé en mode foreground',
+              "L'arrière-plan nécessite un build natif. Pour l'instant, la détection fonctionne quand l'app est ouverte.\n\n💡 Clique sur 'Publish' depuis Emergent pour générer le build iOS et activer le mode arrière-plan complet.",
+            );
+          }
+          return;
+        }
+        // ok === false
+        if (res.reason === 'web') {
           Alert.alert(
-            'Permission requise',
-            "Active la localisation 'Toujours' dans les réglages système pour recevoir une notification quand tu arrives en club.",
+            'Disponible sur mobile uniquement',
+            "Cette fonctionnalité nécessite un téléphone (iOS ou Android). Ouvre l'app sur ton mobile via Expo Go ou un build natif.",
+          );
+        } else if (res.reason === 'foreground_denied') {
+          Alert.alert(
+            'Permission de localisation refusée',
+            'Active la localisation pour Night Finder dans les réglages iOS/Android.',
             [
               { text: 'Plus tard', style: 'cancel' },
               { text: 'Ouvrir les réglages', onPress: () => Linking.openSettings() },
             ],
           );
-          setBgLocation(false);
-          await storage.set(BG_PREF_KEY, '0');
-          return;
+        } else {
+          Alert.alert('Erreur', "Impossible d'activer la détection. Réessaie plus tard.");
         }
-        setBgLocation(true);
-        await storage.set(BG_PREF_KEY, '1');
+        setBgLocation(false);
+        await storage.set(BG_PREF_KEY, '0');
       } else {
         await stopBackgroundLocation();
         setBgLocation(false);
@@ -364,6 +373,37 @@ export default function Profile() {
               />
             )}
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Légal</Text>
+          <TouchableOpacity
+            style={styles.legalRow}
+            onPress={() => router.push({ pathname: '/legal', params: { doc: 'cgu' } })}
+            testID="link-cgu"
+          >
+            <Text style={styles.legalIcon}>📜</Text>
+            <Text style={styles.legalLabel}>Conditions Générales d'Utilisation</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.legalRow}
+            onPress={() => router.push({ pathname: '/legal', params: { doc: 'privacy' } })}
+            testID="link-privacy"
+          >
+            <Text style={styles.legalIcon}>🔒</Text>
+            <Text style={styles.legalLabel}>Politique de Confidentialité</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.legalRow}
+            onPress={() => router.push({ pathname: '/legal', params: { doc: 'legal' } })}
+            testID="link-legal"
+          >
+            <Text style={styles.legalIcon}>⚖️</Text>
+            <Text style={styles.legalLabel}>Mentions Légales</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
@@ -722,6 +762,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  legalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 8,
+  },
+  legalIcon: { fontSize: 18 },
+  legalLabel: { color: colors.textPrimary, flex: 1, fontSize: 13, fontWeight: '600' },
   version: { color: colors.textTertiary, textAlign: 'center', marginTop: spacing.lg, fontSize: 11 },
 
   // Modal

@@ -144,22 +144,37 @@ export async function handleBackgroundLocation(coords: { lat: number; lng: numbe
  * Start background location updates with expo-location. Requires
  * "always" permission on iOS and ACCESS_BACKGROUND_LOCATION on Android.
  */
-export async function startBackgroundLocation() {
-  if (Platform.OS === 'web') return false;
+export type BgLocationStartResult =
+  | { ok: true; mode: 'background' | 'foreground' }
+  | { ok: false; reason: 'web' | 'foreground_denied' | 'background_denied' | 'error'; canAskAgain?: boolean };
+
+export async function startBackgroundLocation(): Promise<BgLocationStartResult> {
+  if (Platform.OS === 'web') return { ok: false, reason: 'web' };
   try {
     const Location = await import('expo-location');
     const TaskManager = await import('expo-task-manager');
 
     // Ensure foreground granted first
     const fg = await Location.requestForegroundPermissionsAsync();
-    if (fg.status !== 'granted') return false;
+    if (fg.status !== 'granted') {
+      return { ok: false, reason: 'foreground_denied', canAskAgain: fg.canAskAgain };
+    }
 
-    // Then "always" / background permission
-    const bg = await Location.requestBackgroundPermissionsAsync();
-    if (bg.status !== 'granted') return false;
+    // Then "always" / background permission. On Expo Go background may throw
+    // or be denied — we still keep the user-facing toggle ON in foreground
+    // mode so geofence works while the app is open (no dead-end).
+    let bg: any = null;
+    try {
+      bg = await Location.requestBackgroundPermissionsAsync();
+    } catch {
+      return { ok: true, mode: 'foreground' };
+    }
+    if (bg?.status !== 'granted') {
+      return { ok: true, mode: 'foreground' };
+    }
 
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BG_LOCATION_TASK);
-    if (isRegistered) return true;
+    if (isRegistered) return { ok: true, mode: 'background' };
 
     await Location.startLocationUpdatesAsync(BG_LOCATION_TASK, {
       accuracy: Location.Accuracy.Balanced,
@@ -174,9 +189,9 @@ export async function startBackgroundLocation() {
       },
       pausesUpdatesAutomatically: false,
     });
-    return true;
+    return { ok: true, mode: 'background' };
   } catch {
-    return false;
+    return { ok: false, reason: 'error' };
   }
 }
 
