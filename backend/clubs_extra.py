@@ -15,7 +15,7 @@ EXTRA_CLUBS = [
         "avg_price": 12.0,
         "rating": 4.2,
         "features": ["vip", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1571266028243-d220c9b0c2c4?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     {
         "name": "Le Mulligan's",
@@ -28,7 +28,7 @@ EXTRA_CLUBS = [
         "avg_price": 7.0,
         "rating": 4.5,
         "features": ["live_music", "terrasse"],
-        "photos": ["https://images.unsplash.com/photo-1543007630-9710e4a00a20?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "Le Stax",
@@ -41,7 +41,7 @@ EXTRA_CLUBS = [
         "avg_price": 10.0,
         "rating": 4.4,
         "features": ["cocktails", "terrasse"],
-        "photos": ["https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200"],
+        "photos": ["https://images.pexels.com/photos/9005499/pexels-photo-9005499.jpeg?auto=compress&w=1200"],
     },
     {
         "name": "Le Loft",
@@ -54,7 +54,7 @@ EXTRA_CLUBS = [
         "avg_price": 14.0,
         "rating": 4.0,
         "features": ["vip", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1574391884720-bbc049ec09ad?w=1200"],
+        "photos": ["https://images.pexels.com/photos/5143280/pexels-photo-5143280.jpeg?auto=compress&w=1200"],
     },
     # ---------------- Lyon ----------------
     {
@@ -68,7 +68,7 @@ EXTRA_CLUBS = [
         "avg_price": 16.0,
         "rating": 4.6,
         "features": ["rooftop", "terrasse", "vip"],
-        "photos": ["https://images.unsplash.com/photo-1546707012-c44a1b27fcdf?w=1200"],
+        "photos": ["https://images.pexels.com/photos/5143280/pexels-photo-5143280.jpeg?auto=compress&w=1200"],
     },
     {
         "name": "Ninkasi Gerland",
@@ -81,7 +81,7 @@ EXTRA_CLUBS = [
         "avg_price": 10.0,
         "rating": 4.5,
         "features": ["live_music", "terrasse"],
-        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "Le Petit Salon",
@@ -94,7 +94,7 @@ EXTRA_CLUBS = [
         "avg_price": 13.0,
         "rating": 4.4,
         "features": ["cocktails", "live_music"],
-        "photos": ["https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&q=80"],
     },
     {
         "name": "Le Groom",
@@ -107,7 +107,7 @@ EXTRA_CLUBS = [
         "avg_price": 14.0,
         "rating": 4.7,
         "features": ["cocktails"],
-        "photos": ["https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200"],
+        "photos": ["https://images.pexels.com/photos/9005499/pexels-photo-9005499.jpeg?auto=compress&w=1200"],
     },
     {
         "name": "DV1",
@@ -120,7 +120,7 @@ EXTRA_CLUBS = [
         "avg_price": 15.0,
         "rating": 4.5,
         "features": ["smoking_area", "vip"],
-        "photos": ["https://images.unsplash.com/photo-1583244532610-2a234fd23128?w=1200"],
+        "photos": ["https://images.pexels.com/photos/5143280/pexels-photo-5143280.jpeg?auto=compress&w=1200"],
     },
     # ---------------- Marseille ----------------
     {
@@ -134,7 +134,7 @@ EXTRA_CLUBS = [
         "avg_price": 12.0,
         "rating": 4.3,
         "features": ["vip", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1547036967-23d11aacaee0?w=1200"],
+        "photos": ["https://images.pexels.com/photos/5143280/pexels-photo-5143280.jpeg?auto=compress&w=1200"],
     },
     {
         "name": "R2 Rooftop",
@@ -147,7 +147,7 @@ EXTRA_CLUBS = [
         "avg_price": 18.0,
         "rating": 4.7,
         "features": ["rooftop", "terrasse", "vip"],
-        "photos": ["https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200&q=80"],
     },
     {
         "name": "Le Bazar",
@@ -160,7 +160,7 @@ EXTRA_CLUBS = [
         "avg_price": 11.0,
         "rating": 4.4,
         "features": ["lgbtq", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1571266028243-d220c9b0c2c4?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     {
         "name": "Le Bistrot Vénitien",
@@ -173,7 +173,7 @@ EXTRA_CLUBS = [
         "avg_price": 9.0,
         "rating": 4.3,
         "features": ["cocktails", "terrasse"],
-        "photos": ["https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200"],
+        "photos": ["https://images.pexels.com/photos/9005499/pexels-photo-9005499.jpeg?auto=compress&w=1200"],
     },
     # ---------------- Bordeaux ----------------
     {
@@ -187,7 +187,7 @@ EXTRA_CLUBS = [
         "avg_price": 13.0,
         "rating": 4.6,
         "features": ["live_music", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1583244532610-2a234fd23128?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "Le Wato Sita",
@@ -200,7 +200,7 @@ EXTRA_CLUBS = [
         "avg_price": 14.0,
         "rating": 4.4,
         "features": ["vip", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1574391884720-bbc049ec09ad?w=1200"],
+        "photos": ["https://images.pexels.com/photos/5143280/pexels-photo-5143280.jpeg?auto=compress&w=1200"],
     },
     {
         "name": "Le Comptoir du Jazz",
@@ -213,7 +213,7 @@ EXTRA_CLUBS = [
         "avg_price": 12.0,
         "rating": 4.5,
         "features": ["live_music", "cocktails"],
-        "photos": ["https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&q=80"],
     },
     {
         "name": "Le Petit Bois",
@@ -226,7 +226,7 @@ EXTRA_CLUBS = [
         "avg_price": 10.0,
         "rating": 4.5,
         "features": ["cocktails", "terrasse"],
-        "photos": ["https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200&q=80"],
     },
     # ---------------- Toulouse ----------------
     {
@@ -240,7 +240,7 @@ EXTRA_CLUBS = [
         "avg_price": 18.0,
         "rating": 4.7,
         "features": ["live_music", "smoking_area", "terrasse"],
-        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "Café Populaire",
@@ -253,7 +253,7 @@ EXTRA_CLUBS = [
         "avg_price": 6.0,
         "rating": 4.4,
         "features": ["terrasse"],
-        "photos": ["https://images.unsplash.com/photo-1543007630-9710e4a00a20?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "Le Purple",
@@ -266,7 +266,7 @@ EXTRA_CLUBS = [
         "avg_price": 13.0,
         "rating": 4.2,
         "features": ["vip", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1547036967-23d11aacaee0?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     {
         "name": "L'Ambassade",
@@ -279,7 +279,7 @@ EXTRA_CLUBS = [
         "avg_price": 15.0,
         "rating": 4.3,
         "features": ["vip", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1583244532610-2a234fd23128?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     # ---------------- Nantes ----------------
     {
@@ -293,7 +293,7 @@ EXTRA_CLUBS = [
         "avg_price": 15.0,
         "rating": 4.6,
         "features": ["smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1574391884720-bbc049ec09ad?w=1200"],
+        "photos": ["https://images.pexels.com/photos/5143280/pexels-photo-5143280.jpeg?auto=compress&w=1200"],
     },
     {
         "name": "Le Lieu Unique",
@@ -306,7 +306,7 @@ EXTRA_CLUBS = [
         "avg_price": 10.0,
         "rating": 4.5,
         "features": ["live_music", "terrasse"],
-        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "La Maison",
@@ -319,7 +319,7 @@ EXTRA_CLUBS = [
         "avg_price": 11.0,
         "rating": 4.4,
         "features": ["cocktails"],
-        "photos": ["https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200"],
+        "photos": ["https://images.pexels.com/photos/9005499/pexels-photo-9005499.jpeg?auto=compress&w=1200"],
     },
     # ---------------- Lille ----------------
     {
@@ -333,7 +333,7 @@ EXTRA_CLUBS = [
         "avg_price": 13.0,
         "rating": 4.5,
         "features": ["vip", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1583244532610-2a234fd23128?w=1200"],
+        "photos": ["https://images.pexels.com/photos/5143280/pexels-photo-5143280.jpeg?auto=compress&w=1200"],
     },
     {
         "name": "L'Aéronef",
@@ -346,7 +346,7 @@ EXTRA_CLUBS = [
         "avg_price": 16.0,
         "rating": 4.6,
         "features": ["live_music", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "Le Network Café",
@@ -359,7 +359,7 @@ EXTRA_CLUBS = [
         "avg_price": 11.0,
         "rating": 4.2,
         "features": ["vip"],
-        "photos": ["https://images.unsplash.com/photo-1547036967-23d11aacaee0?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     # ---------------- Nice ----------------
     {
@@ -373,7 +373,7 @@ EXTRA_CLUBS = [
         "avg_price": 17.0,
         "rating": 4.4,
         "features": ["vip", "terrasse"],
-        "photos": ["https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     {
         "name": "Le Smarties",
@@ -386,7 +386,7 @@ EXTRA_CLUBS = [
         "avg_price": 9.0,
         "rating": 4.5,
         "features": ["cocktails"],
-        "photos": ["https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     {
         "name": "Wayne's Bar",
@@ -399,7 +399,7 @@ EXTRA_CLUBS = [
         "avg_price": 7.0,
         "rating": 4.5,
         "features": ["live_music", "terrasse"],
-        "photos": ["https://images.unsplash.com/photo-1543007630-9710e4a00a20?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     # ---------------- Strasbourg ----------------
     {
@@ -413,7 +413,7 @@ EXTRA_CLUBS = [
         "avg_price": 15.0,
         "rating": 4.6,
         "features": ["live_music", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "Le Live",
@@ -426,7 +426,7 @@ EXTRA_CLUBS = [
         "avg_price": 12.0,
         "rating": 4.2,
         "features": ["vip"],
-        "photos": ["https://images.unsplash.com/photo-1583244532610-2a234fd23128?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     {
         "name": "Le Mudd Club",
@@ -439,7 +439,7 @@ EXTRA_CLUBS = [
         "avg_price": 9.0,
         "rating": 4.4,
         "features": ["live_music", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1574391884720-bbc049ec09ad?w=1200"],
+        "photos": ["https://images.pexels.com/photos/9005499/pexels-photo-9005499.jpeg?auto=compress&w=1200"],
     },
     # ---------------- Rennes ----------------
     {
@@ -453,7 +453,7 @@ EXTRA_CLUBS = [
         "avg_price": 12.0,
         "rating": 4.5,
         "features": ["smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1583244532610-2a234fd23128?w=1200"],
+        "photos": ["https://images.pexels.com/photos/5143280/pexels-photo-5143280.jpeg?auto=compress&w=1200"],
     },
     {
         "name": "Le Liberté",
@@ -466,7 +466,7 @@ EXTRA_CLUBS = [
         "avg_price": 20.0,
         "rating": 4.7,
         "features": ["live_music"],
-        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     # ---------------- Montpellier ----------------
     {
@@ -480,7 +480,7 @@ EXTRA_CLUBS = [
         "avg_price": 11.0,
         "rating": 4.3,
         "features": ["vip", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1547036967-23d11aacaee0?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "L'Antirouille",
@@ -493,7 +493,7 @@ EXTRA_CLUBS = [
         "avg_price": 8.0,
         "rating": 4.5,
         "features": ["live_music"],
-        "photos": ["https://images.unsplash.com/photo-1574391884720-bbc049ec09ad?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     # ---------------- Le Mans (extension) ----------------
     {
@@ -507,7 +507,7 @@ EXTRA_CLUBS = [
         "avg_price": 8.0,
         "rating": 4.3,
         "features": ["terrasse", "karaoke"],
-        "photos": ["https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200&q=80"],
     },
     {
         "name": "Le Saxophone",
@@ -520,7 +520,7 @@ EXTRA_CLUBS = [
         "avg_price": 11.0,
         "rating": 4.4,
         "features": ["live_music"],
-        "photos": ["https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&q=80"],
     },
     {
         "name": "L'Excalibur",
@@ -533,7 +533,7 @@ EXTRA_CLUBS = [
         "avg_price": 14.0,
         "rating": 4.0,
         "features": ["vip", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1574391884720-bbc049ec09ad?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     {
         "name": "Le 7th Avenue",
@@ -546,7 +546,7 @@ EXTRA_CLUBS = [
         "avg_price": 7.0,
         "rating": 4.2,
         "features": ["terrasse", "live_music"],
-        "photos": ["https://images.unsplash.com/photo-1543007630-9710e4a00a20?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     # ---------------- Paris (extension) ----------------
     {
@@ -560,7 +560,7 @@ EXTRA_CLUBS = [
         "avg_price": 14.0,
         "rating": 4.5,
         "features": ["rooftop", "terrasse", "live_music"],
-        "photos": ["https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "La Bellevilloise",
@@ -573,7 +573,7 @@ EXTRA_CLUBS = [
         "avg_price": 12.0,
         "rating": 4.4,
         "features": ["live_music", "terrasse"],
-        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     {
         "name": "La Java",
@@ -586,7 +586,7 @@ EXTRA_CLUBS = [
         "avg_price": 13.0,
         "rating": 4.4,
         "features": ["smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1583244532610-2a234fd23128?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     {
         "name": "Le Comptoir Général",
@@ -599,7 +599,7 @@ EXTRA_CLUBS = [
         "avg_price": 11.0,
         "rating": 4.3,
         "features": ["terrasse", "cocktails"],
-        "photos": ["https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200"],
+        "photos": ["https://images.pexels.com/photos/9005499/pexels-photo-9005499.jpeg?auto=compress&w=1200"],
     },
     # ---------------- Tours, Angers, Orléans ----------------
     {
@@ -613,7 +613,7 @@ EXTRA_CLUBS = [
         "avg_price": 12.0,
         "rating": 4.1,
         "features": ["vip"],
-        "photos": ["https://images.unsplash.com/photo-1547036967-23d11aacaee0?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     {
         "name": "Le Buck Mulligan's",
@@ -626,7 +626,7 @@ EXTRA_CLUBS = [
         "avg_price": 7.0,
         "rating": 4.6,
         "features": ["live_music", "terrasse"],
-        "photos": ["https://images.unsplash.com/photo-1543007630-9710e4a00a20?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "Le Chabada",
@@ -639,7 +639,7 @@ EXTRA_CLUBS = [
         "avg_price": 16.0,
         "rating": 4.7,
         "features": ["live_music"],
-        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "Le 108",
@@ -652,7 +652,7 @@ EXTRA_CLUBS = [
         "avg_price": 11.0,
         "rating": 4.3,
         "features": ["cocktails", "vip"],
-        "photos": ["https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200"],
+        "photos": ["https://images.pexels.com/photos/9005499/pexels-photo-9005499.jpeg?auto=compress&w=1200"],
     },
     # ---------------- Caen, Rouen, Le Havre ----------------
     {
@@ -666,7 +666,7 @@ EXTRA_CLUBS = [
         "avg_price": 12.0,
         "rating": 4.2,
         "features": ["vip", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1583244532610-2a234fd23128?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     {
         "name": "L'Apostrophe",
@@ -679,7 +679,7 @@ EXTRA_CLUBS = [
         "avg_price": 10.0,
         "rating": 4.4,
         "features": ["cocktails", "live_music"],
-        "photos": ["https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200&q=80"],
     },
     {
         "name": "Le 3 Pièces",
@@ -692,7 +692,7 @@ EXTRA_CLUBS = [
         "avg_price": 13.0,
         "rating": 4.4,
         "features": ["smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1574391884720-bbc049ec09ad?w=1200"],
+        "photos": ["https://images.pexels.com/photos/5143280/pexels-photo-5143280.jpeg?auto=compress&w=1200"],
     },
     {
         "name": "Le McDaid's",
@@ -705,7 +705,7 @@ EXTRA_CLUBS = [
         "avg_price": 7.0,
         "rating": 4.5,
         "features": ["live_music", "terrasse"],
-        "photos": ["https://images.unsplash.com/photo-1543007630-9710e4a00a20?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "Le Wave",
@@ -718,7 +718,7 @@ EXTRA_CLUBS = [
         "avg_price": 14.0,
         "rating": 4.3,
         "features": ["terrasse", "vip"],
-        "photos": ["https://images.unsplash.com/photo-1517457373958-b7bdd4587205?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     # ---------------- Grenoble, Annecy, Aix, Chambéry ----------------
     {
@@ -732,7 +732,7 @@ EXTRA_CLUBS = [
         "avg_price": 13.0,
         "rating": 4.5,
         "features": ["live_music"],
-        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "Le Studio Med",
@@ -745,7 +745,7 @@ EXTRA_CLUBS = [
         "avg_price": 13.0,
         "rating": 4.2,
         "features": ["vip"],
-        "photos": ["https://images.unsplash.com/photo-1574391884720-bbc049ec09ad?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     {
         "name": "Le 3C Café",
@@ -758,7 +758,7 @@ EXTRA_CLUBS = [
         "avg_price": 9.0,
         "rating": 4.3,
         "features": ["terrasse"],
-        "photos": ["https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     {
         "name": "Le Sip In",
@@ -771,7 +771,7 @@ EXTRA_CLUBS = [
         "avg_price": 10.0,
         "rating": 4.5,
         "features": ["cocktails"],
-        "photos": ["https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=1200"],
+        "photos": ["https://images.pexels.com/photos/9005499/pexels-photo-9005499.jpeg?auto=compress&w=1200"],
     },
     # ---------------- Saint-Étienne, Clermont, Dijon ----------------
     {
@@ -785,7 +785,7 @@ EXTRA_CLUBS = [
         "avg_price": 15.0,
         "rating": 4.6,
         "features": ["live_music"],
-        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "La Coopérative de Mai",
@@ -798,7 +798,7 @@ EXTRA_CLUBS = [
         "avg_price": 22.0,
         "rating": 4.7,
         "features": ["live_music"],
-        "photos": ["https://images.unsplash.com/photo-1574391884720-bbc049ec09ad?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "Le 421",
@@ -811,7 +811,7 @@ EXTRA_CLUBS = [
         "avg_price": 12.0,
         "rating": 4.4,
         "features": ["smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1583244532610-2a234fd23128?w=1200"],
+        "photos": ["https://images.pexels.com/photos/5143280/pexels-photo-5143280.jpeg?auto=compress&w=1200"],
     },
     {
         "name": "Le Messire",
@@ -824,7 +824,7 @@ EXTRA_CLUBS = [
         "avg_price": 11.0,
         "rating": 4.3,
         "features": ["cocktails", "vip"],
-        "photos": ["https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     # ---------------- Nancy, Metz, Reims ----------------
     {
@@ -838,7 +838,7 @@ EXTRA_CLUBS = [
         "avg_price": 8.0,
         "rating": 4.7,
         "features": ["terrasse", "live_music"],
-        "photos": ["https://images.unsplash.com/photo-1543007630-9710e4a00a20?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "Les Caves du Roy",
@@ -851,7 +851,7 @@ EXTRA_CLUBS = [
         "avg_price": 12.0,
         "rating": 4.1,
         "features": ["vip"],
-        "photos": ["https://images.unsplash.com/photo-1574391884720-bbc049ec09ad?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1608433348878-e43dea08b910?w=1200&q=80"],
     },
     {
         "name": "Les Trinitaires",
@@ -864,7 +864,7 @@ EXTRA_CLUBS = [
         "avg_price": 14.0,
         "rating": 4.7,
         "features": ["live_music", "smoking_area"],
-        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
     {
         "name": "La Cartonnerie",
@@ -877,7 +877,7 @@ EXTRA_CLUBS = [
         "avg_price": 18.0,
         "rating": 4.6,
         "features": ["live_music"],
-        "photos": ["https://images.unsplash.com/photo-1574391884720-bbc049ec09ad?w=1200"],
+        "photos": ["https://images.unsplash.com/photo-1551018612-9715965c6742?w=1200&q=80"],
     },
 ]
 

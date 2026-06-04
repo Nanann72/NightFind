@@ -16,13 +16,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { Club } from '../../lib/api';
 import { useClubs } from '../../lib/clubs';
 import { useLocation } from '../../lib/useLocation';
+import { SafeImage } from '../../components/SafeImage';
 import { colors, radius, spacing } from '../../lib/theme';
 
 const QUICK_FILTERS: { key: string; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: 'all', label: 'Tous', icon: 'sparkles-outline' },
-  { key: 'open_now', label: 'Ouvert', icon: 'time-outline' },
-  { key: 'vip', label: 'VIP', icon: 'diamond-outline' },
-  { key: 'terrasse', label: 'Terrasse', icon: 'leaf-outline' },
+  { key: 'all', label: 'Tous', icon: 'sparkles' },
+  { key: 'open_now', label: 'Ouvert', icon: 'time' },
+  { key: 'vip', label: 'VIP', icon: 'diamond' },
+  { key: 'terrasse', label: 'Terrasse', icon: 'leaf' },
 ];
 
 export default function Discover() {
@@ -174,7 +175,7 @@ function ClubCard({
       testID={`club-card-${club.club_id}`}
     >
       <View style={styles.cardImageWrap}>
-        <Image source={{ uri: club.photos[0] }} style={styles.cardImage} />
+        <SafeImage uri={club.photos?.[0]} style={styles.cardImage} />
         <View style={styles.cardOverlay} />
         <TouchableOpacity
           style={styles.favBtn}
@@ -278,6 +279,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
+    minWidth: 92,
+    justifyContent: 'center',
   },
   chipActive: { backgroundColor: colors.tertiary, borderColor: colors.tertiary },
   chipText: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
