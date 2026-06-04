@@ -14,6 +14,7 @@ import {
 import { useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../lib/auth';
+import { SocialAuthButtons } from '../components/SocialAuthButtons';
 import { colors, radius, spacing } from '../lib/theme';
 
 export default function Login() {
