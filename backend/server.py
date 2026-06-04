@@ -1170,12 +1170,67 @@ async def revenuecat_webhook(request: Request):
 
 
 @api_router.get("/billing/me")
-async def get_my_billing(user_id: str = Depends(get_current_user)):
+async def get_my_billing(user: dict = Depends(get_current_user)):
+    """Return the current user's premium status.
+
+    Tries to refresh from RevenueCat's REST API when a secret key is
+    configured, then falls back to the MongoDB-cached state populated by
+    webhooks.
+    """
+    user_id = user.get("user_id")
+    rc_secret = os.environ.get("REVENUECAT_SECRET_KEY", "").strip()
+    if rc_secret and http_client is not None:
+        try:
+            r = await http_client.get(
+                f"https://api.revenuecat.com/v1/subscribers/{user_id}",
+                headers={
+                    "Authorization": f"Bearer {rc_secret}",
+                    "Accept": "application/json",
+                },
+                timeout=8.0,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                ent = (
+                    (data.get("subscriber") or {})
+                    .get("entitlements", {})
+                    .get(PREMIUM_ENTITLEMENT_ID)
+                    or {}
+                )
+                expires = ent.get("expires_date")
+                is_active = False
+                if expires:
+                    try:
+                        exp = datetime.fromisoformat(expires.replace("Z", "+00:00"))
+                        is_active = exp > datetime.now(timezone.utc)
+                    except Exception:
+                        is_active = bool(expires)
+                await db.users.update_one(
+                    {"user_id": user_id},
+                    {
+                        "$set": {
+                            "is_premium": is_active,
+                            "premium_product_id": ent.get("product_identifier"),
+                            "premium_expires_at": expires,
+                            "rc_updated_at": datetime.now(timezone.utc),
+                        }
+                    },
+                    upsert=False,
+                )
+                return {
+                    "is_premium": is_active,
+                    "product_id": ent.get("product_identifier"),
+                    "expires_at": expires,
+                    "source": "revenuecat",
+                }
+        except Exception as exc:  # noqa: BLE001
+            logging.warning("RC me lookup failed: %s", exc)
     u = await db.users.find_one({"user_id": user_id}, {"_id": 0}) or {}
     return {
         "is_premium": bool(u.get("is_premium")),
         "product_id": u.get("premium_product_id"),
         "expires_at": u.get("premium_expires_at"),
+        "source": "cache",
     }
 
 
