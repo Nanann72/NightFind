@@ -90,6 +90,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ session_token }),
     }),
+  googleOAuth: (access_token: string) =>
+    request<{ token: string; user: User }>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ access_token }),
+    }),
   appleSignIn: (identity_token: string, email?: string, name?: string) =>
     request<{ token: string; user: User }>('/auth/apple', {
       method: 'POST',

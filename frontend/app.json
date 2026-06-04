@@ -16,7 +16,11 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Detecter ton arrivée en club pour confirmer la soirée",
         "NSLocationAlwaysUsageDescription": "Detecter ton arrivée en club pour confirmer la soirée",
         "NSUserNotificationUsageDescription": "Te prévenir des événements à proximité",
-        "UIBackgroundModes": ["location", "fetch", "remote-notification"]
+        "UIBackgroundModes": [
+          "location",
+          "fetch",
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -72,7 +76,8 @@
         }
       ],
       "expo-task-manager",
-      "expo-background-task"
+      "expo-background-task",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

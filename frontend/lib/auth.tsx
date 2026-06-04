@@ -7,9 +7,16 @@ import React, {
 } from 'react';
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
 import * as Linking from 'expo-linking';
 import { api, User } from './api';
 import { clearToken, getToken, saveToken } from './storage';
+
+WebBrowser.maybeCompleteAuthSession();
+
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '';
+const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '';
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
 
 type AuthCtx = {
   user: User | null;
@@ -86,33 +93,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const signInWithGoogle = useCallback(async () => {
-    if (Platform.OS === 'web') {
-      const redirect = window.location.origin + '/';
-      window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirect)}`;
-      return;
-    }
-    const redirect = Linking.createURL('auth');
-    const authUrl = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirect)}`;
-    const result = await WebBrowser.openAuthSessionAsync(authUrl, redirect);
-    if (result.type !== 'success' || !result.url) return;
-    const parsed = Linking.parse(result.url);
-    // session_id can come as hash or query
-    let sid: string | undefined;
-    if (parsed.queryParams?.session_id) {
-      sid = String(parsed.queryParams.session_id);
-    } else {
-      // try parsing fragment
-      const idx = result.url.indexOf('session_id=');
-      if (idx >= 0) {
-        sid = result.url.substring(idx + 'session_id='.length).split('&')[0];
+  // ---- Google OAuth (classic) ----
+  // expo-auth-session hook — provides request + promptAsync. Switches automatically
+  // between native (iOS bundle ID) and web (Web Client ID) based on platform.
+  const [googleRequest, googleResponse, googlePromptAsync] = Google.useAuthRequest({
+    iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
+    webClientId: GOOGLE_WEB_CLIENT_ID || undefined,
+    scopes: ['profile', 'email', 'openid'],
+  });
+
+  // Watch Google response — when user completes login, exchange the
+  // access_token for a Night Finder JWT via /api/auth/google.
+  useEffect(() => {
+    (async () => {
+      if (!googleResponse) return;
+      if (googleResponse.type !== 'success') return;
+      const accessToken =
+        (googleResponse as any).authentication?.accessToken ||
+        (googleResponse as any).params?.access_token;
+      if (!accessToken) return;
+      try {
+        const res = await api.googleOAuth(accessToken);
+        await saveToken(res.token);
+        setUser(res.user);
+      } catch {
+        // ignore — caller already shows an error
       }
+    })();
+  }, [googleResponse]);
+
+  const signInWithGoogle = useCallback(async () => {
+    if (!GOOGLE_IOS_CLIENT_ID && !GOOGLE_WEB_CLIENT_ID) {
+      throw new Error('Google Sign-In non configuré');
     }
-    if (!sid) return;
-    const res = await api.googleSession(sid);
-    await saveToken(res.token);
-    setUser(res.user);
-  }, []);
+    if (!googleRequest) {
+      throw new Error('Google Sign-In non prêt — réessaye dans une seconde');
+    }
+    const result = await googlePromptAsync();
+    if (result.type === 'cancel' || result.type === 'dismiss') {
+      throw new Error('Connexion annulée');
+    }
+    if (result.type !== 'success') {
+      throw new Error('Connexion Google échouée');
+    }
+    // The useEffect above will pick up googleResponse and finalize sign-in.
+  }, [googleRequest, googlePromptAsync]);
 
   const signInWithApple = useCallback(async () => {
     if (Platform.OS !== 'ios') {

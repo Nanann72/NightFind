@@ -268,6 +268,51 @@ async def google_session(body: GoogleSession):
     return {"token": session_token, "user": public_user(user)}
 
 
+class GoogleOAuth(BaseModel):
+    access_token: str
+
+
+@api_router.post("/auth/google")
+async def google_oauth(body: GoogleOAuth):
+    """Sign in with Google using a classic OAuth access token from the
+    mobile/web client. We verify the token by calling Google's userinfo
+    endpoint and then issue a Night Finder JWT."""
+    if http_client is None:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    try:
+        r = await http_client.get(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": f"Bearer {body.access_token}"},
+            timeout=8.0,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Google verify error: {exc}")
+    if r.status_code != 200:
+        raise HTTPException(status_code=401, detail="Invalid Google access token")
+    data = r.json()
+    email = (data.get("email") or "").lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email missing from Google profile")
+
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        user = {
+            "user_id": user_id,
+            "email": email,
+            "name": data.get("name") or email.split("@")[0],
+            "picture": data.get("picture"),
+            "music_prefs": [],
+            "auth_provider": "google",
+            "google_sub": data.get("sub"),
+            "created_at": datetime.now(timezone.utc),
+        }
+        await db.users.insert_one(user)
+
+    token = create_jwt(user["user_id"])
+    return {"token": token, "user": public_user(user)}
+
+
 @api_router.post("/auth/apple")
 async def apple_signin(body: AppleSignIn):
     """Sign in with Apple. Decodes identity_token without verifying (MVP).
