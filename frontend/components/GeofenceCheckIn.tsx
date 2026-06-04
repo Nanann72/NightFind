@@ -24,6 +24,7 @@ import { api, Club } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { useClubs } from '../lib/clubs';
 import { startLiveListeningMock } from '../lib/liveListening';
+import { startLiveListening } from '../lib/audioRecognition';
 import { colors, radius, spacing } from '../lib/theme';
 
 const GEOFENCE_RADIUS_KM = 0.05; // 50m
@@ -124,10 +125,8 @@ export function GeofenceCheckIn() {
     try {
       await api.checkIn(candidate.club_id, confirmed);
       if (confirmed) {
-        // Kick off a lightweight "live listening" simulation that records 1
-        // track every 90s for ~10 minutes. In a real build this would feed
-        // the microphone to an audio recognition API (ACR Cloud / Audd.io)
-        // — for now we use a curated club library per music style.
+        // Real audio recognition (Audd.io) on native build, mock fallback on web.
+        startLiveListening(candidate);
         startLiveListeningMock(candidate);
       }
     } catch {}

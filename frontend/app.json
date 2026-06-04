@@ -16,6 +16,7 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Detecter ton arrivée en club pour confirmer la soirée",
         "NSLocationAlwaysUsageDescription": "Detecter ton arrivée en club pour confirmer la soirée",
         "NSUserNotificationUsageDescription": "Te prévenir des événements à proximité",
+        "NSMicrophoneUsageDescription": "Identifier les musiques jouées au club",
         "UIBackgroundModes": [
           "location",
           "fetch",
@@ -77,7 +78,8 @@
       ],
       "expo-task-manager",
       "expo-background-task",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true

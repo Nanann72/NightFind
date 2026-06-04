@@ -26,6 +26,7 @@ import { useClubs } from '../../lib/clubs';
 import { api, Club } from '../../lib/api';
 import { usePremium } from '../../lib/premium';
 import { storage } from '../../lib/storage';
+import { SwipeTutorial } from '../../components/SwipeTutorial';
 import { colors, radius, spacing } from '../../lib/theme';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -251,6 +252,7 @@ export default function Swipe() {
           <Ionicons name="heart" size={28} color={colors.bg} />
         </TouchableOpacity>
       </View>
+      <SwipeTutorial />
     </View>
   );
 }

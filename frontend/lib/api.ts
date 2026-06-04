@@ -180,6 +180,16 @@ export const api = {
   deleteProfileSong: (song_id: string) =>
     request<{ ok: boolean }>(`/profile/songs/${song_id}`, { method: 'DELETE' }),
 
+  // Audd.io audio recognition
+  recognizeAudio: (club_id: string, audio_base64: string) =>
+    request<{ ok: boolean; recognised: boolean; song_id?: string; title?: string; artist?: string }>(
+      '/recognize/audio',
+      {
+        method: 'POST',
+        body: JSON.stringify({ club_id, audio_base64 }),
+      },
+    ),
+
   // Notifications
   listNotifications: () => request<any[]>('/notifications'),
 };

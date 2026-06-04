@@ -747,6 +747,78 @@ async def delete_user_song(song_id: str, user: dict = Depends(get_current_user))
     return {"ok": True}
 
 
+class AudioRecognizeBody(BaseModel):
+    club_id: str
+    audio_base64: str  # raw audio bytes encoded as base64 (mp3/m4a/wav, <= 1MB)
+
+
+@api_router.post("/recognize/audio")
+async def recognize_audio(
+    body: AudioRecognizeBody, user: dict = Depends(get_current_user)
+):
+    """Identify a track from a short audio sample using Audd.io and store
+    the result under the user profile, grouped by club."""
+    audd_token = os.environ.get("AUDD_API_TOKEN", "").strip()
+    if not audd_token:
+        raise HTTPException(status_code=503, detail="Audd.io not configured")
+    if http_client is None:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    club = await db.clubs.find_one({"club_id": body.club_id}, {"_id": 0})
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+    try:
+        import base64
+        raw = base64.b64decode(body.audio_base64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid base64 audio")
+    if len(raw) > 1_500_000:
+        raise HTTPException(status_code=413, detail="Audio sample too large (max ~1.5MB)")
+
+    try:
+        files = {"file": ("sample.m4a", raw, "audio/m4a")}
+        data = {"api_token": audd_token, "return": "spotify,apple_music"}
+        r = await http_client.post(
+            "https://api.audd.io/", data=data, files=files, timeout=20.0
+        )
+    except Exception as exc:
+        logging.warning("Audd error: %s", exc)
+        raise HTTPException(status_code=502, detail="Recognition provider error")
+
+    if r.status_code != 200:
+        raise HTTPException(status_code=502, detail="Audd HTTP error")
+    payload = r.json() or {}
+    result = payload.get("result")
+    if not result:
+        return {"ok": True, "recognised": False}
+
+    now = datetime.now(timezone.utc)
+    title = (result.get("title") or "").strip() or "Untitled"
+    artist = (result.get("artist") or "").strip() or None
+    entry = {
+        "song_id": f"sng_{uuid.uuid4().hex[:10]}",
+        "user_id": user["user_id"],
+        "club_id": body.club_id,
+        "club_name": club.get("name"),
+        "title": title,
+        "artist": artist,
+        "album": result.get("album"),
+        "release_date": result.get("release_date"),
+        "spotify": (result.get("spotify") or {}).get("external_urls", {}).get("spotify"),
+        "apple_music": (result.get("apple_music") or {}).get("url"),
+        "source": "audd",
+        "detected_at": now.isoformat(),
+        "created_at": now,
+    }
+    await db.user_songs.insert_one(entry)
+    return {
+        "ok": True,
+        "recognised": True,
+        "song_id": entry["song_id"],
+        "title": title,
+        "artist": artist,
+    }
+
+
 # -------------- Seed data -------------- #
 
 PARIS_CLUBS = [
