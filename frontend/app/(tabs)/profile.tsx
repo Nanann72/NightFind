@@ -12,6 +12,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Switch,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +21,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/auth';
 import { useClubs } from '../../lib/clubs';
 import { api } from '../../lib/api';
+import {
+  startBackgroundLocation,
+  stopBackgroundLocation,
+} from '../../lib/backgroundLocation';
+import { storage } from '../../lib/storage';
 import { colors, radius, spacing } from '../../lib/theme';
+
+const BG_PREF_KEY = 'nf_bg_location_enabled';
 
 const MUSIC_OPTIONS: { id: string; label: string; emoji: string }[] = [
   { id: 'techno', label: 'Techno', emoji: '⚡️' },
@@ -45,11 +54,57 @@ export default function Profile() {
   const [savingMusic, setSavingMusic] = useState(false);
   const [nameDraft, setNameDraft] = useState(user?.name || '');
   const [musicDraft, setMusicDraft] = useState<string[]>(user?.music_prefs || []);
+  const [bgLocation, setBgLocation] = useState(false);
+  const [togglingBg, setTogglingBg] = useState(false);
 
   useEffect(() => {
     setNameDraft(user?.name || '');
     setMusicDraft(user?.music_prefs || []);
   }, [user?.name, user?.music_prefs]);
+
+  useEffect(() => {
+    (async () => {
+      const v = await storage.get(BG_PREF_KEY);
+      setBgLocation(v === '1');
+    })();
+  }, []);
+
+  const toggleBg = async (value: boolean) => {
+    if (Platform.OS === 'web') {
+      Alert.alert(
+        'Indisponible sur le web',
+        'La détection en arrière-plan nécessite un build mobile (Expo Go ne suffit pas).',
+      );
+      return;
+    }
+    setTogglingBg(true);
+    try {
+      if (value) {
+        const ok = await startBackgroundLocation();
+        if (!ok) {
+          Alert.alert(
+            'Permission requise',
+            "Active la localisation 'Toujours' dans les réglages système pour recevoir une notification quand tu arrives en club.",
+            [
+              { text: 'Plus tard', style: 'cancel' },
+              { text: 'Ouvrir les réglages', onPress: () => Linking.openSettings() },
+            ],
+          );
+          setBgLocation(false);
+          await storage.set(BG_PREF_KEY, '0');
+          return;
+        }
+        setBgLocation(true);
+        await storage.set(BG_PREF_KEY, '1');
+      } else {
+        await stopBackgroundLocation();
+        setBgLocation(false);
+        await storage.set(BG_PREF_KEY, '0');
+      }
+    } finally {
+      setTogglingBg(false);
+    }
+  };
 
   const initials = (user?.name || user?.email || '?')
     .split(/[\s@]/)
@@ -211,6 +266,32 @@ export default function Profile() {
               })}
             </View>
           )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Détection en arrière-plan</Text>
+          <View style={styles.bgRow}>
+            <View style={styles.rowIcon}>
+              <Ionicons name="radio" size={18} color={colors.tertiary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Notifie-moi à l'arrivée</Text>
+              <Text style={styles.bgRowSub}>
+                Détecte si tu rentres dans un club et te propose de confirmer ta soirée.
+              </Text>
+            </View>
+            {togglingBg ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <Switch
+                value={bgLocation}
+                onValueChange={toggleBg}
+                trackColor={{ false: colors.border, true: 'rgba(224,26,79,0.5)' }}
+                thumbColor={bgLocation ? colors.primary : colors.textTertiary}
+                testID="bg-location-switch"
+              />
+            )}
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -502,6 +583,18 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(239,68,68,0.3)',
   },
   signOutText: { color: colors.danger, fontWeight: '700' },
+  bgRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  bgRowSub: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   version: { color: colors.textTertiary, textAlign: 'center', marginTop: spacing.lg, fontSize: 11 },
 
   // Modal

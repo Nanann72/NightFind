@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: colors.surface,
   },
-  cardImageWrap: { height: 220, position: 'relative' },
+  cardImageWrap: { height: 180, position: 'relative' },
   cardImage: { width: '100%', height: '100%' },
   cardOverlay: {
     ...StyleSheet.absoluteFillObject,

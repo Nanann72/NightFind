@@ -808,19 +808,87 @@ PARIS_CLUBS = [
         "rating": 4.3,
         "features": ["restaurant", "vip"],
         "hours": {
-            "mon": {"open": False},
-            "tue": {"open": True, "from": "20:00", "to": "02:00"},
-            "wed": {"open": True, "from": "20:00", "to": "04:00"},
-            "thu": {"open": True, "from": "20:00", "to": "05:00"},
-            "fri": {"open": True, "from": "20:00", "to": "06:00"},
-            "sat": {"open": True, "from": "20:00", "to": "06:00"},
+            "mon": {"open": False}, "tue": {"open": True, "from": "20:00", "to": "02:00"},
+            "wed": {"open": True, "from": "20:00", "to": "04:00"}, "thu": {"open": True, "from": "20:00", "to": "05:00"},
+            "fri": {"open": True, "from": "20:00", "to": "06:00"}, "sat": {"open": True, "from": "20:00", "to": "06:00"},
             "sun": {"open": False},
         },
-        "photos": [
-            "https://images.pexels.com/photos/15648325/pexels-photo-15648325.jpeg",
-        ],
+        "photos": ["https://images.pexels.com/photos/15648325/pexels-photo-15648325.jpeg"],
     },
+    # ---------- More Paris ----------
+    {"name": "Badaboum", "address": "2 bis Rue des Taillandiers, 75011 Paris", "lat": 48.8533, "lng": 2.3742,
+     "description": "Salle de concert et club mythique du 11e. Programmation électro pointue.", "music_styles": ["electronic", "techno", "indie"],
+     "avg_price": 12.0, "rating": 4.4, "features": ["live_music"],
+     "hours": {d: {"open": d in ["thu", "fri", "sat"], "from": "23:00", "to": "06:00"} for d in ["mon","tue","wed","thu","fri","sat","sun"]},
+     "photos": ["https://images.unsplash.com/photo-1545128485-c400e7702796?crop=entropy&cs=srgb&fm=jpg&q=85"]},
+    {"name": "Le Carmen", "address": "34 Rue Duperré, 75009 Paris", "lat": 48.8821, "lng": 2.3360,
+     "description": "Hôtel particulier dans Pigalle, bar à cocktails et DJ sets nocturnes.", "music_styles": ["house", "disco", "hip-hop"],
+     "avg_price": 16.0, "rating": 4.2, "features": ["intimate", "cocktail_bar"],
+     "hours": {d: {"open": d in ["wed","thu","fri","sat"], "from": "22:00", "to": "05:00"} for d in ["mon","tue","wed","thu","fri","sat","sun"]},
+     "photos": ["https://images.unsplash.com/photo-1569924995012-c4c706bfcd51?crop=entropy&cs=srgb&fm=jpg&q=85"]},
+    {"name": "Sacré", "address": "29 Avenue Daumesnil, 75012 Paris", "lat": 48.8458, "lng": 2.3725,
+     "description": "Nouveau spot du 12e, programmation house et techno underground.", "music_styles": ["house", "techno"],
+     "avg_price": 18.0, "rating": 4.5, "features": ["underground"],
+     "hours": {d: {"open": d in ["fri", "sat"], "from": "23:00", "to": "07:00"} for d in ["mon","tue","wed","thu","fri","sat","sun"]},
+     "photos": ["https://images.pexels.com/photos/31923252/pexels-photo-31923252.jpeg"]},
+    {"name": "T7", "address": "19 Rue des Frigos, 75013 Paris", "lat": 48.8332, "lng": 2.3735,
+     "description": "Squat artistique reconverti en club techno authentique. After-hours légendaires.", "music_styles": ["techno", "minimal"],
+     "avg_price": 15.0, "rating": 4.6, "features": ["underground", "afterhours"],
+     "hours": {d: {"open": d in ["fri", "sat", "sun"], "from": "23:00", "to": "12:00"} for d in ["mon","tue","wed","thu","fri","sat","sun"]},
+     "photos": ["https://images.unsplash.com/photo-1578736641330-3155e606cd40?crop=entropy&cs=srgb&fm=jpg&q=85"]},
+    # ---------- Lyon ----------
+    {"name": "Le Sucre", "address": "50 Quai Rambaud, 69002 Lyon", "lat": 45.7414, "lng": 4.8157,
+     "description": "Rooftop sur la Confluence, l'un des meilleurs clubs électro de France.", "music_styles": ["techno", "house", "electronic"],
+     "avg_price": 18.0, "rating": 4.7, "features": ["rooftop", "iconic_location"],
+     "hours": {d: {"open": d in ["thu","fri","sat"], "from": "23:00", "to": "06:00"} for d in ["mon","tue","wed","thu","fri","sat","sun"]},
+     "photos": ["https://images.unsplash.com/photo-1630395822970-acd6a691d97e?crop=entropy&cs=srgb&fm=jpg&q=85"]},
+    {"name": "Le Petit Salon", "address": "5 Quai Romain Rolland, 69005 Lyon", "lat": 45.7610, "lng": 4.8262,
+     "description": "Bar à cocktails feutré dans le Vieux Lyon. DJ live le week-end.", "music_styles": ["jazz", "soul", "house"],
+     "avg_price": 12.0, "rating": 4.5, "features": ["cocktail_bar", "intimate"],
+     "hours": {d: {"open": True, "from": "18:00", "to": "02:00"} for d in ["mon","tue","wed","thu","fri","sat","sun"]},
+     "photos": ["https://images.unsplash.com/photo-1569924995012-c4c706bfcd51?crop=entropy&cs=srgb&fm=jpg&q=85"]},
+    # ---------- Marseille ----------
+    {"name": "Cabaret Aléatoire", "address": "41 Rue Jobin, 13003 Marseille", "lat": 43.3083, "lng": 5.3815,
+     "description": "Référence électro à La Friche Belle de Mai. Sets internationaux toute l'année.", "music_styles": ["techno", "house", "electronic"],
+     "avg_price": 16.0, "rating": 4.6, "features": ["live_music", "cultural"],
+     "hours": {d: {"open": d in ["fri","sat"], "from": "23:00", "to": "06:00"} for d in ["mon","tue","wed","thu","fri","sat","sun"]},
+     "photos": ["https://images.unsplash.com/photo-1581417478175-a9ef18f210c2?crop=entropy&cs=srgb&fm=jpg&q=85"]},
+    {"name": "R2 Rooftop", "address": "9 Quai du Lazaret, 13002 Marseille", "lat": 43.3076, "lng": 5.3674,
+     "description": "Rooftop sur les Terrasses du Port avec vue sur la Méditerranée.", "music_styles": ["house", "disco", "commercial"],
+     "avg_price": 20.0, "rating": 4.4, "features": ["rooftop", "terrasse", "waterfront"],
+     "hours": {d: {"open": d in ["thu","fri","sat"], "from": "20:00", "to": "03:00"} for d in ["mon","tue","wed","thu","fri","sat","sun"]},
+     "photos": ["https://images.pexels.com/photos/15648325/pexels-photo-15648325.jpeg"]},
+    # ---------- Bordeaux ----------
+    {"name": "I.Boat", "address": "Quai Armand Lalande, 33300 Bordeaux", "lat": 44.8693, "lng": -0.5535,
+     "description": "Club et salle de concert sur un ancien ferry. Programmation électro pointue.", "music_styles": ["electronic", "techno", "indie"],
+     "avg_price": 14.0, "rating": 4.5, "features": ["waterfront", "live_music"],
+     "hours": {d: {"open": d in ["thu","fri","sat"], "from": "23:00", "to": "06:00"} for d in ["mon","tue","wed","thu","fri","sat","sun"]},
+     "photos": ["https://images.pexels.com/photos/3696396/pexels-photo-3696396.jpeg"]},
+    # ---------- Nice ----------
+    {"name": "High Club", "address": "45-47 Promenade des Anglais, 06000 Nice", "lat": 43.6929, "lng": 7.2563,
+     "description": "Le club emblématique de la Promenade des Anglais. Vue mer et DJ stars.", "music_styles": ["house", "commercial", "hip-hop"],
+     "avg_price": 22.0, "rating": 4.3, "features": ["vip", "waterfront", "iconic_location"],
+     "hours": {d: {"open": d in ["thu","fri","sat"], "from": "23:30", "to": "06:00"} for d in ["mon","tue","wed","thu","fri","sat","sun"]},
+     "photos": ["https://images.unsplash.com/photo-1708449530105-ea7d453a6f89?crop=entropy&cs=srgb&fm=jpg&q=85"]},
+    # ---------- Toulouse ----------
+    {"name": "Le Bikini", "address": "Rue Théodore Monod, 31520 Ramonville", "lat": 43.5460, "lng": 1.4790,
+     "description": "Salle de concert et club mythique de Toulouse. Référence électro et indie.", "music_styles": ["electronic", "rock", "indie"],
+     "avg_price": 15.0, "rating": 4.6, "features": ["live_music"],
+     "hours": {d: {"open": d in ["fri","sat"], "from": "23:00", "to": "06:00"} for d in ["mon","tue","wed","thu","fri","sat","sun"]},
+     "photos": ["https://images.unsplash.com/photo-1545128485-c400e7702796?crop=entropy&cs=srgb&fm=jpg&q=85"]},
+    # ---------- Lille ----------
+    {"name": "Magazine Club", "address": "Avenue Willy Brandt, 59000 Lille", "lat": 50.6356, "lng": 3.0698,
+     "description": "Club techno et house au cœur d'Euralille. Programmation pointue.", "music_styles": ["techno", "house"],
+     "avg_price": 14.0, "rating": 4.4, "features": ["underground"],
+     "hours": {d: {"open": d in ["fri","sat"], "from": "23:30", "to": "06:00"} for d in ["mon","tue","wed","thu","fri","sat","sun"]},
+     "photos": ["https://images.unsplash.com/photo-1578736641330-3155e606cd40?crop=entropy&cs=srgb&fm=jpg&q=85"]},
 ]
+
+
+def _booking_url(club_name: str) -> str:
+    """Return a real-world booking deep link search for the venue."""
+    q = club_name.replace(" ", "+").replace("'", "%27")
+    return f"https://www.shotgun.live/search?q={q}"
 
 
 def _event_date(days: int, hour: int = 23) -> datetime:
@@ -869,6 +937,7 @@ async def startup():
                     "date": _event_date(i + 1, 23).isoformat(),
                     "entry_price": 15.0 + (i * 5),
                     "photo": club["photos"][0],
+                    "booking_url": _booking_url(club["name"]),
                 }
             )
         await db.events.insert_many(events)

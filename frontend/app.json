@@ -12,9 +12,11 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.nightfinder.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Find nightclubs and bars near you",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Find nightclubs and bars near you",
-        "NSUserNotificationUsageDescription": "Notify you about events and parties"
+        "NSLocationWhenInUseUsageDescription": "Trouver les soirées autour de toi",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Detecter ton arrivée en club pour confirmer la soirée",
+        "NSLocationAlwaysUsageDescription": "Detecter ton arrivée en club pour confirmer la soirée",
+        "NSUserNotificationUsageDescription": "Te prévenir des événements à proximité",
+        "UIBackgroundModes": ["location", "fetch", "remote-notification"]
       }
     },
     "android": {
@@ -26,8 +28,12 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
         "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE"
+        "VIBRATE",
+        "POST_NOTIFICATIONS"
       ],
       "edgeToEdgeEnabled": true
     },
@@ -52,7 +58,11 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Find nightclubs and bars near you"
+          "locationWhenInUsePermission": "Trouver les soirées autour de toi",
+          "locationAlwaysAndWhenInUsePermission": "Detecter ton arrivée en club pour confirmer la soirée",
+          "locationAlwaysPermission": "Detecter ton arrivée en club pour confirmer la soirée",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [
@@ -60,7 +70,9 @@
         {
           "color": "#E01A4F"
         }
-      ]
+      ],
+      "expo-task-manager",
+      "expo-background-task"
     ],
     "experiments": {
       "typedRoutes": true
