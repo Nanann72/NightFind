@@ -324,7 +324,12 @@ async def fetch_place_photo(
     url = f"{PLACES_BASE}/{name}/media"
     params = {"maxWidthPx": max_width, "key": PLACES_KEY}
     try:
-        resp = await client.get(url, params=params, timeout=15.0)
+        # Google Places photo endpoint returns a 302 redirect to a CDN URL
+        # (lh3.googleusercontent.com). httpx does NOT follow redirects by
+        # default — we must opt-in explicitly here.
+        resp = await client.get(
+            url, params=params, timeout=15.0, follow_redirects=True
+        )
         resp.raise_for_status()
     except Exception as exc:  # noqa: BLE001
         LOG.warning("Photo fetch error: %s", exc)
