@@ -743,6 +743,241 @@ async def record_swipe(body: SwipeAction, user: dict = Depends(get_current_user)
     return {"ok": True}
 
 
+# ===================== User-to-user Swipe (Tinder-like) ===================== #
+
+FREE_DAILY_SWIPE_LIMIT = 10
+
+
+def _today_start_utc() -> datetime:
+    n = datetime.now(timezone.utc)
+    return n.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def _profile_for_swipe(u: dict) -> dict:
+    """Public payload returned to other users in the swipe deck."""
+    dob = u.get("dob")
+    age = None
+    if dob:
+        try:
+            d = datetime.strptime(dob, "%Y-%m-%d").date()
+            today = datetime.now(timezone.utc).date()
+            age = today.year - d.year - (
+                (today.month, today.day) < (d.month, d.day)
+            )
+        except Exception:
+            age = None
+    return {
+        "user_id": u["user_id"],
+        "name": u.get("name", ""),
+        "username": u.get("username"),
+        "age": age,
+        "bio": u.get("bio", ""),
+        "city": u.get("city", ""),
+        "instagram": u.get("instagram", ""),
+        "photos": u.get("photos") or [],
+        "music_prefs": u.get("music_prefs") or [],
+        "fav_clubs": u.get("fav_clubs") or [],
+    }
+
+
+def _is_profile_complete_for_swipe(u: dict) -> bool:
+    if not u.get("photos") or len(u["photos"]) == 0:
+        return False
+    if not u.get("dob"):
+        return False
+    return True
+
+
+async def _today_swipes_count(user_id: str) -> int:
+    return await db.user_swipes.count_documents({
+        "user_id": user_id,
+        "created_at": {"$gte": _today_start_utc()},
+    })
+
+
+@api_router.get("/swipe/quota")
+async def swipe_quota(user: dict = Depends(get_current_user)):
+    used = await _today_swipes_count(user["user_id"])
+    is_prem = bool(user.get("is_premium"))
+    return {
+        "used_today": used,
+        "limit": None if is_prem else FREE_DAILY_SWIPE_LIMIT,
+        "is_premium": is_prem,
+        "remaining": None if is_prem else max(0, FREE_DAILY_SWIPE_LIMIT - used),
+    }
+
+
+@api_router.get("/swipe/deck")
+async def swipe_deck(user: dict = Depends(get_current_user)):
+    """Return up to 10 profiles the user has not swiped on yet (and is not
+    themself). Hidden users and profiles missing the minimum data are skipped."""
+    # Already swiped target ids
+    already = await db.user_swipes.find(
+        {"user_id": user["user_id"]}, {"_id": 0, "target_user_id": 1},
+    ).to_list(1000)
+    exclude = {s["target_user_id"] for s in already}
+    exclude.add(user["user_id"])
+    cursor = db.users.find(
+        {
+            "user_id": {"$nin": list(exclude)},
+            "visibility": {"$ne": "hidden"},
+            "photos": {"$exists": True, "$ne": []},
+        },
+        {"_id": 0},
+    ).limit(50)
+    deck: list[dict] = []
+    async for u in cursor:
+        if not _is_profile_complete_for_swipe(u):
+            continue
+        deck.append(_profile_for_swipe(u))
+        if len(deck) >= 10:
+            break
+    return deck
+
+
+class UserSwipeBody(BaseModel):
+    target_user_id: str
+
+
+@api_router.post("/swipe/like")
+async def swipe_like(body: UserSwipeBody, user: dict = Depends(get_current_user)):
+    return await _user_swipe(body.target_user_id, "like", user)
+
+
+@api_router.post("/swipe/pass")
+async def swipe_pass(body: UserSwipeBody, user: dict = Depends(get_current_user)):
+    return await _user_swipe(body.target_user_id, "pass", user)
+
+
+async def _user_swipe(target_user_id: str, action: str, user: dict) -> dict:
+    if target_user_id == user["user_id"]:
+        raise HTTPException(status_code=400, detail="On ne se swipe pas soi-même")
+    if action not in ("like", "pass"):
+        raise HTTPException(status_code=400, detail="Action invalide")
+    target = await db.users.find_one({"user_id": target_user_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="Profil introuvable")
+    # Daily limit for free users
+    if not bool(user.get("is_premium")):
+        used = await _today_swipes_count(user["user_id"])
+        if used >= FREE_DAILY_SWIPE_LIMIT:
+            raise HTTPException(
+                status_code=402,
+                detail=f"Limite quotidienne atteinte ({FREE_DAILY_SWIPE_LIMIT}/jour). Passe Premium pour swiper sans limite.",
+            )
+    # Idempotency: prevent double-swipe on same target
+    existing = await db.user_swipes.find_one(
+        {"user_id": user["user_id"], "target_user_id": target_user_id}
+    )
+    if existing:
+        return {"ok": True, "already_swiped": True}
+    await db.user_swipes.insert_one({
+        "swipe_id": f"sw_{uuid.uuid4().hex[:10]}",
+        "user_id": user["user_id"],
+        "target_user_id": target_user_id,
+        "action": action,
+        "created_at": datetime.now(timezone.utc),
+    })
+    if action == "like":
+        # Create or refresh a match request (the target will see it in inbox)
+        await db.match_requests.update_one(
+            {"from_user_id": user["user_id"], "to_user_id": target_user_id},
+            {
+                "$setOnInsert": {
+                    "request_id": f"mr_{uuid.uuid4().hex[:10]}",
+                    "from_user_id": user["user_id"],
+                    "to_user_id": target_user_id,
+                    "status": "pending",
+                    "created_at": datetime.now(timezone.utc),
+                },
+            },
+            upsert=True,
+        )
+        # In-app notification
+        sender_name = user.get("name") or (
+            f"@{user.get('username')}" if user.get("username") else "Quelqu'un"
+        )
+        await db.notifications.insert_one({
+            "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+            "user_id": target_user_id,
+            "title": "Quelqu'un veut te matcher 💘",
+            "body": f"{sender_name} a aimé ton profil.",
+            "type": "match_request",
+            "data": {"from_user_id": user["user_id"]},
+            "created_at": datetime.now(timezone.utc),
+        })
+        try:
+            await push_service.send_push(
+                recipients=[target_user_id],
+                title="Quelqu'un veut te matcher 💘",
+                message=f"{sender_name} a aimé ton profil.",
+                action_url="/match-requests",
+                idempotency_key=f"mr_{user['user_id']}_{target_user_id}",
+            )
+        except Exception as e:
+            logger.warning("push (match_request) failed: %s", e)
+    return {"ok": True}
+
+
+# ===================== Profile / Swipe fields ===================== #
+
+
+class SwipeFieldsBody(BaseModel):
+    dob: Optional[str] = None
+    bio: Optional[str] = None
+    city: Optional[str] = None
+    instagram: Optional[str] = None
+    photos: Optional[list[str]] = None  # base64 strings, max 3
+    fav_clubs: Optional[list[str]] = None  # club_ids
+
+
+@api_router.put("/profile/swipe-fields")
+async def update_swipe_fields(body: SwipeFieldsBody, user: dict = Depends(get_current_user)):
+    updates: dict = {}
+    if body.dob is not None:
+        try:
+            d = datetime.strptime(body.dob, "%Y-%m-%d").date()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Date invalide (YYYY-MM-DD)")
+        today = datetime.now(timezone.utc).date()
+        age = today.year - d.year - ((today.month, today.day) < (d.month, d.day))
+        if age < 18:
+            raise HTTPException(status_code=400, detail="Tu dois avoir 18 ans ou plus")
+        if age > 120:
+            raise HTTPException(status_code=400, detail="Date invalide")
+        updates["dob"] = body.dob
+    if body.bio is not None:
+        if len(body.bio) > 500:
+            raise HTTPException(status_code=400, detail="Bio trop longue (max 500)")
+        updates["bio"] = body.bio.strip()
+    if body.city is not None:
+        if len(body.city) > 80:
+            raise HTTPException(status_code=400, detail="Ville trop longue")
+        updates["city"] = body.city.strip()
+    if body.instagram is not None:
+        # Strip leading @ and validate handle
+        h = body.instagram.strip().lstrip("@")
+        if h and not _re.match(r"^[A-Za-z0-9._]{1,30}$", h):
+            raise HTTPException(status_code=400, detail="Handle Instagram invalide")
+        updates["instagram"] = h
+    if body.photos is not None:
+        if len(body.photos) > 3:
+            raise HTTPException(status_code=400, detail="3 photos maximum")
+        # Reject photos heavier than ~2MB each (base64 inflate ~33%)
+        for p in body.photos:
+            if not isinstance(p, str) or len(p) > 3_000_000:
+                raise HTTPException(status_code=413, detail="Photo trop lourde (max 2MB)")
+        updates["photos"] = body.photos
+    if body.fav_clubs is not None:
+        if len(body.fav_clubs) > 10:
+            raise HTTPException(status_code=400, detail="10 clubs favoris maximum")
+        updates["fav_clubs"] = body.fav_clubs
+    if not updates:
+        return {"ok": True, "updated": []}
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": updates})
+    return {"ok": True, "updated": list(updates.keys())}
+
+
 @api_router.get("/swipes/history")
 async def swipe_history(user: dict = Depends(get_current_user)):
     history = await db.swipes.find(

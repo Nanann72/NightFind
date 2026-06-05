@@ -161,6 +161,35 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ emails }),
     }),
+
+  // ----- User-to-user Swipe (Tinder-like) ----- //
+  swipeDeck: () => request<Array<any>>('/swipe/deck'),
+  swipeQuota: () =>
+    request<{ used_today: number; limit: number | null; is_premium: boolean; remaining: number | null }>(
+      '/swipe/quota',
+    ),
+  swipeLike: (target_user_id: string) =>
+    request<{ ok: boolean; already_swiped?: boolean }>('/swipe/like', {
+      method: 'POST',
+      body: JSON.stringify({ target_user_id }),
+    }),
+  swipePass: (target_user_id: string) =>
+    request<{ ok: boolean; already_swiped?: boolean }>('/swipe/pass', {
+      method: 'POST',
+      body: JSON.stringify({ target_user_id }),
+    }),
+  updateSwipeFields: (body: {
+    dob?: string;
+    bio?: string;
+    city?: string;
+    instagram?: string;
+    photos?: string[];
+    fav_clubs?: string[];
+  }) =>
+    request<{ ok: boolean; updated: string[] }>('/profile/swipe-fields', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
   reserveEvent: (id: string) =>
     request<{ reservation_id: string; status: string }>(
       `/events/${id}/reserve`,

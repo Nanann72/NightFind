@@ -1,12 +1,13 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Image,
   TouchableOpacity,
-  Dimensions,
   ActivityIndicator,
+  Dimensions,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,344 +22,359 @@ import Animated, {
   Extrapolation,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import * as Haptics from 'expo-haptics';
-import { useClubs } from '../../lib/clubs';
-import { api, Club } from '../../lib/api';
-import { usePremium } from '../../lib/premium';
-import { storage } from '../../lib/storage';
-import { SwipeTutorial } from '../../components/SwipeTutorial';
+import { api } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
 import { colors, radius, spacing } from '../../lib/theme';
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const CARD_W = Math.min(SCREEN_W - 32, 380);
-const CARD_H = Math.min(SCREEN_H * 0.6, 560);
-const SWIPE_THRESHOLD = 120;
-const FREE_SWIPE_LIMIT = 10;
-const SWIPE_COUNT_KEY = 'nf_swipes_today';
+const { width } = Dimensions.get('window');
+const CARD_W = width - 32;
+const CARD_H = Math.min(620, Math.round(width * 1.55));
+const SWIPE_THRESHOLD = width * 0.28;
 
-function todayKey(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-}
+type SwipeProfile = {
+  user_id: string;
+  name: string;
+  username?: string | null;
+  age?: number | null;
+  bio?: string;
+  city?: string;
+  instagram?: string;
+  photos?: string[];
+  music_prefs?: string[];
+  fav_clubs?: string[];
+};
 
-export default function Swipe() {
-  const insets = useSafeAreaInsets();
+export default function SwipePeople() {
   const router = useRouter();
-  const { clubs, loading, toggleFavorite } = useClubs();
-  const { isPremium } = usePremium();
-  const [index, setIndex] = useState(0);
-  const [done, setDone] = useState(false);
-  const [swipesToday, setSwipesToday] = useState(0);
+  const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const [deck, setDeck] = useState<SwipeProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [quota, setQuota] = useState<{ remaining: number | null; limit: number | null; is_premium: boolean } | null>(null);
+  const [photoIdx, setPhotoIdx] = useState(0);
 
-  const x = useSharedValue(0);
-  const y = useSharedValue(0);
+  const tx = useSharedValue(0);
+  const ty = useSharedValue(0);
 
-  const deck = useMemo(() => clubs.slice(index, index + 3), [clubs, index]);
-  const limitReached = !isPremium && swipesToday >= FREE_SWIPE_LIMIT;
-
-  useEffect(() => {
-    if (clubs.length > 0 && index >= clubs.length) setDone(true);
-  }, [clubs, index]);
-
-  // Load swipe count for today
-  useEffect(() => {
-    (async () => {
-      const raw = await storage.get(SWIPE_COUNT_KEY);
-      if (raw) {
-        try {
-          const { date, count } = JSON.parse(raw);
-          if (date === todayKey()) setSwipesToday(count);
-        } catch {
-          // ignore
-        }
-      }
-    })();
+  const loadDeck = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [d, q] = await Promise.all([api.swipeDeck(), api.swipeQuota()]);
+      setDeck(d as any);
+      setQuota(q);
+    } catch {
+      setDeck([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const bumpSwipeCount = async () => {
-    const next = swipesToday + 1;
-    setSwipesToday(next);
-    await storage.set(
-      SWIPE_COUNT_KEY,
-      JSON.stringify({ date: todayKey(), count: next }),
-    );
-  };
+  useEffect(() => {
+    loadDeck();
+  }, [loadDeck]);
 
-  const goNext = (liked: boolean) => {
-    const current = clubs[index];
-    if (current) {
-      api.recordSwipe(current.club_id, liked ? 'like' : 'skip').catch(() => {});
-      if (liked) {
-        toggleFavorite(current.club_id).catch?.(() => {});
+  const profileComplete = !!user && (user as any).dob && Array.isArray((user as any).photos) && (user as any).photos.length > 0;
+
+  const finishSwipe = useCallback(
+    async (action: 'like' | 'pass') => {
+      if (deck.length === 0) return;
+      const card = deck[0];
+      tx.value = 0;
+      ty.value = 0;
+      // Optimistically pop
+      setDeck((d) => d.slice(1));
+      setPhotoIdx(0);
+      try {
+        const fn = action === 'like' ? api.swipeLike : api.swipePass;
+        await fn(card.user_id);
+        // Refresh quota
+        const q = await api.swipeQuota();
+        setQuota(q);
+        if (action === 'like') {
+          // Soft feedback toast
+        }
+      } catch (e: any) {
+        const msg = e?.message || '';
+        if (msg.includes('402') || msg.includes('Limite')) {
+          Alert.alert(
+            'Limite atteinte 💎',
+            `Tu as utilisé tes ${quota?.limit ?? 10} swipes du jour. Passe Premium pour swiper sans limite !`,
+            [
+              { text: 'Plus tard', style: 'cancel' },
+              { text: 'Passer Premium', onPress: () => router.push('/paywall') },
+            ],
+          );
+          // Re-add the card we removed
+          setDeck((d) => [card, ...d]);
+        }
       }
-      if (!isPremium) bumpSwipeCount();
-    }
-    x.value = 0;
-    y.value = 0;
-    setIndex((i) => i + 1);
-  };
+    },
+    [deck, tx, ty, quota, router],
+  );
 
-  const onLike = () => {
-    if (limitReached) {
-      router.push({ pathname: '/paywall', params: { reason: 'Swipes illimités' } });
-      return;
-    }
-    Haptics.impactAsync?.(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    x.value = withTiming(SCREEN_W, { duration: 250 }, () => runOnJS(goNext)(true));
-  };
-  const onSkip = () => {
-    if (limitReached) {
-      router.push({ pathname: '/paywall', params: { reason: 'Swipes illimités' } });
-      return;
-    }
-    Haptics.impactAsync?.(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    x.value = withTiming(-SCREEN_W, { duration: 250 }, () => runOnJS(goNext)(false));
-  };
-
-  const pan = Gesture.Pan()
+  const gesture = Gesture.Pan()
     .onUpdate((e) => {
-      x.value = e.translationX;
-      y.value = e.translationY;
+      tx.value = e.translationX;
+      ty.value = e.translationY;
     })
-    .onEnd(() => {
-      if (x.value > SWIPE_THRESHOLD) {
-        x.value = withTiming(SCREEN_W, { duration: 200 }, () => runOnJS(goNext)(true));
-      } else if (x.value < -SWIPE_THRESHOLD) {
-        x.value = withTiming(-SCREEN_W, { duration: 200 }, () => runOnJS(goNext)(false));
+    .onEnd((e) => {
+      if (Math.abs(e.translationX) > SWIPE_THRESHOLD) {
+        const dir = e.translationX > 0 ? 'like' : 'pass';
+        tx.value = withTiming(e.translationX > 0 ? width * 1.5 : -width * 1.5, { duration: 220 });
+        ty.value = withTiming(ty.value, { duration: 220 });
+        runOnJS(finishSwipe)(dir);
       } else {
-        x.value = withSpring(0);
-        y.value = withSpring(0);
+        tx.value = withSpring(0);
+        ty.value = withSpring(0);
       }
     });
 
   const cardStyle = useAnimatedStyle(() => ({
     transform: [
-      { translateX: x.value },
-      { translateY: y.value },
+      { translateX: tx.value },
+      { translateY: ty.value },
       {
-        rotate: `${interpolate(
-          x.value,
-          [-SCREEN_W / 2, 0, SCREEN_W / 2],
-          [-12, 0, 12],
-          Extrapolation.CLAMP,
-        )}deg`,
+        rotate: `${interpolate(tx.value, [-width / 2, 0, width / 2], [-15, 0, 15], Extrapolation.CLAMP)}deg`,
       },
     ],
   }));
 
-  const likeOverlay = useAnimatedStyle(() => ({
-    opacity: interpolate(x.value, [0, SWIPE_THRESHOLD], [0, 1], Extrapolation.CLAMP),
+  const likeOpacity = useAnimatedStyle(() => ({
+    opacity: interpolate(tx.value, [0, SWIPE_THRESHOLD], [0, 1], Extrapolation.CLAMP),
   }));
-  const skipOverlay = useAnimatedStyle(() => ({
-    opacity: interpolate(x.value, [-SWIPE_THRESHOLD, 0], [1, 0], Extrapolation.CLAMP),
+  const passOpacity = useAnimatedStyle(() => ({
+    opacity: interpolate(tx.value, [-SWIPE_THRESHOLD, 0], [1, 0], Extrapolation.CLAMP),
   }));
+
+  // Profile incomplete state
+  if (!profileComplete) {
+    return (
+      <View style={[styles.center, { paddingTop: insets.top + 40 }]} testID="swipe-incomplete-banner">
+        <Ionicons name="person-circle" size={72} color={colors.tertiary} />
+        <Text style={styles.bigTitle}>Complète ton profil pour swiper</Text>
+        <Text style={styles.sub}>
+          Ajoute au moins 1 photo et ta date de naissance pour rencontrer du monde.
+        </Text>
+        <TouchableOpacity
+          style={styles.cta}
+          onPress={() => router.push('/profile')}
+          testID="goto-profile-btn"
+        >
+          <Text style={styles.ctaText}>Compléter mon profil</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.center]} testID="swipe-screen">
+      <View style={[styles.center, { paddingTop: insets.top }]}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
 
-  if (done || deck.length === 0) {
+  if (deck.length === 0) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top + 24 }]} testID="swipe-screen-empty">
-        <Text style={styles.title}>Swipe</Text>
-        <View style={styles.empty}>
-          <Ionicons name="sparkles" size={48} color={colors.secondary} />
-          <Text style={styles.emptyTitle}>C'est tout pour ce soir</Text>
-          <Text style={styles.emptyText}>
-            Vous avez parcouru tous les clubs disponibles. Modifiez vos filtres
-            ou revenez plus tard.
-          </Text>
-          <TouchableOpacity
-            style={styles.resetBtn}
-            onPress={() => {
-              setIndex(0);
-              setDone(false);
-            }}
-            testID="swipe-reset-btn"
-          >
-            <Text style={styles.resetText}>Recommencer</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={[styles.center, { paddingTop: insets.top + 40 }]}>
+        <Ionicons name="sparkles" size={64} color={colors.tertiary} />
+        <Text style={styles.bigTitle}>Plus personne à découvrir</Text>
+        <Text style={styles.sub}>Repasse demain ou invite tes amis sur Night Finder.</Text>
+        <TouchableOpacity style={styles.cta} onPress={loadDeck} testID="reload-deck">
+          <Text style={styles.ctaText}>Rafraîchir</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
+  const top = deck[0];
+  const photo = top.photos?.[photoIdx] || top.photos?.[0];
+  const photoSrc = photo
+    ? photo.startsWith('http') || photo.startsWith('data:')
+      ? photo
+      : `data:image/jpeg;base64,${photo}`
+    : null;
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 12 }]} testID="swipe-screen">
+    <View style={[styles.container, { paddingTop: insets.top + 8 }]} testID="swipe-people-screen">
       <View style={styles.header}>
-        <Text style={styles.title}>Swipe</Text>
-        <Text style={styles.subtitle}>
-          {clubs.length - index} clubs à découvrir
-        </Text>
+        <Text style={styles.brand}>SWIPE</Text>
+        <Text style={styles.title}>Découvre du monde</Text>
+        <View style={styles.quotaRow}>
+          <Ionicons name="flash" size={14} color={colors.primary} />
+          <Text style={styles.quotaText}>
+            {quota?.is_premium
+              ? 'Swipes illimités · Premium 💎'
+              : `${quota?.remaining ?? 10} / ${quota?.limit ?? 10} swipes restants aujourd'hui`}
+          </Text>
+        </View>
       </View>
 
-      <View style={styles.deckWrap}>
-        {deck
-          .slice()
-          .reverse()
-          .map((c, ri) => {
-            const isTop = ri === deck.length - 1;
-            const offset = (deck.length - 1 - ri) * 10;
-            const scale = 1 - (deck.length - 1 - ri) * 0.04;
-            if (isTop) {
-              return (
-                <GestureDetector key={c.club_id} gesture={pan}>
-                  <Animated.View style={[styles.card, cardStyle]} testID={`swipe-card-${c.club_id}`}>
-                    <CardContent club={c} />
-                    <Animated.View style={[styles.overlay, styles.likeOverlay, likeOverlay]}>
-                      <Text style={styles.likeText}>LIKE</Text>
-                    </Animated.View>
-                    <Animated.View style={[styles.overlay, styles.skipOverlay, skipOverlay]}>
-                      <Text style={styles.skipText}>NOPE</Text>
-                    </Animated.View>
-                  </Animated.View>
-                </GestureDetector>
-              );
-            }
-            return (
-              <View
-                key={c.club_id}
-                style={[
-                  styles.card,
-                  styles.cardBg,
-                  {
-                    transform: [{ scale }, { translateY: offset }],
-                    opacity: 0.6,
-                  },
-                ]}
-              >
-                <CardContent club={c} />
+      <View style={[styles.cardArea, { width: CARD_W, height: CARD_H }]}>
+        <GestureDetector gesture={gesture}>
+          <Animated.View style={[styles.card, cardStyle]}>
+            {photoSrc ? (
+              <Image source={{ uri: photoSrc }} style={styles.photo} />
+            ) : (
+              <View style={[styles.photo, styles.photoFallback]}>
+                <Ionicons name="person" size={120} color={colors.textTertiary} />
               </View>
-            );
-          })}
+            )}
+            {/* Photo pager dots */}
+            {(top.photos?.length ?? 0) > 1 && (
+              <View style={styles.dotsRow}>
+                {top.photos!.map((_, i) => (
+                  <View key={i} style={[styles.dot, i === photoIdx && styles.dotActive]} />
+                ))}
+              </View>
+            )}
+            {/* Tap left/right to switch photos */}
+            <View style={styles.tapZones}>
+              <TouchableOpacity
+                style={{ flex: 1 }}
+                onPress={() => setPhotoIdx((i) => Math.max(0, i - 1))}
+              />
+              <TouchableOpacity
+                style={{ flex: 1 }}
+                onPress={() => setPhotoIdx((i) => Math.min((top.photos?.length ?? 1) - 1, i + 1))}
+              />
+            </View>
+
+            {/* LIKE / PASS overlays */}
+            <Animated.View style={[styles.overlay, styles.overlayLike, likeOpacity]}>
+              <Text style={styles.overlayText}>LIKE</Text>
+            </Animated.View>
+            <Animated.View style={[styles.overlay, styles.overlayPass, passOpacity]}>
+              <Text style={styles.overlayText}>NOPE</Text>
+            </Animated.View>
+
+            <View style={styles.gradient} />
+            <View style={styles.info}>
+              <Text style={styles.name}>
+                {top.name}
+                {top.age != null ? `, ${top.age}` : ''}
+              </Text>
+              {!!top.city && <Text style={styles.city}>{top.city}</Text>}
+              {!!top.bio && (
+                <Text style={styles.bio} numberOfLines={3}>
+                  {top.bio}
+                </Text>
+              )}
+              {top.music_prefs && top.music_prefs.length > 0 && (
+                <View style={styles.tagsRow}>
+                  {top.music_prefs.slice(0, 4).map((m) => (
+                    <View key={m} style={styles.tag}>
+                      <Text style={styles.tagText}>{m}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {!!top.instagram && (
+                <Text style={styles.insta}>📸 @{top.instagram}</Text>
+              )}
+            </View>
+          </Animated.View>
+        </GestureDetector>
       </View>
 
-      <View style={styles.actions}>
-        <TouchableOpacity style={[styles.actionBtn, styles.skipBtn]} onPress={onSkip} testID="swipe-skip-btn">
-          <Ionicons name="close" size={28} color={colors.textPrimary} />
+      <View style={[styles.actions, { paddingBottom: insets.bottom + 120 }]}>
+        <TouchableOpacity
+          style={[styles.actionBtn, styles.passBtn]}
+          onPress={() => {
+            tx.value = withTiming(-width * 1.5, { duration: 220 });
+            finishSwipe('pass');
+          }}
+          testID="action-pass"
+          activeOpacity={0.8}
+        >
+          <Ionicons name="close" size={32} color="#fff" />
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.actionBtn, styles.infoBtn]}
-          onPress={() => router.push(`/club/${clubs[index].club_id}` as any)}
-          testID="swipe-info-btn"
+          style={[styles.actionBtn, styles.likeBtn]}
+          onPress={() => {
+            tx.value = withTiming(width * 1.5, { duration: 220 });
+            finishSwipe('like');
+          }}
+          testID="action-like"
+          activeOpacity={0.8}
         >
-          <Ionicons name="information" size={22} color={colors.bg} />
+          <Ionicons name="heart" size={32} color="#fff" />
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.likeBtn]} onPress={onLike} testID="swipe-like-btn">
-          <Ionicons name="heart" size={28} color={colors.bg} />
-        </TouchableOpacity>
-      </View>
-      <SwipeTutorial />
-    </View>
-  );
-}
-
-function CardContent({ club }: { club: Club }) {
-  return (
-    <View style={styles.cardContent}>
-      <Image source={{ uri: club.photos[0] }} style={styles.cardImage} />
-      <View style={styles.cardGradient} />
-      <View style={styles.cardInfo}>
-        <View style={styles.cardChips}>
-          {club.music_styles.slice(0, 3).map((m) => (
-            <View key={m} style={styles.cardChip}>
-              <Text style={styles.cardChipText}>{m}</Text>
-            </View>
-          ))}
-        </View>
-        <Text style={styles.cardName}>{club.name}</Text>
-        <Text style={styles.cardMeta}>
-          ⭐ {club.rating.toFixed(1)} · {club.avg_price.toFixed(0)}€
-          {club.distance_km != null ? ` · ${club.distance_km.toFixed(1)} km` : ''}
-        </Text>
-        <Text style={styles.cardDesc} numberOfLines={2}>
-          {club.description}
-        </Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  center: { alignItems: 'center', justifyContent: 'center' },
-  header: { paddingHorizontal: spacing.lg, marginBottom: spacing.md },
-  title: { color: colors.textPrimary, fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
-  subtitle: { color: colors.textSecondary, marginTop: 2 },
-  deckWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  container: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', backgroundColor: colors.bg, padding: 24 },
+  header: { width: '100%', paddingHorizontal: spacing.lg, marginBottom: 12, alignSelf: 'flex-start' },
+  brand: { color: colors.primary, fontWeight: '900', fontSize: 11, letterSpacing: 3 },
+  title: { color: colors.textPrimary, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
+  quotaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  quotaText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  cardArea: { alignSelf: 'center', alignItems: 'center', justifyContent: 'center' },
   card: {
-    position: 'absolute',
-    width: CARD_W,
-    height: CARD_H,
-    borderRadius: radius.xl,
-    overflow: 'hidden',
+    width: '100%',
+    height: '100%',
+    borderRadius: radius.lg,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 18,
+    elevation: 6,
   },
-  cardBg: { borderColor: colors.border },
-  cardContent: { flex: 1 },
-  cardImage: { width: '100%', height: '100%' },
-  cardGradient: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(9,9,11,0.4)',
+  photo: { width: '100%', height: '100%' },
+  photoFallback: { backgroundColor: colors.surfaceElevated, alignItems: 'center', justifyContent: 'center' },
+  dotsRow: {
+    position: 'absolute',
+    top: 12,
+    left: 14,
+    right: 14,
+    flexDirection: 'row',
+    gap: 4,
   },
-  cardInfo: {
+  dot: { flex: 1, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.3)' },
+  dotActive: { backgroundColor: '#fff' },
+  tapZones: { position: 'absolute', top: 24, left: 0, right: 0, bottom: 220, flexDirection: 'row' },
+  gradient: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 20,
-    paddingBottom: 24,
+    height: 220,
+    backgroundColor: 'rgba(0,0,0,0.55)',
   },
-  cardChips: { flexDirection: 'row', gap: 6, marginBottom: 10, flexWrap: 'wrap' },
-  cardChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: radius.full,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-  },
-  cardChipText: { color: colors.textPrimary, fontSize: 11, fontWeight: '700' },
-  cardName: { color: colors.textPrimary, fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
-  cardMeta: { color: colors.textPrimary, marginTop: 4, fontWeight: '700' },
-  cardDesc: { color: colors.textSecondary, marginTop: 6, fontSize: 13 },
+  info: { position: 'absolute', bottom: 18, left: 18, right: 18 },
+  name: { color: '#fff', fontSize: 28, fontWeight: '900', letterSpacing: -0.5 },
+  city: { color: 'rgba(255,255,255,0.8)', marginTop: 2, fontSize: 14 },
+  bio: { color: 'rgba(255,255,255,0.9)', marginTop: 10, fontSize: 14, lineHeight: 19 },
+  tagsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 10 },
+  tag: { backgroundColor: 'rgba(255,255,255,0.18)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
+  tagText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  insta: { color: 'rgba(255,255,255,0.85)', marginTop: 8, fontSize: 12 },
+
   overlay: {
     position: 'absolute',
-    top: 30,
+    top: 32,
     paddingHorizontal: 18,
     paddingVertical: 8,
-    borderRadius: radius.md,
     borderWidth: 3,
-  },
-  likeOverlay: {
-    right: 24,
-    borderColor: colors.primary,
-    transform: [{ rotate: '12deg' }],
-  },
-  skipOverlay: {
-    left: 24,
-    borderColor: '#71717A',
+    borderRadius: 8,
     transform: [{ rotate: '-12deg' }],
   },
-  likeText: { color: colors.primary, fontSize: 28, fontWeight: '900', letterSpacing: 2 },
-  skipText: { color: '#A1A1AA', fontSize: 28, fontWeight: '900', letterSpacing: 2 },
+  overlayLike: { left: 24, borderColor: '#22c55e' },
+  overlayPass: { right: 24, borderColor: '#ef4444', transform: [{ rotate: '12deg' }] },
+  overlayText: { fontSize: 32, fontWeight: '900', color: '#fff', letterSpacing: 2 },
+
   actions: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    gap: 32,
     alignItems: 'center',
-    gap: 24,
-    paddingBottom: 120,
-    paddingTop: 12,
+    justifyContent: 'center',
+    marginTop: 18,
   },
   actionBtn: {
     width: 64,
@@ -366,36 +382,36 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 4,
   },
-  skipBtn: { backgroundColor: colors.surface, borderColor: colors.borderStrong },
-  infoBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.secondary,
-    borderColor: colors.secondary,
-  },
-  likeBtn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  empty: { alignItems: 'center', marginTop: 80, paddingHorizontal: spacing.xl },
-  emptyTitle: {
+  passBtn: { backgroundColor: '#ef4444' },
+  likeBtn: { backgroundColor: '#22c55e' },
+
+  bigTitle: {
     color: colors.textPrimary,
     fontSize: 22,
     fontWeight: '900',
-    marginTop: 16,
+    marginTop: 18,
+    textAlign: 'center',
   },
-  emptyText: {
+  sub: {
     color: colors.textSecondary,
+    fontSize: 14,
     textAlign: 'center',
     marginTop: 8,
-    lineHeight: 22,
+    lineHeight: 20,
+    paddingHorizontal: 16,
   },
-  resetBtn: {
-    marginTop: 24,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
+  cta: {
+    marginTop: 22,
     backgroundColor: colors.primary,
+    paddingHorizontal: 22,
+    paddingVertical: 14,
     borderRadius: radius.full,
   },
-  resetText: { color: colors.bg, fontWeight: '800' },
+  ctaText: { color: colors.bg, fontWeight: '900' },
 });
