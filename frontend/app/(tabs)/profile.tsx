@@ -260,143 +260,7 @@ export default function Profile() {
           <Stat label="Préférences" value={userPrefs.length} testID="stat-prefs" />
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Mon activité</Text>
-          <Row
-            icon="heart"
-            label="Mes favoris"
-            value={`${favCount}`}
-            onPress={() => router.push('/favorites')}
-            testID="row-favorites"
-          />
-          <Row
-            icon="notifications"
-            label="Notifications"
-            onPress={() => router.push('/notifications')}
-            testID="row-notifications"
-          />
-          <Row
-            icon="options"
-            label="Filtres de découverte"
-            onPress={() => router.push('/filters')}
-            testID="row-filters"
-          />
-          <Row
-            icon="calendar"
-            label="Soirées à venir"
-            onPress={() => router.push('/(tabs)/events')}
-            testID="row-events"
-          />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Mes amis</Text>
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => {
-              setUsernameDraft((user as any)?.username || '');
-              setEditingUsername(true);
-            }}
-            testID="row-username"
-            activeOpacity={0.85}
-          >
-            <View style={[styles.rowIcon, { backgroundColor: 'rgba(224,26,79,0.12)' }]}>
-              <Ionicons name="at" size={18} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>Mon @username</Text>
-              <Text style={styles.bgRowSub}>
-                {(user as any)?.username ? `@${(user as any).username}` : 'Définis-le pour que tes amis puissent te trouver'}
-              </Text>
-            </View>
-            <Ionicons name="pencil" size={16} color={colors.textTertiary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.row}
-            onPress={() => router.push('/friends')}
-            testID="row-friends-manage"
-            activeOpacity={0.85}
-          >
-            <View style={[styles.rowIcon, { backgroundColor: 'rgba(0,240,255,0.12)' }]}>
-              <Ionicons name="people" size={18} color={colors.tertiary} />
-            </View>
-            <Text style={styles.rowLabel}>Gérer mes amis</Text>
-            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-          </TouchableOpacity>
-
-          <View style={styles.bgRow}>
-            <View style={[styles.rowIcon, { backgroundColor: 'rgba(34,211,238,0.12)' }]}>
-              <Ionicons
-                name={visibility === 'clubs_only' ? 'eye' : 'eye-off'}
-                size={18}
-                color={colors.tertiary}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>Visible quand je suis en club</Text>
-              <Text style={styles.bgRowSub}>
-                {visibility === 'clubs_only'
-                  ? 'Tes amis voient ton avatar sur la carte (uniquement en boîte)'
-                  : 'Personne ne voit où tu sors'}
-              </Text>
-            </View>
-            {savingVis ? (
-              <ActivityIndicator color={colors.primary} />
-            ) : (
-              <Switch
-                value={visibility === 'clubs_only'}
-                onValueChange={toggleVisibility}
-                trackColor={{ false: colors.border, true: 'rgba(224,26,79,0.5)' }}
-                thumbColor={visibility === 'clubs_only' ? colors.primary : colors.textTertiary}
-                testID="visibility-switch"
-              />
-            )}
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Préférences musicales</Text>
-            <TouchableOpacity
-              onPress={() => {
-                setMusicDraft(userPrefs);
-                setEditingMusic(true);
-              }}
-              testID="edit-music-btn"
-            >
-              <Text style={styles.sectionAction}>Modifier</Text>
-            </TouchableOpacity>
-          </View>
-          {userPrefs.length === 0 ? (
-            <TouchableOpacity
-              style={styles.prefsEmpty}
-              onPress={() => {
-                setMusicDraft([]);
-                setEditingMusic(true);
-              }}
-              testID="add-music-prefs-btn"
-            >
-              <Ionicons name="add-circle-outline" size={18} color={colors.tertiary} />
-              <Text style={styles.prefsEmptyText}>
-                Ajoute tes styles préférés pour des recommandations
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.tags}>
-              {userPrefs.map((m) => {
-                const opt = MUSIC_OPTIONS.find((o) => o.id === m);
-                return (
-                  <View key={m} style={styles.tag}>
-                    <Text style={styles.tagEmoji}>{opt?.emoji || '🎵'}</Text>
-                    <Text style={styles.tagText}>{opt?.label || m}</Text>
-                  </View>
-                );
-              })}
-            </View>
-          )}
-        </View>
-
+        {/* PREMIUM CARD — top placement to highlight upsell */}
         <View style={styles.section}>
           <TouchableOpacity
             activeOpacity={0.85}
@@ -449,34 +313,109 @@ export default function Profile() {
           ) : null}
         </View>
 
+        {/* MON COMPTE */}
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Mon compte</Text>
           <TouchableOpacity
+            style={styles.row}
+            onPress={() => {
+              setUsernameDraft((user as any)?.username || '');
+              setEditingUsername(true);
+            }}
+            testID="row-username"
             activeOpacity={0.85}
-            style={styles.songsLink}
-            onPress={() => router.push('/my-songs')}
-            testID="my-songs-link"
           >
-            <View style={styles.songsIconWrap}>
-              <Ionicons name="musical-notes" size={20} color={colors.tertiary} />
+            <View style={[styles.rowIcon, { backgroundColor: 'rgba(224,26,79,0.12)' }]}>
+              <Ionicons name="at" size={18} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>Mes musiques par club</Text>
-              <Text style={styles.bgRowSub}>Toutes les pépites entendues en soirée</Text>
+              <Text style={styles.rowLabel}>Mon @username</Text>
+              <Text style={styles.bgRowSub}>
+                {(user as any)?.username ? `@${(user as any).username}` : 'Définis-le pour que tes amis puissent te trouver'}
+              </Text>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+            <Ionicons name="pencil" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => {
+              setMusicDraft(userPrefs);
+              setEditingMusic(true);
+            }}
+            testID="row-music"
+            activeOpacity={0.85}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: 'rgba(0,240,255,0.12)' }]}>
+              <Ionicons name="musical-notes" size={18} color={colors.tertiary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Préférences musicales</Text>
+              <Text style={styles.bgRowSub} numberOfLines={1}>
+                {userPrefs.length === 0
+                  ? 'Ajoute tes styles préférés'
+                  : userPrefs
+                      .map((m) => MUSIC_OPTIONS.find((o) => o.id === m)?.label || m)
+                      .join(' · ')}
+              </Text>
+            </View>
+            <Ionicons name="pencil" size={16} color={colors.textTertiary} />
           </TouchableOpacity>
         </View>
 
+        {/* CONFIDENTIALITÉ & AMIS */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Détection en arrière-plan</Text>
+          <Text style={styles.sectionTitle}>Confidentialité & amis</Text>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/friends')}
+            testID="row-friends-manage"
+            activeOpacity={0.85}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: 'rgba(0,240,255,0.12)' }]}>
+              <Ionicons name="people" size={18} color={colors.tertiary} />
+            </View>
+            <Text style={styles.rowLabel}>Gérer mes amis</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
+
           <View style={styles.bgRow}>
-            <View style={styles.rowIcon}>
-              <Ionicons name="radio" size={18} color={colors.tertiary} />
+            <View style={[styles.rowIcon, { backgroundColor: 'rgba(34,211,238,0.12)' }]}>
+              <Ionicons
+                name={visibility === 'clubs_only' ? 'eye' : 'eye-off'}
+                size={18}
+                color={colors.tertiary}
+              />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowLabel}>Notifie-moi à l'arrivée</Text>
+              <Text style={styles.rowLabel}>Visible quand je suis en club</Text>
               <Text style={styles.bgRowSub}>
-                Détecte si tu rentres dans un club et te propose de confirmer ta soirée.
+                {visibility === 'clubs_only'
+                  ? 'Tes amis voient ton avatar sur la carte (uniquement en boîte)'
+                  : 'Personne ne voit où tu sors'}
+              </Text>
+            </View>
+            {savingVis ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <Switch
+                value={visibility === 'clubs_only'}
+                onValueChange={toggleVisibility}
+                trackColor={{ false: colors.border, true: 'rgba(224,26,79,0.5)' }}
+                thumbColor={visibility === 'clubs_only' ? colors.primary : colors.textTertiary}
+                testID="visibility-switch"
+              />
+            )}
+          </View>
+
+          <View style={styles.bgRow}>
+            <View style={[styles.rowIcon, { backgroundColor: 'rgba(224,26,79,0.12)' }]}>
+              <Ionicons name="radio" size={18} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Détection arrière-plan</Text>
+              <Text style={styles.bgRowSub}>
+                On te propose de confirmer ta soirée quand tu arrives en club.
               </Text>
             </View>
             {togglingBg ? (
@@ -493,6 +432,75 @@ export default function Profile() {
           </View>
         </View>
 
+        {/* MES CONTENUS */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Mes contenus</Text>
+          <Row
+            icon="heart"
+            label="Mes favoris"
+            value={`${favCount}`}
+            onPress={() => router.push('/favorites')}
+            testID="row-favorites"
+          />
+          <Row
+            icon="musical-notes"
+            label="Mes musiques par club"
+            onPress={() => router.push('/my-songs')}
+            testID="row-songs"
+          />
+          <Row
+            icon="calendar"
+            label="Soirées à venir"
+            onPress={() => router.push('/(tabs)/events')}
+            testID="row-events"
+          />
+        </View>
+
+        {/* PRÉFÉRENCES APP */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Préférences de l'app</Text>
+          <Row
+            icon="notifications"
+            label="Notifications"
+            onPress={() => router.push('/notifications')}
+            testID="row-notifications"
+          />
+          <Row
+            icon="options"
+            label="Filtres de découverte"
+            onPress={() => router.push('/filters')}
+            testID="row-filters"
+          />
+        </View>
+
+        {/* AIDE */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Aide</Text>
+          <Row
+            icon="information-circle"
+            label="Comment ça marche"
+            onPress={() =>
+              Alert.alert(
+                'Night Finder',
+                "1. Réponds à quelques questions, 2. On scanne ta ville, 3. Swipe et ajoute en favoris, 4. Reçois des rappels avant chaque soirée.",
+              )
+            }
+            testID="row-how"
+          />
+          <Row
+            icon="shield-checkmark"
+            label="Confidentialité"
+            onPress={() =>
+              Alert.alert(
+                'Confidentialité',
+                'Tes préférences musicales et favoris ne sont visibles que par toi. Localisation jamais partagée avec des tiers.',
+              )
+            }
+            testID="row-privacy"
+          />
+        </View>
+
+        {/* LÉGAL */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Légal</Text>
           <TouchableOpacity
@@ -522,32 +530,6 @@ export default function Profile() {
             <Text style={styles.legalLabel}>Mentions Légales</Text>
             <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
           </TouchableOpacity>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>À propos</Text>
-          <Row
-            icon="information-circle"
-            label="Comment ça marche"
-            onPress={() =>
-              Alert.alert(
-                'Night Finder',
-                "1. Réponds à quelques questions, 2. On scanne ta ville, 3. Swipe et ajoute en favoris, 4. Reçois des rappels avant chaque soirée.",
-              )
-            }
-            testID="row-how"
-          />
-          <Row
-            icon="shield-checkmark"
-            label="Confidentialité"
-            onPress={() =>
-              Alert.alert(
-                'Confidentialité',
-                'Tes préférences musicales et favoris ne sont visibles que par toi. Localisation jamais partagée avec des tiers.',
-              )
-            }
-            testID="row-privacy"
-          />
         </View>
 
         <TouchableOpacity
