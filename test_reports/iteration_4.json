@@ -1,0 +1,65 @@
+{
+  "summary": "Sessions A.2 + B + C (swipe people / match requests / chat + register-with-dob) backend FULLY VERIFIED end-to-end. New /app/backend/tests/test_swipe_match_chat.py adds 32 tests covering: auth/register dob enforcement (422 missing, 400 <18, 400 bad format, 200 valid), swipe deck (≤10, excludes self / hidden / no-photo / no-dob profiles), swipe quota (premium → limit:null+remaining:null, non-premium → 10), like-flow side-effects (user_swipes + match_requests pending + match_request notification), like idempotency (already_swiped=true), pass does NOT create match_request, daily limit 402 on 11th non-premium swipe (then restored), cross-user security for accept/reject (non-recipient → 404), match accept creates match doc + match_accepted notif visible to both, /api/matches listing for both peers, chat send/list + since= incremental filter, validation (empty/>1000), outsider → 404 on list AND send, invalid match_id → 404, profile/swipe-fields validation (dob<18, bad format, >3 photos → 400, >2MB photo → 413, bio>500, invalid instagram, valid update with @ stripped + leading@). 32/32 PASS. Combined with regression suites (test_friends_system + test_push_notifications, both repaired with mandatory dob): 62/62 PASS total in-scope. Push fan-out is best-effort and confirmed not to crash any endpoint (backend logs show repeated 401 'EMERGENT_PUSH_KEY missing or invalid (trigger)' on every like/accept/message — payments succeed regardless). No critical bugs.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/swipe/deck",
+        "issue": "Deck candidate pool is fetched with a hardcoded .limit(50). On a populated database where many candidates have been already-swiped or are incomplete, the deck can return fewer than 10 even when more eligible profiles exist further in the pool. Consider pulling more (or iterating until 10 are collected) when len(already)+10 > 50."
+      },
+      {
+        "endpoint": "POST /api/matches/{id}/messages",
+        "issue": "Returned doc has the message but the datetime is serialized as ISO without explicit timezone offset on Mongo round-trip. Clients using `since=` get correct results (server uses fromisoformat with Z→+00:00 fallback). Cosmetic — confirm clients send the exact `created_at` they received."
+      },
+      {
+        "endpoint": "POST /api/swipe/like, POST /api/match-requests/accept",
+        "issue": "db.notifications.insert_one() is OUTSIDE the try/except that wraps push_service.send_push. If notifications insert fails (DB hiccup), the endpoint 500s and the swipe/accept is partially applied (user_swipes/match_requests rows already written). Same pattern as friends endpoints — flagged for awareness, not a regression."
+      },
+      {
+        "endpoint": "POST /api/auth/register",
+        "issue": "Missing `dob` returns 422 (FastAPI/Pydantic default) while invalid format / <18 returns 400. Spec asked for 422 on missing — current behavior matches. Just noting the inconsistency between 422 (Pydantic) and 400 (custom) error shapes for the same field."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_swipe_match_chat.py",
+    "/app/test_reports/pytest/swipe_match_chat_results.xml",
+    "/app/backend/tests/test_friends_system.py (updated: added dob to register payloads)",
+    "/app/backend/tests/test_push_notifications.py (updated: added dob to register payload)"
+  ],
+  "action_items": [
+    "Update the legacy /app/backend/tests/test_night_finder.py fixtures: TestAuth.test_register_new_user and the auth_token session fixture still pass `name` without `dob` and 5 tests fail with 422 — these are STALE assertions from iteration_1 (not regressions from Session A/B/C). Recommended: add `dob: '1995-01-01'` to all calls. Also TestClubs.test_list_clubs_no_coords asserts exactly 12 clubs but the DB now has 83 (clubs were expanded in a later session) — update or relax the assertion.",
+    "(Optional) Split server.py (now 2489 lines, +583 since iteration_3) into routers/ subfolder — swipe.py, matches.py, chat.py, friends.py, notifications.py.",
+    "(Optional) Increase swipe/deck candidate pool above .limit(50) when the user has already swiped many profiles, to guarantee 10 returned whenever ≥10 eligible exist.",
+    "(Optional) Wrap notifications.insert_one inside the push try/except in swipe_like / accept_match so a transient notifications-collection failure doesn't 500 the user-visible action.",
+    "(Carry-over) FE-only: replace deprecated `shadow*` style props with `boxShadow`; replace `pointerEvents` prop with `style.pointerEvents`; guard expo-notifications listeners with `Platform.OS !== 'web'`."
+  ],
+  "critical_code_review_comments": [
+    "Hidden-user exclusion in /api/swipe/deck uses {'visibility': {'$ne': 'hidden'}} — verified working. Note that users created via /auth/register have NO `visibility` field on doc creation, so the $ne filter correctly INCLUDES them (Mongo's $ne treats missing fields as not equal). Good.",
+    "_user_swipe() correctly enforces idempotency via find_one before insert — double-like returns {ok:true, already_swiped:true} without creating a duplicate match_request, and the upsert on match_requests uses $setOnInsert so re-likes don't reset the status.",
+    "/api/matches/{id}/messages participant check (user_id in (user_a, user_b)) and /api/matches/{id}/messages send_message participant check both correctly return 404 (not 403) for outsiders — avoids leaking match existence. Verified.",
+    "Daily limit is computed via count_documents on user_swipes with created_at >= today_start_utc — both like AND pass increment the counter (spec says daily limit applies to both). Verified the 11th attempt of EITHER returns 402.",
+    "Premium quota correctly returns {limit:null, remaining:null}. is_premium fallback (bool(u.get('is_premium'))) handles missing field as False — safe for legacy users.",
+    "push_service calls in swipe_like/accept_match/send_message are inside try/except and never break the response on 401 from upstream. Confirmed via backend logs during test run."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_swipe_match_chat.py (NEW — 32 tests)",
+    "/app/backend/tests/test_friends_system.py (added dob to 2 register fixtures)",
+    "/app/backend/tests/test_push_notifications.py (added dob to peer_user fixture)"
+  ],
+  "success_rate": {
+    "backend": "100% in-scope (62/62 — 32 new + 21 friends regression + 9 push regression). 5 legacy tests in test_night_finder.py FAIL due to stale assertions (no dob in register, expected 12 clubs but 83 present) — NOT regressions from Session A/B/C.",
+    "frontend": "not in scope per request"
+  },
+  "seed_data_creation": "Test data: ~20+ transient test users created during run (emails prefixed `test_*@nightfinder.app`), all cleaned up in teardown_module — including their user_swipes, match_requests, matches, messages, notifications. Demo user state restored at teardown: is_premium=true, visibility=clubs_only. Seed swipe profiles (cami_r, lea_m, hugo_d, sasha_p) are untouched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run with `BACKEND_URL=http://localhost:8001 MONGO_URL=mongodb://localhost:27017 DB_NAME=night_finder pytest backend/tests/test_swipe_match_chat.py -v` (~7s). The non-premium daily-limit test (TestDailyQuotaNonPremium) directly flips db.users `is_premium=False` for demo, drains today's user_swipes, runs 10 swipes, asserts 402 on 11th, then restores is_premium=True. If teardown is interrupted, run: `mongosh night_finder --eval 'db.users.updateOne({email:\"demo@nightfinder.app\"},{$set:{is_premium:true,visibility:\"clubs_only\"}})'`. test_night_finder.py has 5 stale failures unrelated to current scope — main agent should refresh that file or delete it.",
+  "rca_of_issue": "No production bugs. The only failures are in the LEGACY /app/backend/tests/test_night_finder.py: (a) its auth_token fixture + test_register_new_user + test_register_duplicate call /api/auth/register without `dob`, which Session A made mandatory → 422 (correct backend behavior, stale test); (b) TestClubs.test_list_clubs_no_coords hardcodes `len == 12` but the seeded clubs collection now contains 83 documents from later seed expansions; (c) TestEvents fails downstream because of those broken fixtures. These are stale-assertion test failures, NOT product bugs. The current scope's two old test files (test_friends_system.py, test_push_notifications.py) were already auto-fixed during this iteration by adding `dob` to the register fixtures, and now pass 30/30."
+}

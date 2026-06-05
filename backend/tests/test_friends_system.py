@@ -54,7 +54,7 @@ def second_user(session):
     email = f"test_friend_{uuid.uuid4().hex[:8]}@nightfinder.app"
     r = session.post(
         f"{API}/auth/register",
-        json={"email": email, "password": "passw0rd!", "name": "Second User"},
+        json={"email": email, "password": "passw0rd!", "name": "Second User", "dob": "1995-05-15"},
     )
     assert r.status_code == 200, r.text
     body = r.json()
@@ -319,7 +319,7 @@ class TestRejectFlow:
         email = f"test_reject_{uuid.uuid4().hex[:8]}@nightfinder.app"
         r = session.post(
             f"{API}/auth/register",
-            json={"email": email, "password": "passw0rd!", "name": "Reject User"},
+            json={"email": email, "password": "passw0rd!", "name": "Reject User", "dob": "1995-05-15"},
         )
         assert r.status_code == 200
         other_token = r.json()["token"]

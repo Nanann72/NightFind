@@ -61,7 +61,7 @@ def peer_user(session: requests.Session) -> dict:
     email = f"test_push_{uuid.uuid4().hex[:8]}@nightfinder.app"
     r = session.post(
         f"{API}/auth/register",
-        json={"email": email, "password": "passw0rd!", "name": "Push Peer"},
+        json={"email": email, "password": "passw0rd!", "name": "Push Peer", "dob": "1995-05-15"},
     )
     assert r.status_code == 200, r.text
     body = r.json()
