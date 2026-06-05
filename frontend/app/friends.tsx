@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, RefreshControl, Linking, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Contacts from 'expo-contacts';
 import { api } from '../lib/api';
 import { colors, radius, spacing } from '../lib/theme';
 
@@ -17,6 +18,63 @@ export default function Friends() {
   const [query, setQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
+  const [importingContacts, setImportingContacts] = useState(false);
+
+  const importContacts = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('Indisponible sur le web', 'Ouvre Night Finder sur ton iPhone pour importer tes contacts.');
+      return;
+    }
+    setImportingContacts(true);
+    try {
+      const perm = await Contacts.requestPermissionsAsync();
+      if (perm.status !== 'granted') {
+        if (perm.canAskAgain === false) {
+          Alert.alert(
+            'Accès refusé',
+            'Active l\'accès aux contacts dans Réglages > Night Finder.',
+            [
+              { text: 'Annuler', style: 'cancel' },
+              { text: 'Ouvrir Réglages', onPress: () => Linking.openSettings() },
+            ],
+          );
+        } else {
+          Alert.alert('Accès refusé', 'On ne peut pas trouver tes amis sans l\'accès aux contacts.');
+        }
+        return;
+      }
+      const { data: cs } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.Emails, Contacts.Fields.Name],
+        pageSize: 1000,
+      });
+      const emails: string[] = [];
+      for (const c of cs) {
+        if (Array.isArray(c.emails)) {
+          for (const e of c.emails) {
+            if (e?.email) emails.push(String(e.email).trim().toLowerCase());
+          }
+        }
+      }
+      const uniq = Array.from(new Set(emails));
+      if (uniq.length === 0) {
+        Alert.alert('Aucun email', "On n'a trouvé aucun contact avec une adresse email.");
+        return;
+      }
+      const matched = await api.findFriendsByContacts(uniq);
+      setSearchResults(matched);
+      setQuery('');
+      if (matched.length === 0) {
+        Alert.alert(
+          'Aucun ami trouvé',
+          'Aucun de tes contacts n\'a encore un compte Night Finder. Invite-les à te rejoindre !',
+        );
+      }
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message || 'Impossible d\'importer tes contacts.');
+    } finally {
+      setImportingContacts(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -83,17 +141,35 @@ export default function Friends() {
       </View>
 
       {tab === 'search' && (
-        <View style={styles.searchWrap}>
-          <Ionicons name="search" size={16} color={colors.textTertiary} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Rechercher par @username"
-            placeholderTextColor={colors.textTertiary}
-            style={styles.searchInput}
-            autoCapitalize="none"
-            testID="friends-search-input"
-          />
+        <View>
+          <View style={styles.searchWrap}>
+            <Ionicons name="search" size={16} color={colors.textTertiary} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Rechercher par @username"
+              placeholderTextColor={colors.textTertiary}
+              style={styles.searchInput}
+              autoCapitalize="none"
+              testID="friends-search-input"
+            />
+          </View>
+          <TouchableOpacity
+            style={styles.contactsBtn}
+            onPress={importContacts}
+            disabled={importingContacts}
+            testID="friends-import-contacts"
+            activeOpacity={0.85}
+          >
+            {importingContacts ? (
+              <ActivityIndicator color={colors.bg} />
+            ) : (
+              <>
+                <Ionicons name="people-circle" size={18} color={colors.bg} />
+                <Text style={styles.contactsBtnText}>Importer mes contacts</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
       )}
 
@@ -160,6 +236,18 @@ const styles = StyleSheet.create({
   tabTextActive: { color: colors.bg, fontWeight: '900' },
   searchWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: spacing.lg, marginTop: 4, marginBottom: 8, backgroundColor: colors.surface, borderRadius: radius.md, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border },
   searchInput: { flex: 1, color: colors.textPrimary, paddingVertical: 12, fontSize: 14 },
+  contactsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: spacing.lg,
+    marginBottom: 12,
+    paddingVertical: 14,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+  },
+  contactsBtnText: { color: colors.bg, fontWeight: '900', fontSize: 14, letterSpacing: 0.3 },
   userRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 10, borderRadius: radius.md, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
   avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(224,26,79,0.2)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primary },
   avatarText: { color: colors.primary, fontWeight: '900', fontSize: 13 },

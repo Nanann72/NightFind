@@ -19,6 +19,7 @@
         "NSMicrophoneUsageDescription": "Identifier les musiques jouées au club",
         "NSCalendarsUsageDescription": "Ajouter les soirées à ton agenda",
         "NSCalendarsFullAccessUsageDescription": "Ajouter les soirées à ton agenda",
+        "NSContactsUsageDescription": "Trouver tes amis déjà sur Night Finder",
         "UIBackgroundModes": [
           "location",
           "fetch",

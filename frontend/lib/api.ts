@@ -142,8 +142,10 @@ export const api = {
   // Events
   listEvents: () => request<NFEvent[]>('/events?upcoming_only=true'),
   createEvent: (body: {
-    club_id: string;
     title: string;
+    location_name: string;
+    location_address?: string;
+    visibility?: 'public' | 'friends_only';
     description?: string;
     dj?: string;
     date: string;
@@ -153,6 +155,11 @@ export const api = {
     request<NFEvent>('/events', {
       method: 'POST',
       body: JSON.stringify(body),
+    }),
+  findFriendsByContacts: (emails: string[]) =>
+    request<Array<any>>('/friends/find-by-contacts', {
+      method: 'POST',
+      body: JSON.stringify({ emails }),
     }),
   reserveEvent: (id: string) =>
     request<{ reservation_id: string; status: string }>(

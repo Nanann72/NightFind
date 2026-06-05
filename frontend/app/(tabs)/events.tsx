@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -16,15 +16,19 @@ import {
   Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api, NFEvent } from '../../lib/api';
 import { useClubs } from '../../lib/clubs';
+import { usePremium } from '../../lib/premium';
 import { addToCalendar } from '../../lib/calendar';
 import { colors, radius, spacing } from '../../lib/theme';
 
 export default function Events() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { clubs } = useClubs();
+  const { isPremium } = usePremium();
   const [events, setEvents] = useState<NFEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState<string | null>(null);
@@ -37,17 +41,10 @@ export default function Events() {
   const [ceDj, setCeDj] = useState('');
   const [ceDate, setCeDate] = useState(defaultDateString());
   const [cePrice, setCePrice] = useState('');
-  const [ceClubId, setCeClubId] = useState<string | null>(null);
-  const [ceClubQuery, setCeClubQuery] = useState('');
+  const [ceLocationName, setCeLocationName] = useState('');
+  const [ceLocationAddress, setCeLocationAddress] = useState('');
+  const [ceVisibility, setCeVisibility] = useState<'public' | 'friends_only'>('public');
   const [creating, setCreating] = useState(false);
-
-  const filteredClubs = useMemo(() => {
-    const q = ceClubQuery.trim().toLowerCase();
-    if (!q) return clubs.slice(0, 50);
-    return clubs.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 50);
-  }, [clubs, ceClubQuery]);
-
-  const selectedClub = clubs.find((c) => c.club_id === ceClubId);
 
   const resetCreateForm = () => {
     setCeTitle('');
@@ -55,8 +52,24 @@ export default function Events() {
     setCeDj('');
     setCeDate(defaultDateString());
     setCePrice('');
-    setCeClubId(null);
-    setCeClubQuery('');
+    setCeLocationName('');
+    setCeLocationAddress('');
+    setCeVisibility('public');
+  };
+
+  const onFabPress = () => {
+    if (!isPremium) {
+      Alert.alert(
+        'Réservé aux Premium 💎',
+        "Crée tes propres soirées et invite tes amis ! Cette fonctionnalité est réservée aux membres Night Finder Premium.",
+        [
+          { text: 'Plus tard', style: 'cancel' },
+          { text: 'Passer Premium', onPress: () => router.push('/paywall') },
+        ],
+      );
+      return;
+    }
+    setShowCreate(true);
   };
 
   const load = async () => {
@@ -80,8 +93,8 @@ export default function Events() {
       Alert.alert('Titre manquant', 'Donne un titre à ta soirée.');
       return;
     }
-    if (!ceClubId) {
-      Alert.alert('Club manquant', 'Choisis un club / lieu.');
+    if (!ceLocationName.trim()) {
+      Alert.alert('Lieu manquant', 'Indique le nom du lieu.');
       return;
     }
     const isoDate = parseInputDate(ceDate);
@@ -96,8 +109,10 @@ export default function Events() {
     setCreating(true);
     try {
       await api.createEvent({
-        club_id: ceClubId,
         title: ceTitle.trim(),
+        location_name: ceLocationName.trim(),
+        location_address: ceLocationAddress.trim(),
+        visibility: ceVisibility,
         description: ceDescription.trim(),
         dj: ceDj.trim(),
         date: isoDate,
@@ -107,7 +122,15 @@ export default function Events() {
       resetCreateForm();
       await load();
     } catch (e: any) {
-      Alert.alert('Erreur', e?.message || "Impossible de créer l'événement.");
+      const msg = e?.message || '';
+      if (msg.includes('402') || /Premium/i.test(msg)) {
+        Alert.alert(
+          'Réservé aux Premium 💎',
+          'La création de soirées est uniquement disponible pour les membres Premium.',
+        );
+      } else {
+        Alert.alert('Erreur', msg || "Impossible de créer l'événement.");
+      }
     } finally {
       setCreating(false);
     }
@@ -188,7 +211,10 @@ export default function Events() {
                 <Text style={styles.dateText}>{formatDate(item.date)}</Text>
               </View>
               <Text style={styles.evTitle}>{item.title}</Text>
-              <Text style={styles.evClub}>{item.club_name}</Text>
+              <Text style={styles.evClub}>
+                {(item as any).location_name || item.club_name}
+                {(item as any).visibility === 'friends_only' ? '  ·  🔒 Privée' : ''}
+              </Text>
               <Text style={styles.evDesc} numberOfLines={2}>
                 {item.description}
               </Text>
@@ -228,12 +254,12 @@ export default function Events() {
 
       {/* FAB to create an event */}
       <TouchableOpacity
-        style={[styles.fab, { bottom: insets.bottom + 90 }]}
-        onPress={() => setShowCreate(true)}
+        style={[styles.fab, { bottom: insets.bottom + 90 }, !isPremium && styles.fabLocked]}
+        onPress={onFabPress}
         activeOpacity={0.85}
         testID="create-event-fab"
       >
-        <Ionicons name="add" size={28} color={colors.bg} />
+        <Ionicons name={isPremium ? 'add' : 'lock-closed'} size={isPremium ? 28 : 22} color={colors.bg} />
       </TouchableOpacity>
 
       {/* Create event modal */}
@@ -296,50 +322,67 @@ export default function Events() {
             />
             <Text style={styles.helper}>Ex : 25/12/2026 23:30</Text>
 
-            <Text style={styles.label}>Lieu / club *</Text>
-            {selectedClub ? (
+            <Text style={styles.label}>Lieu *</Text>
+            <TextInput
+              value={ceLocationName}
+              onChangeText={setCeLocationName}
+              placeholder="Nom du lieu (ex. Loft du 13)"
+              placeholderTextColor={colors.textTertiary}
+              style={styles.input}
+              testID="ce-location-name"
+              maxLength={120}
+            />
+            <View style={{ height: 8 }} />
+            <TextInput
+              value={ceLocationAddress}
+              onChangeText={setCeLocationAddress}
+              placeholder="Adresse (optionnel)"
+              placeholderTextColor={colors.textTertiary}
+              style={styles.input}
+              testID="ce-location-address"
+              maxLength={200}
+            />
+
+            <Text style={styles.label}>Qui peut voir cette soirée ? *</Text>
+            <View style={styles.segWrap}>
               <TouchableOpacity
-                style={styles.selectedClub}
-                onPress={() => setCeClubId(null)}
-                testID="ce-clear-club"
+                style={[styles.segBtn, ceVisibility === 'public' && styles.segBtnActive]}
+                onPress={() => setCeVisibility('public')}
+                testID="ce-vis-public"
+                activeOpacity={0.85}
               >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.selectedClubName}>{selectedClub.name}</Text>
-                  <Text style={styles.selectedClubAddr}>{selectedClub.address}</Text>
-                </View>
-                <Ionicons name="close-circle" size={20} color={colors.textTertiary} />
-              </TouchableOpacity>
-            ) : (
-              <>
-                <TextInput
-                  value={ceClubQuery}
-                  onChangeText={setCeClubQuery}
-                  placeholder="Rechercher un club..."
-                  placeholderTextColor={colors.textTertiary}
-                  style={styles.input}
-                  testID="ce-club-search"
+                <Ionicons
+                  name="globe"
+                  size={16}
+                  color={ceVisibility === 'public' ? colors.bg : colors.textPrimary}
                 />
-                <View style={styles.clubList}>
-                  {filteredClubs.slice(0, 6).map((c) => (
-                    <TouchableOpacity
-                      key={c.club_id}
-                      style={styles.clubRow}
-                      onPress={() => {
-                        setCeClubId(c.club_id);
-                        setCeClubQuery('');
-                      }}
-                      testID={`ce-pick-club-${c.club_id}`}
-                    >
-                      <Text style={styles.clubName} numberOfLines={1}>{c.name}</Text>
-                      <Text style={styles.clubAddr} numberOfLines={1}>{c.address}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  {filteredClubs.length === 0 && (
-                    <Text style={styles.helper}>Aucun club trouvé.</Text>
-                  )}
-                </View>
-              </>
-            )}
+                <Text style={[styles.segText, ceVisibility === 'public' && styles.segTextActive]}>
+                  Publique
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.segBtn, ceVisibility === 'friends_only' && styles.segBtnActive]}
+                onPress={() => setCeVisibility('friends_only')}
+                testID="ce-vis-friends"
+                activeOpacity={0.85}
+              >
+                <Ionicons
+                  name="lock-closed"
+                  size={16}
+                  color={ceVisibility === 'friends_only' ? colors.bg : colors.textPrimary}
+                />
+                <Text
+                  style={[styles.segText, ceVisibility === 'friends_only' && styles.segTextActive]}
+                >
+                  Mes amis
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.helper}>
+              {ceVisibility === 'public'
+                ? 'Visible par tout le monde dans l\'onglet Soirées.'
+                : 'Visible uniquement par tes amis Night Finder.'}
+            </Text>
 
             <Text style={styles.label}>DJ / artiste</Text>
             <TextInput
@@ -486,6 +529,34 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 8,
   },
+  fabLocked: {
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    shadowOpacity: 0,
+  },
+
+  // Segmented (public/friends)
+  segWrap: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  segBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  segBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  segText: { color: colors.textPrimary, fontWeight: '800', fontSize: 14 },
+  segTextActive: { color: colors.bg },
 
   // Modal
   modalHeader: {

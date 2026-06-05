@@ -546,22 +546,35 @@ async def get_club(club_id: str):
 
 
 class CreateEventBody(BaseModel):
-    club_id: str
     title: str
+    location_name: str
+    location_address: str = ""
+    visibility: str = "public"  # "public" | "friends_only"
     description: str = ""
     dj: str = ""
     date: str  # ISO datetime
     entry_price: float = 0.0
     photo: Optional[str] = None
+    # Legacy / optional club association (kept for backward compatibility)
+    club_id: Optional[str] = None
 
 
 @api_router.post("/events", status_code=201)
 async def create_event(body: CreateEventBody, user: dict = Depends(get_current_user)):
+    # Premium-gated feature
+    if not bool(user.get("is_premium")):
+        raise HTTPException(status_code=402, detail="Réservé aux membres Premium")
+
     title = body.title.strip()
     if not title:
         raise HTTPException(status_code=400, detail="Le titre est requis")
     if len(title) > 120:
         raise HTTPException(status_code=400, detail="Titre trop long (max 120)")
+    location_name = body.location_name.strip()
+    if not location_name:
+        raise HTTPException(status_code=400, detail="Le lieu est requis")
+    if body.visibility not in ("public", "friends_only"):
+        raise HTTPException(status_code=400, detail="Visibilité invalide")
     # Validate date (must be ISO, in the future)
     try:
         d = datetime.fromisoformat(body.date.replace("Z", "+00:00"))
@@ -569,47 +582,73 @@ async def create_event(body: CreateEventBody, user: dict = Depends(get_current_u
         raise HTTPException(status_code=400, detail="Date invalide (format ISO requis)")
     if d <= datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="La date doit être dans le futur")
-    # Validate club exists
-    club = await db.clubs.find_one({"club_id": body.club_id}, {"_id": 0})
-    if not club:
-        raise HTTPException(status_code=404, detail="Club introuvable")
     event_id = f"evt_{uuid.uuid4().hex[:12]}"
-    photo = body.photo or (club["photos"][0] if club.get("photos") else None)
+    creator_name = user.get("name") or (
+        f"@{user.get('username')}" if user.get("username") else "Anonyme"
+    )
     doc = {
         "event_id": event_id,
-        "club_id": body.club_id,
+        "club_id": body.club_id,  # may be None for user-created events
         "title": title,
+        "location_name": location_name,
+        "location_address": body.location_address.strip(),
+        "visibility": body.visibility,
         "description": body.description.strip(),
         "dj": body.dj.strip(),
         "date": d.isoformat(),
         "entry_price": float(body.entry_price or 0.0),
-        "photo": photo,
+        "photo": body.photo,
         "created_by": user["user_id"],
+        "creator_name": creator_name,
+        "creator_picture": user.get("picture"),
         "created_at": datetime.now(timezone.utc),
     }
     await db.events.insert_one(doc)
-    # Drop the ObjectId Mongo added to the dict so FastAPI can serialize.
     doc.pop("_id", None)
-    return {
-        **{k: v for k, v in doc.items() if k != "created_at"},
-        "club_name": club.get("name"),
-        "club_photo": (club.get("photos") or [None])[0],
-    }
+    return {k: v for k, v in doc.items() if k != "created_at"}
 
 
 @api_router.get("/events")
-async def list_events(upcoming_only: bool = True):
-    query: dict = {}
+async def list_events(upcoming_only: bool = True, user: dict = Depends(get_current_user)):
+    uid = user["user_id"]
+    # Friends list (accepted) — used to scope friends_only events
+    accepted = await db.friendships.find(
+        {"status": "accepted", "$or": [{"from_user_id": uid}, {"to_user_id": uid}]},
+        {"_id": 0},
+    ).to_list(500)
+    friend_ids: set[str] = set()
+    for f in accepted:
+        peer_id = f["to_user_id"] if f["from_user_id"] == uid else f["from_user_id"]
+        friend_ids.add(peer_id)
+
+    query: dict = {
+        "$or": [
+            {"visibility": {"$ne": "friends_only"}},
+            {"created_by": uid},
+            {"created_by": {"$in": list(friend_ids)}},
+        ],
+    }
     if upcoming_only:
         query["date"] = {"$gte": datetime.now(timezone.utc).isoformat()}
     events = await db.events.find(query, {"_id": 0}).to_list(500)
-    # Enrich with club info
-    club_map = {c["club_id"]: c async for c in db.clubs.find({}, {"_id": 0})}
+    # Enrich with club info (for legacy seeded events with club_id)
+    club_ids = [e["club_id"] for e in events if e.get("club_id")]
+    club_map: dict = {}
+    if club_ids:
+        async for c in db.clubs.find({"club_id": {"$in": club_ids}}, {"_id": 0}):
+            club_map[c["club_id"]] = c
     for e in events:
-        c = club_map.get(e["club_id"])
+        cid = e.get("club_id")
+        c = club_map.get(cid) if cid else None
         if c:
-            e["club_name"] = c["name"]
-            e["club_photo"] = c["photos"][0] if c.get("photos") else None
+            e["club_name"] = c.get("name")
+            e["club_photo"] = (c.get("photos") or [None])[0]
+            # For legacy events, expose location_name if missing
+            if not e.get("location_name"):
+                e["location_name"] = c.get("name")
+            if not e.get("location_address"):
+                e["location_address"] = c.get("address", "")
+        e.setdefault("visibility", "public")
     events.sort(key=lambda e: e.get("date", ""))
     return events
 
@@ -976,6 +1015,59 @@ async def search_friends(q: str, user: dict = Depends(get_current_user)):
     ).limit(20)
     items = await cursor.to_list(20)
     return [_public_friend(u) for u in items]
+
+
+class FindByContactsBody(BaseModel):
+    emails: list[str] = []
+
+
+@api_router.post("/friends/find-by-contacts")
+async def find_friends_by_contacts(
+    body: FindByContactsBody, user: dict = Depends(get_current_user)
+):
+    """Given a list of emails (from the phone's contacts), return the users
+    who already have a Night Finder account. Excludes self and existing
+    friends/pending requests, and annotates each result with its
+    relationship status so the UI can render the right CTA."""
+    # Normalize + dedupe + cap at 500 to avoid abuse
+    norm = list({(e or "").strip().lower() for e in body.emails if e})[:500]
+    if not norm:
+        return []
+    cursor = db.users.find(
+        {"email": {"$in": norm}, "user_id": {"$ne": user["user_id"]}},
+        {"_id": 0},
+    ).limit(500)
+    matched = await cursor.to_list(500)
+    if not matched:
+        return []
+
+    # Existing friendships (any status) to annotate
+    matched_ids = [u["user_id"] for u in matched]
+    fs_rows = await db.friendships.find(
+        {
+            "$or": [
+                {"from_user_id": user["user_id"], "to_user_id": {"$in": matched_ids}},
+                {"from_user_id": {"$in": matched_ids}, "to_user_id": user["user_id"]},
+            ]
+        },
+        {"_id": 0},
+    ).to_list(500)
+    status_map: dict[str, str] = {}
+    for f in fs_rows:
+        peer = f["to_user_id"] if f["from_user_id"] == user["user_id"] else f["from_user_id"]
+        status_map[peer] = f.get("status", "pending")
+
+    out = []
+    for u in matched:
+        rel = status_map.get(u["user_id"])
+        # Hide already-confirmed friends to keep the list actionable
+        if rel == "accepted":
+            continue
+        out.append({
+            **_public_friend(u),
+            "relationship": rel,  # None / "pending" / etc.
+        })
+    return out
 
 
 @api_router.post("/friends/request")
