@@ -110,25 +110,27 @@ export async function getOfferings(): Promise<PremiumPackage[]> {
       const offerings = await Purchases.getOfferings();
       const current = offerings?.current;
       if (current?.availablePackages?.length) {
-        return current.availablePackages.map((p: any) => {
-          const isAnnual = p.product.identifier.includes('annual') || p.packageType === 'ANNUAL';
-          return {
+        // Only expose the monthly plan — the annual tier was removed.
+        return current.availablePackages
+          .filter((p: any) => {
+            const id = String(p?.product?.identifier || '').toLowerCase();
+            const isAnnual = id.includes('annual') || id.includes('yearly') || p.packageType === 'ANNUAL';
+            return !isAnnual;
+          })
+          .map((p: any) => ({
             identifier: p.identifier,
             productId: p.product.identifier,
-            title: isAnnual ? 'Annuel' : 'Mensuel',
+            title: 'Mensuel',
             priceString: p.product.priceString,
-            period: isAnnual ? 'year' : 'month',
-            badge: isAnnual ? 'MEILLEURE OFFRE' : undefined,
-            savings: isAnnual ? '-33%' : undefined,
+            period: 'month' as const,
             rawPackage: p,
-          } as PremiumPackage;
-        });
+          }));
       }
     } catch {
       // fallthrough
     }
   }
-  // DEV mocked offerings (matches the prices configured)
+  // DEV mocked offering (monthly only)
   return [
     {
       identifier: 'monthly',
@@ -136,15 +138,6 @@ export async function getOfferings(): Promise<PremiumPackage[]> {
       title: 'Mensuel',
       priceString: '4,99 €',
       period: 'month',
-    },
-    {
-      identifier: 'annual',
-      productId: PRODUCT_ANNUAL,
-      title: 'Annuel',
-      priceString: '39,99 €',
-      period: 'year',
-      badge: 'MEILLEURE OFFRE',
-      savings: 'Économise 33%',
     },
   ];
 }

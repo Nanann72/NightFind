@@ -18,20 +18,29 @@ const SAMPLE_DURATION_MS = 5000; // 5 seconds of audio
 
 const sessions = new Map<string, ReturnType<typeof setInterval>>();
 
-async function recordAndRecognise(club: Club): Promise<void> {
+export type ScanResult = {
+  ok: boolean;
+  recognised?: boolean;
+  title?: string;
+  artist?: string;
+  reason?: 'no-mic-permission' | 'native-only' | 'error' | 'unknown';
+};
+
+async function recordAndRecognise(club: Club, returnResult = false): Promise<ScanResult> {
   if (Platform.OS === 'web') {
     // Web preview / Expo Go fallback — keep the mock library experience
     const lib = await import('./liveListening');
-    // simulate a single detection
     (lib as any).recordTrack?.(club);
-    return;
+    return { ok: false, reason: 'native-only' };
   }
   try {
     // Lazy require so the web bundle doesn't try to load the native module
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ExpoAudio = require('expo-audio');
     const permission = await ExpoAudio.requestRecordingPermissionsAsync();
-    if (!permission?.granted) return;
+    if (!permission?.granted) {
+      return { ok: false, reason: 'no-mic-permission' };
+    }
 
     await ExpoAudio.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
 
@@ -43,19 +52,32 @@ async function recordAndRecognise(club: Club): Promise<void> {
     await new Promise((r) => setTimeout(r, SAMPLE_DURATION_MS));
     await recorder.stop();
     const uri = recorder.uri;
-    if (!uri) return;
+    if (!uri) return { ok: false, reason: 'error' };
 
-    // Read file into base64 then send to backend
     const FileSystem = require('expo-file-system');
     const base64 = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.Base64,
     });
-    if (!base64) return;
+    if (!base64) return { ok: false, reason: 'error' };
 
-    await api.recognizeAudio(club.club_id, base64);
+    const resp: any = await api.recognizeAudio(club.club_id, base64);
+    if (returnResult) {
+      return {
+        ok: true,
+        recognised: !!resp?.recognised,
+        title: resp?.song?.title,
+        artist: resp?.song?.artist,
+      };
+    }
+    return { ok: true };
   } catch {
-    // Silently ignore — recognition will be retried on next tick
+    return { ok: false, reason: 'error' };
   }
+}
+
+/** One-shot Shazam-like scan; returns the result so the UI can show feedback. */
+export async function scanOnce(club: Club): Promise<ScanResult> {
+  return recordAndRecognise(club, true);
 }
 
 export function startLiveListening(club: Club): void {

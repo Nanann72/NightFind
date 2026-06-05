@@ -8,12 +8,35 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withSequence,
+  Easing,
+} from 'react-native-reanimated';
 import { api } from '../lib/api';
+import { useLocation } from '../lib/useLocation';
+import { useClubs } from '../lib/clubs';
+import { scanOnce } from '../lib/audioRecognition';
 import { colors, radius, spacing } from '../lib/theme';
+
+function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const R = 6371;
+  const toRad = (x: number) => (x * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
 
 type ClubGroup = {
   club_id: string;
@@ -30,10 +53,86 @@ type ClubGroup = {
 export default function MySongs() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const loc = useLocation();
+  const { clubs } = useClubs();
   const [data, setData] = useState<ClubGroup[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [scanning, setScanning] = useState(false);
+  const pulse = useSharedValue(1);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulse.value }],
+  }));
+
+  useEffect(() => {
+    if (scanning) {
+      pulse.value = withRepeat(
+        withSequence(
+          withTiming(1.15, { duration: 700, easing: Easing.inOut(Easing.quad) }),
+          withTiming(1, { duration: 700, easing: Easing.inOut(Easing.quad) }),
+        ),
+        -1,
+      );
+    } else {
+      pulse.value = withTiming(1, { duration: 200 });
+    }
+  }, [scanning, pulse]);
+
+  const onScanPress = async () => {
+    if (scanning) return;
+    if (Platform.OS === 'web') {
+      Alert.alert(
+        'Indisponible sur le web',
+        "La reconnaissance audio nécessite l'app native (iPhone / Android).",
+      );
+      return;
+    }
+    if (!loc?.location) {
+      Alert.alert('Localisation requise', 'Active la localisation pour identifier le club autour de toi.');
+      return;
+    }
+    // Find nearest club within 500m
+    const me = { lat: loc.location.coords.latitude, lng: loc.location.coords.longitude };
+    let nearest: { club: any; km: number } | null = null;
+    for (const c of clubs) {
+      const km = distanceKm(me, { lat: c.lat, lng: c.lng });
+      if (!nearest || km < nearest.km) nearest = { club: c, km };
+    }
+    if (!nearest || nearest.km > 0.5) {
+      Alert.alert(
+        'Aucun club détecté',
+        'Tu dois être à moins de 500m d\'un club référencé pour scanner la musique.',
+      );
+      return;
+    }
+    setScanning(true);
+    const result = await scanOnce(nearest.club);
+    setScanning(false);
+    if (!result.ok) {
+      if (result.reason === 'no-mic-permission') {
+        Alert.alert('Micro refusé', 'Active le microphone dans Réglages > Night Finder.');
+      } else if (result.reason === 'native-only') {
+        Alert.alert('Indisponible', "Disponible uniquement sur l'app iOS/Android.");
+      } else {
+        Alert.alert('Erreur', "Impossible de scanner la musique. Réessaie dans quelques secondes.");
+      }
+      return;
+    }
+    if (result.recognised && result.title) {
+      Alert.alert(
+        '🎵 Track identifié !',
+        `${result.title}${result.artist ? ` — ${result.artist}` : ''}\n\nEnregistré dans ${nearest.club.name}.`,
+      );
+      load();
+    } else {
+      Alert.alert(
+        'Aucun morceau identifié',
+        'Approche-toi des enceintes et réessaie.',
+      );
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,6 +198,31 @@ export default function MySongs() {
           <Text style={styles.subtitle}>{total} morceaux capturés</Text>
         </View>
         <View style={styles.iconBtn} />
+      </View>
+
+      <View style={styles.scanWrap}>
+        <Animated.View style={[styles.scanGlow, pulseStyle]} />
+        <TouchableOpacity
+          style={[styles.scanBtn, scanning && styles.scanBtnActive]}
+          onPress={onScanPress}
+          activeOpacity={0.85}
+          disabled={scanning}
+          testID="scan-music-btn"
+        >
+          {scanning ? (
+            <ActivityIndicator color={colors.bg} size="small" />
+          ) : (
+            <Ionicons name="radio" size={32} color={colors.bg} />
+          )}
+        </TouchableOpacity>
+        <Text style={styles.scanLabel}>
+          {scanning ? 'Écoute en cours…' : 'Identifier la musique'}
+        </Text>
+        <Text style={styles.scanHelper}>
+          {scanning
+            ? '5 secondes d\'enregistrement, garde la main près des enceintes'
+            : 'Auto quand tu es détecté en boîte · ou tape pour scanner maintenant'}
+        </Text>
       </View>
 
       <ScrollView
@@ -197,6 +321,49 @@ const styles = StyleSheet.create({
   iconBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   title: { color: colors.textPrimary, fontSize: 18, fontWeight: '900', textAlign: 'center' },
   subtitle: { color: colors.textTertiary, fontSize: 12, marginTop: 2, textAlign: 'center' },
+
+  scanWrap: {
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+    marginBottom: 4,
+  },
+  scanGlow: {
+    position: 'absolute',
+    top: 22,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: 'rgba(224,26,79,0.25)',
+  },
+  scanBtn: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOpacity: 0.6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 14,
+    elevation: 8,
+  },
+  scanBtnActive: { backgroundColor: colors.tertiary },
+  scanLabel: {
+    marginTop: 14,
+    color: colors.textPrimary,
+    fontWeight: '900',
+    fontSize: 15,
+    letterSpacing: 0.2,
+  },
+  scanHelper: {
+    marginTop: 4,
+    color: colors.textTertiary,
+    fontSize: 11,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
 
   clubBlock: {
     backgroundColor: colors.surface,
