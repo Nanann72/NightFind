@@ -9,6 +9,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   TextInput,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -97,28 +98,37 @@ export default function Discover() {
         />
       </View>
 
-      <FlatList
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        data={QUICK_FILTERS}
-        keyExtractor={(i) => i.key}
-        contentContainerStyle={styles.chipsRow}
-        renderItem={({ item }) => {
-          const isActive = active === item.key;
-          return (
-            <TouchableOpacity
-              style={[styles.chip, isActive && styles.chipActive]}
-              onPress={() => onQuickFilter(item.key)}
-              testID={`chip-${item.key}`}
-            >
-              <Text style={styles.chipEmoji}>{item.emoji}</Text>
-              <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        }}
-      />
+      <View style={styles.chipsWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsRow}
+        >
+          {QUICK_FILTERS.map((item) => {
+            const isActive = active === item.key;
+            return (
+              <TouchableOpacity
+                key={item.key}
+                style={[styles.chip, isActive && styles.chipActive]}
+                onPress={() => onQuickFilter(item.key)}
+                testID={`chip-${item.key}`}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.chipEmoji} allowFontScaling={false}>
+                  {item.emoji}
+                </Text>
+                <Text
+                  style={[styles.chipText, isActive && styles.chipTextActive]}
+                  numberOfLines={1}
+                  allowFontScaling={false}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       <FlatList
         data={filtered}
@@ -260,28 +270,40 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 14,
   },
+  chipsWrap: {
+    width: '100%',
+    paddingVertical: spacing.md,
+  },
   chipsRow: {
-    paddingLeft: spacing.lg,
-    paddingRight: spacing.lg,
-    paddingTop: spacing.md,
+    paddingHorizontal: spacing.lg,
     gap: 10,
+    alignItems: 'center',
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
     borderRadius: radius.full,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     minWidth: 92,
+    minHeight: 40,
     justifyContent: 'center',
+    overflow: 'visible',
   },
   chipActive: { backgroundColor: colors.tertiary, borderColor: colors.tertiary },
-  chipEmoji: { fontSize: 14 },
-  chipText: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
+  chipEmoji: { fontSize: 15, lineHeight: 20, includeFontPadding: false, textAlignVertical: 'center' },
+  chipText: {
+    color: colors.textPrimary,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
   chipTextActive: { color: colors.bg, fontWeight: '800' },
   card: {
     marginBottom: spacing.md,
