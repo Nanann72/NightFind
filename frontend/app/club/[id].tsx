@@ -129,13 +129,24 @@ export default function ClubDetail() {
 
           <Section title="Horaires">
             {DAYS.map((d) => {
-              const h = club.hours[d];
+              const h = (club.hours as any)?.[d];
+              let label: string;
+              if (h == null) {
+                label = '—';
+              } else if (typeof h === 'string') {
+                // Google Places shape: "5:00 PM – 11:30 PM" or "closed"
+                const t = h.trim();
+                label = !t || /^closed$/i.test(t) || /ferm/i.test(t) ? 'Fermé' : t;
+              } else if (typeof h === 'object') {
+                // Seed shape: {open, from, to}
+                label = h.open ? `${h.from} – ${h.to}` : 'Fermé';
+              } else {
+                label = '—';
+              }
               return (
                 <View key={d} style={styles.hourRow}>
                   <Text style={styles.dayLabel}>{DAY_LABELS[d]}</Text>
-                  <Text style={styles.hourValue}>
-                    {h?.open ? `${h.from} – ${h.to}` : 'Fermé'}
-                  </Text>
+                  <Text style={styles.hourValue}>{label}</Text>
                 </View>
               );
             })}

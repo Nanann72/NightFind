@@ -545,6 +545,58 @@ async def get_club(club_id: str):
 # -------------- Events -------------- #
 
 
+class CreateEventBody(BaseModel):
+    club_id: str
+    title: str
+    description: str = ""
+    dj: str = ""
+    date: str  # ISO datetime
+    entry_price: float = 0.0
+    photo: Optional[str] = None
+
+
+@api_router.post("/events", status_code=201)
+async def create_event(body: CreateEventBody, user: dict = Depends(get_current_user)):
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Le titre est requis")
+    if len(title) > 120:
+        raise HTTPException(status_code=400, detail="Titre trop long (max 120)")
+    # Validate date (must be ISO, in the future)
+    try:
+        d = datetime.fromisoformat(body.date.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Date invalide (format ISO requis)")
+    if d <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="La date doit être dans le futur")
+    # Validate club exists
+    club = await db.clubs.find_one({"club_id": body.club_id}, {"_id": 0})
+    if not club:
+        raise HTTPException(status_code=404, detail="Club introuvable")
+    event_id = f"evt_{uuid.uuid4().hex[:12]}"
+    photo = body.photo or (club["photos"][0] if club.get("photos") else None)
+    doc = {
+        "event_id": event_id,
+        "club_id": body.club_id,
+        "title": title,
+        "description": body.description.strip(),
+        "dj": body.dj.strip(),
+        "date": d.isoformat(),
+        "entry_price": float(body.entry_price or 0.0),
+        "photo": photo,
+        "created_by": user["user_id"],
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.events.insert_one(doc)
+    # Drop the ObjectId Mongo added to the dict so FastAPI can serialize.
+    doc.pop("_id", None)
+    return {
+        **{k: v for k, v in doc.items() if k != "created_at"},
+        "club_name": club.get("name"),
+        "club_photo": (club.get("photos") or [None])[0],
+    }
+
+
 @api_router.get("/events")
 async def list_events(upcoming_only: bool = True):
     query: dict = {}

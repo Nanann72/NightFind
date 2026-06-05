@@ -141,6 +141,19 @@ export const api = {
 
   // Events
   listEvents: () => request<NFEvent[]>('/events?upcoming_only=true'),
+  createEvent: (body: {
+    club_id: string;
+    title: string;
+    description?: string;
+    dj?: string;
+    date: string;
+    entry_price?: number;
+    photo?: string | null;
+  }) =>
+    request<NFEvent>('/events', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   reserveEvent: (id: string) =>
     request<{ reservation_id: string; status: string }>(
       `/events/${id}/reserve`,
