@@ -89,26 +89,21 @@ export default function MySongs() {
       );
       return;
     }
-    if (!loc?.location) {
-      Alert.alert('Localisation requise', 'Active la localisation pour identifier le club autour de toi.');
-      return;
-    }
-    // Find nearest club within 500m
-    const me = { lat: loc.location.coords.latitude, lng: loc.location.coords.longitude };
-    let nearest: { club: any; km: number } | null = null;
-    for (const c of clubs) {
-      const km = distanceKm(me, { lat: c.lat, lng: c.lng });
-      if (!nearest || km < nearest.km) nearest = { club: c, km };
-    }
-    if (!nearest || nearest.km > 0.5) {
-      Alert.alert(
-        'Aucun club détecté',
-        'Tu dois être à moins de 500m d\'un club référencé pour scanner la musique.',
-      );
-      return;
+    // Find nearest club within 500m (optional — scan still works without)
+    let target: any = { club_id: 'manual_scan', name: 'Scan manuel' };
+    if (loc?.location) {
+      const me = { lat: loc.location.coords.latitude, lng: loc.location.coords.longitude };
+      let nearest: { club: any; km: number } | null = null;
+      for (const c of clubs) {
+        const km = distanceKm(me, { lat: c.lat, lng: c.lng });
+        if (!nearest || km < nearest.km) nearest = { club: c, km };
+      }
+      if (nearest && nearest.km <= 0.5) {
+        target = nearest.club;
+      }
     }
     setScanning(true);
-    const result = await scanOnce(nearest.club);
+    const result = await scanOnce(target);
     setScanning(false);
     if (!result.ok) {
       if (result.reason === 'no-mic-permission') {
@@ -123,7 +118,7 @@ export default function MySongs() {
     if (result.recognised && result.title) {
       Alert.alert(
         '🎵 Track identifié !',
-        `${result.title}${result.artist ? ` — ${result.artist}` : ''}\n\nEnregistré dans ${nearest.club.name}.`,
+        `${result.title}${result.artist ? ` — ${result.artist}` : ''}\n\nEnregistré dans ${target.name}.`,
       );
       load();
     } else {
