@@ -33,12 +33,14 @@ export default function Paywall() {
   const params = useLocalSearchParams<{ reason?: string }>();
   const insets = useSafeAreaInsets();
   const { isPremium, offerings, buy, restore, loading, devMode } = usePremium();
-  const [selectedId, setSelectedId] = useState<string>('monthly');
+  const [selectedId, setSelectedId] = useState<string>('annual');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    // Auto-select the first (and only) plan exposed
-    if (offerings.length > 0) setSelectedId(offerings[0].identifier);
+    // Default-select annual if present (savings badge), else fall back
+    const annual = offerings.find((p) => p.period === 'year');
+    if (annual) setSelectedId(annual.identifier);
+    else if (offerings.length > 0) setSelectedId(offerings[0].identifier);
   }, [offerings]);
 
   useEffect(() => {

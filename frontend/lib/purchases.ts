@@ -110,27 +110,27 @@ export async function getOfferings(): Promise<PremiumPackage[]> {
       const offerings = await Purchases.getOfferings();
       const current = offerings?.current;
       if (current?.availablePackages?.length) {
-        // Only expose the monthly plan — the annual tier was removed.
-        return current.availablePackages
-          .filter((p: any) => {
-            const id = String(p?.product?.identifier || '').toLowerCase();
-            const isAnnual = id.includes('annual') || id.includes('yearly') || p.packageType === 'ANNUAL';
-            return !isAnnual;
-          })
-          .map((p: any) => ({
+        return current.availablePackages.map((p: any) => {
+          const id = String(p?.product?.identifier || '').toLowerCase();
+          const isAnnual =
+            id.includes('annual') || id.includes('yearly') || p.packageType === 'ANNUAL';
+          return {
             identifier: p.identifier,
             productId: p.product.identifier,
-            title: 'Mensuel',
+            title: isAnnual ? 'Annuel' : 'Mensuel',
             priceString: p.product.priceString,
-            period: 'month' as const,
+            period: isAnnual ? 'year' : 'month',
+            badge: isAnnual ? 'MEILLEURE OFFRE' : undefined,
+            savings: isAnnual ? 'Économise 33%' : undefined,
             rawPackage: p,
-          }));
+          } as PremiumPackage;
+        });
       }
     } catch {
       // fallthrough
     }
   }
-  // DEV mocked offering (monthly only)
+  // DEV mocked offerings — Mensuel 4,99 € + Annuel 79,99 €
   return [
     {
       identifier: 'monthly',
@@ -138,6 +138,15 @@ export async function getOfferings(): Promise<PremiumPackage[]> {
       title: 'Mensuel',
       priceString: '4,99 €',
       period: 'month',
+    },
+    {
+      identifier: 'annual',
+      productId: PRODUCT_ANNUAL,
+      title: 'Annuel',
+      priceString: '79,99 €',
+      period: 'year',
+      badge: 'MEILLEURE OFFRE',
+      savings: 'Économise 33%',
     },
   ];
 }
