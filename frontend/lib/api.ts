@@ -190,6 +190,27 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
+
+  // Match requests + chat
+  listMatchRequests: () => request<any[]>('/match-requests'),
+  acceptMatch: (request_id: string) =>
+    request<{ ok: boolean; match_id: string }>('/match-requests/accept', {
+      method: 'POST',
+      body: JSON.stringify({ request_id }),
+    }),
+  rejectMatch: (request_id: string) =>
+    request<{ ok: boolean }>('/match-requests/reject', {
+      method: 'POST',
+      body: JSON.stringify({ request_id }),
+    }),
+  listMatches: () => request<any[]>('/matches'),
+  listMessages: (match_id: string, since?: string) =>
+    request<any[]>(`/matches/${match_id}/messages${since ? `?since=${encodeURIComponent(since)}` : ''}`),
+  sendMessage: (match_id: string, text: string) =>
+    request<any>(`/matches/${match_id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
   reserveEvent: (id: string) =>
     request<{ reservation_id: string; status: string }>(
       `/events/${id}/reserve`,

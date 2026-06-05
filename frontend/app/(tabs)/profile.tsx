@@ -318,6 +318,38 @@ export default function Profile() {
           <Text style={styles.sectionTitle}>Mon compte</Text>
           <TouchableOpacity
             style={styles.row}
+            onPress={() => router.push('/swipe-profile')}
+            testID="row-swipe-profile"
+            activeOpacity={0.85}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: 'rgba(224,26,79,0.12)' }]}>
+              <Ionicons name="flame" size={18} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Mon profil swipe</Text>
+              <Text style={styles.bgRowSub}>Photos, bio, ville, Insta — visible aux autres</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/matches')}
+            testID="row-matches"
+            activeOpacity={0.85}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: 'rgba(224,26,79,0.12)' }]}>
+              <Ionicons name="heart-circle" size={18} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Matches & demandes</Text>
+              <Text style={styles.bgRowSub}>Vois qui veut te matcher et discute</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.row}
             onPress={() => {
               setUsernameDraft((user as any)?.username || '');
               setEditingUsername(true);

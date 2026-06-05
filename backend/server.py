@@ -978,6 +978,186 @@ async def update_swipe_fields(body: SwipeFieldsBody, user: dict = Depends(get_cu
     return {"ok": True, "updated": list(updates.keys())}
 
 
+# ===================== Match requests + Matches + Chat ===================== #
+
+
+def _other_user_id(m: dict, me: str) -> str:
+    return m["user_b"] if m["user_a"] == me else m["user_a"]
+
+
+@api_router.get("/match-requests")
+async def list_match_requests(user: dict = Depends(get_current_user)):
+    """Pending likes received by this user (someone right-swiped me)."""
+    cursor = db.match_requests.find(
+        {"to_user_id": user["user_id"], "status": "pending"}, {"_id": 0}
+    ).sort("created_at", -1).limit(50)
+    items = await cursor.to_list(50)
+    if not items:
+        return []
+    user_ids = [it["from_user_id"] for it in items]
+    users = await db.users.find({"user_id": {"$in": user_ids}}, {"_id": 0}).to_list(200)
+    umap = {u["user_id"]: _profile_for_swipe(u) for u in users}
+    out = []
+    for it in items:
+        p = umap.get(it["from_user_id"])
+        if p:
+            out.append({**p, "request_id": it["request_id"], "created_at": it.get("created_at")})
+    return out
+
+
+class MatchActionBody(BaseModel):
+    request_id: str
+
+
+@api_router.post("/match-requests/accept")
+async def accept_match(body: MatchActionBody, user: dict = Depends(get_current_user)):
+    mr = await db.match_requests.find_one(
+        {"request_id": body.request_id, "to_user_id": user["user_id"], "status": "pending"}
+    )
+    if not mr:
+        raise HTTPException(status_code=404, detail="Demande introuvable")
+    await db.match_requests.update_one(
+        {"request_id": body.request_id},
+        {"$set": {"status": "accepted", "accepted_at": datetime.now(timezone.utc)}},
+    )
+    sender_id = mr["from_user_id"]
+    # Avoid duplicate match
+    pair_a, pair_b = sorted([user["user_id"], sender_id])
+    match_id = f"mt_{uuid.uuid4().hex[:10]}"
+    existing = await db.matches.find_one({"user_a": pair_a, "user_b": pair_b})
+    if existing:
+        match_id = existing["match_id"]
+    else:
+        await db.matches.insert_one({
+            "match_id": match_id,
+            "user_a": pair_a,
+            "user_b": pair_b,
+            "created_at": datetime.now(timezone.utc),
+            "last_message_at": datetime.now(timezone.utc),
+        })
+    # Notify sender
+    accepter_name = user.get("name") or "Quelqu'un"
+    await db.notifications.insert_one({
+        "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+        "user_id": sender_id,
+        "title": "Nouveau match 💞",
+        "body": f"{accepter_name} a accepté ton like ! Lance la conversation.",
+        "type": "match_accepted",
+        "data": {"match_id": match_id, "with_user_id": user["user_id"]},
+        "created_at": datetime.now(timezone.utc),
+    })
+    try:
+        await push_service.send_push(
+            recipients=[sender_id],
+            title="Nouveau match 💞",
+            message=f"{accepter_name} a accepté ton like !",
+            action_url=f"/chat/{match_id}",
+            idempotency_key=f"ma_{match_id}",
+        )
+    except Exception as e:
+        logger.warning("push (match_accepted) failed: %s", e)
+    return {"ok": True, "match_id": match_id}
+
+
+@api_router.post("/match-requests/reject")
+async def reject_match(body: MatchActionBody, user: dict = Depends(get_current_user)):
+    res = await db.match_requests.update_one(
+        {"request_id": body.request_id, "to_user_id": user["user_id"], "status": "pending"},
+        {"$set": {"status": "rejected", "rejected_at": datetime.now(timezone.utc)}},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Demande introuvable")
+    return {"ok": True}
+
+
+@api_router.get("/matches")
+async def list_matches(user: dict = Depends(get_current_user)):
+    uid = user["user_id"]
+    cursor = db.matches.find(
+        {"$or": [{"user_a": uid}, {"user_b": uid}]}, {"_id": 0}
+    ).sort("last_message_at", -1).limit(100)
+    items = await cursor.to_list(100)
+    if not items:
+        return []
+    peer_ids = list({_other_user_id(m, uid) for m in items})
+    users = await db.users.find({"user_id": {"$in": peer_ids}}, {"_id": 0}).to_list(200)
+    umap = {u["user_id"]: u for u in users}
+    out = []
+    for m in items:
+        peer = umap.get(_other_user_id(m, uid))
+        if not peer:
+            continue
+        last = await db.messages.find_one(
+            {"match_id": m["match_id"]}, {"_id": 0}, sort=[("created_at", -1)],
+        )
+        out.append({
+            "match_id": m["match_id"],
+            "with_user_id": peer["user_id"],
+            "name": peer.get("name", ""),
+            "photo": (peer.get("photos") or [None])[0],
+            "last_message": (last or {}).get("text"),
+            "last_at": (last or {}).get("created_at") or m.get("last_message_at"),
+        })
+    return out
+
+
+@api_router.get("/matches/{match_id}/messages")
+async def list_messages(match_id: str, since: Optional[str] = None, user: dict = Depends(get_current_user)):
+    m = await db.matches.find_one({"match_id": match_id}, {"_id": 0})
+    if not m or user["user_id"] not in (m["user_a"], m["user_b"]):
+        raise HTTPException(status_code=404, detail="Match introuvable")
+    query: dict = {"match_id": match_id}
+    if since:
+        try:
+            since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            query["created_at"] = {"$gt": since_dt}
+        except ValueError:
+            pass
+    msgs = await db.messages.find(query, {"_id": 0}).sort("created_at", 1).limit(500).to_list(500)
+    return msgs
+
+
+class SendMessageBody(BaseModel):
+    text: str
+
+
+@api_router.post("/matches/{match_id}/messages", status_code=201)
+async def send_message(match_id: str, body: SendMessageBody, user: dict = Depends(get_current_user)):
+    m = await db.matches.find_one({"match_id": match_id}, {"_id": 0})
+    if not m or user["user_id"] not in (m["user_a"], m["user_b"]):
+        raise HTTPException(status_code=404, detail="Match introuvable")
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Message vide")
+    if len(text) > 1000:
+        raise HTTPException(status_code=400, detail="Message trop long (max 1000)")
+    now = datetime.now(timezone.utc)
+    doc = {
+        "message_id": f"msg_{uuid.uuid4().hex[:10]}",
+        "match_id": match_id,
+        "from_user_id": user["user_id"],
+        "text": text,
+        "created_at": now,
+    }
+    await db.messages.insert_one(doc)
+    await db.matches.update_one({"match_id": match_id}, {"$set": {"last_message_at": now}})
+    doc.pop("_id", None)
+    # Push to the other user
+    peer_id = _other_user_id(m, user["user_id"])
+    sender_name = user.get("name") or "Quelqu'un"
+    try:
+        await push_service.send_push(
+            recipients=[peer_id],
+            title=f"💬 {sender_name}",
+            message=text[:120],
+            action_url=f"/chat/{match_id}",
+            idempotency_key=doc["message_id"],
+        )
+    except Exception as e:
+        logger.warning("push (chat) failed: %s", e)
+    return doc
+
+
 @api_router.get("/swipes/history")
 async def swipe_history(user: dict = Depends(get_current_user)):
     history = await db.swipes.find(

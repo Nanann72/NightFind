@@ -20,6 +20,7 @@
         "NSCalendarsUsageDescription": "Ajouter les soirées à ton agenda",
         "NSCalendarsFullAccessUsageDescription": "Ajouter les soirées à ton agenda",
         "NSContactsUsageDescription": "Trouver tes amis déjà sur Night Finder",
+        "NSPhotoLibraryUsageDescription": "Ajouter tes photos à ton profil swipe",
         "UIBackgroundModes": [
           "location",
           "fetch",
