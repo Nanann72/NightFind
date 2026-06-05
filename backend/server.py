@@ -391,15 +391,26 @@ def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     return 2 * R * math.asin(math.sqrt(a))
 
 
-def _is_open_now(hours: dict) -> bool:
+def _is_open_now(hours) -> bool:
+    """Heuristic — handle both seed schema {"mon": {"open": True}} and Google
+    Places shape {"mon": "20:00-04:00"} or empty/string values."""
+    if not isinstance(hours, dict):
+        return False
     now = datetime.now(timezone.utc)
-    # Paris is UTC+1/+2, but for MVP we treat hours as local
     weekday = now.strftime("%a").lower()  # mon, tue...
     today = hours.get(weekday)
-    if not today or not today.get("open"):
+    if not today:
         return False
-    # Simplified: treat clubs as open if entry exists
-    return True
+    # Seed shape: {"open": True} → use the boolean
+    if isinstance(today, dict):
+        return bool(today.get("open"))
+    # Google Places shape: a string range "20:00 – 04:00" or "Closed"
+    if isinstance(today, str):
+        t = today.lower().strip()
+        if not t or t == "closed" or "fermé" in t:
+            return False
+        return True
+    return False
 
 
 @api_router.get("/clubs")

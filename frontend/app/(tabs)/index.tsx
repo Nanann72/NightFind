@@ -261,9 +261,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   chipsRow: {
-    paddingHorizontal: spacing.lg,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.lg,
     paddingTop: spacing.md,
-    gap: 8,
+    gap: 10,
   },
   chip: {
     flexDirection: 'row',
