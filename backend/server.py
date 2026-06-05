@@ -1330,9 +1330,14 @@ async def recognize_audio(
         raise HTTPException(status_code=503, detail="Audd.io not configured")
     if http_client is None:
         raise HTTPException(status_code=503, detail="Service not ready")
-    club = await db.clubs.find_one({"club_id": body.club_id}, {"_id": 0})
-    if not club:
-        raise HTTPException(status_code=404, detail="Club not found")
+    # "manual_scan" is a synthetic club_id used when the user taps the Shazam
+    # button without being near a real venue — accept it gracefully.
+    if body.club_id == "manual_scan":
+        club = {"club_id": "manual_scan", "name": "Scan manuel"}
+    else:
+        club = await db.clubs.find_one({"club_id": body.club_id}, {"_id": 0})
+        if not club:
+            raise HTTPException(status_code=404, detail="Club not found")
     try:
         import base64
         raw = base64.b64decode(body.audio_base64)
