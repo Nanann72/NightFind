@@ -22,7 +22,7 @@ type AuthCtx = {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, name: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string, dob: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -90,8 +90,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signUp = useCallback(
-    async (email: string, password: string, name: string) => {
-      const res = await api.register(email, password, name);
+    async (email: string, password: string, name: string, dob: string) => {
+      const res = await api.register(email, password, name, dob);
       await saveToken(res.token);
       setUser(res.user);
     },

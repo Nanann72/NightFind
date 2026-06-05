@@ -64,6 +64,7 @@ class EmailSignup(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6)
     name: str
+    dob: str  # ISO date YYYY-MM-DD (required: 18+ check)
 
 
 class EmailLogin(BaseModel):
@@ -189,14 +190,33 @@ async def register(body: EmailSignup):
     existing = await db.users.find_one({"email": body.email.lower()})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
+    # Validate dob (YYYY-MM-DD) and 18+ requirement
+    try:
+        dob_date = datetime.strptime(body.dob, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Date de naissance invalide (format YYYY-MM-DD)")
+    today = datetime.now(timezone.utc).date()
+    age = today.year - dob_date.year - (
+        (today.month, today.day) < (dob_date.month, dob_date.day)
+    )
+    if age < 18:
+        raise HTTPException(status_code=400, detail="Tu dois avoir 18 ans ou plus")
+    if age > 120:
+        raise HTTPException(status_code=400, detail="Date de naissance invalide")
     user_id = f"user_{uuid.uuid4().hex[:12]}"
     user = {
         "user_id": user_id,
         "email": body.email.lower(),
         "name": body.name,
+        "dob": body.dob,
         "password_hash": hash_password(body.password),
         "picture": None,
         "music_prefs": [],
+        "bio": "",
+        "city": "",
+        "instagram": "",
+        "photos": [],  # base64 strings, max 3
+        "fav_clubs": [],
         "auth_provider": "email",
         "created_at": datetime.now(timezone.utc),
     }

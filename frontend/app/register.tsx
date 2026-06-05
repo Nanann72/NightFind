@@ -24,6 +24,7 @@ export default function Register() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [dob, setDob] = useState(''); // YYYY-MM-DD
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [prefilledMusic, setPrefilledMusic] = useState<string[]>([]);
@@ -41,9 +42,13 @@ export default function Register() {
       setErr('Nom, email et mot de passe (6+ caractères) requis');
       return;
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
+      setErr('Date de naissance requise (format AAAA-MM-JJ)');
+      return;
+    }
     setLoading(true);
     try {
-      await signUp(email.trim(), password, name.trim());
+      await signUp(email.trim(), password, name.trim(), dob);
       // Push onboarding music prefs to profile
       if (prefilledMusic.length > 0) {
         api.updateProfile({ music_prefs: prefilledMusic }).catch(() => {});
@@ -102,6 +107,18 @@ export default function Register() {
             autoCapitalize="none"
             style={styles.input}
             testID="register-email-input"
+          />
+        </View>
+        <View style={styles.field}>
+          <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} />
+          <TextInput
+            value={dob}
+            onChangeText={setDob}
+            placeholder="Date de naissance (AAAA-MM-JJ)"
+            placeholderTextColor={colors.textTertiary}
+            autoCapitalize="none"
+            style={styles.input}
+            testID="register-dob-input"
           />
         </View>
         <View style={styles.field}>
