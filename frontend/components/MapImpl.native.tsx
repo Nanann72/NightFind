@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useClubs } from '../lib/clubs';
 import { useLocation } from '../lib/useLocation';
+import { api, ActiveFriend } from '../lib/api';
 import { colors, radius, spacing } from '../lib/theme';
 
 const DARK_MAP_STYLE = [
@@ -23,7 +24,26 @@ export default function MapImpl() {
   const { clubs } = useClubs();
   const loc = useLocation();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [friends, setFriends] = useState<ActiveFriend[]>([]);
   const mapRef = useRef<MapView | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchFriends = async () => {
+      try {
+        const list = await api.activeFriends();
+        if (mounted) setFriends(list || []);
+      } catch {
+        if (mounted) setFriends([]);
+      }
+    };
+    fetchFriends();
+    const interval = setInterval(fetchFriends, 60_000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const initialRegion = useMemo(
     () => ({
@@ -75,6 +95,42 @@ export default function MapImpl() {
             </Callout>
           </Marker>
         ))}
+
+        {friends.map((f, idx) => {
+          // small angular offset around the club to avoid overlap
+          const angle = (idx * Math.PI) / 4;
+          const dLat = Math.cos(angle) * 0.00035;
+          const dLng = Math.sin(angle) * 0.00045;
+          const initials = ((f.name || f.username || '?').match(/\b\w/g) || ['?'])
+            .slice(0, 2)
+            .join('')
+            .toUpperCase();
+          return (
+            <Marker
+              key={`friend-${f.user_id}`}
+              coordinate={{ latitude: f.lat + dLat, longitude: f.lng + dLng }}
+              tracksViewChanges={false}
+              anchor={{ x: 0.5, y: 0.5 }}
+            >
+              <View style={styles.friendMarker}>
+                {f.picture ? (
+                  <Image source={{ uri: f.picture }} style={styles.friendAvatar} />
+                ) : (
+                  <View style={styles.friendInitials}>
+                    <Text style={styles.friendInitialsText}>{initials}</Text>
+                  </View>
+                )}
+                <View style={styles.friendDot} />
+              </View>
+              <Callout tooltip>
+                <View style={styles.callout}>
+                  <Text style={styles.calloutTitle}>{f.name || `@${f.username}`}</Text>
+                  <Text style={styles.calloutMeta}>en soirée à {f.club_name}</Text>
+                </View>
+              </Callout>
+            </Marker>
+          );
+        })}
       </MapView>
 
       <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
@@ -166,6 +222,42 @@ const styles = StyleSheet.create({
     borderColor: colors.borderStrong,
   },
   searchPillText: { color: colors.textPrimary, fontWeight: '600', fontSize: 13 },
+  friendMarker: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    borderWidth: 2,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  friendAvatar: { width: 36, height: 36, borderRadius: 18 },
+  friendInitials: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  friendInitialsText: { color: colors.bg, fontWeight: '900', fontSize: 12 },
+  friendDot: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#22c55e',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
   recenterBtn: {
     width: 44,
     height: 44,

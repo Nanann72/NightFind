@@ -58,6 +58,18 @@ export default function Profile() {
   const [musicDraft, setMusicDraft] = useState<string[]>(user?.music_prefs || []);
   const [bgLocation, setBgLocation] = useState(false);
   const [togglingBg, setTogglingBg] = useState(false);
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [usernameDraft, setUsernameDraft] = useState((user as any)?.username || '');
+  const [savingUsername, setSavingUsername] = useState(false);
+  const [visibility, setVisibility] = useState<'clubs_only' | 'hidden'>(
+    ((user as any)?.visibility === 'hidden' ? 'hidden' : 'clubs_only') as any,
+  );
+  const [savingVis, setSavingVis] = useState(false);
+
+  useEffect(() => {
+    setUsernameDraft((user as any)?.username || '');
+    setVisibility(((user as any)?.visibility === 'hidden' ? 'hidden' : 'clubs_only') as any);
+  }, [(user as any)?.username, (user as any)?.visibility]);
 
   useEffect(() => {
     setNameDraft(user?.name || '');
@@ -154,6 +166,38 @@ export default function Profile() {
     }
   };
 
+  const saveUsername = async () => {
+    const v = usernameDraft.trim().toLowerCase();
+    if (!/^[a-z0-9_]{3,20}$/.test(v)) {
+      Alert.alert('Username invalide', '3 à 20 caractères : a-z, 0-9, _ uniquement.');
+      return;
+    }
+    setSavingUsername(true);
+    try {
+      await api.setUsername(v);
+      await refresh();
+      setEditingUsername(false);
+    } catch (e: any) {
+      Alert.alert('Erreur', e.message || 'Impossible de sauvegarder le username.');
+    } finally {
+      setSavingUsername(false);
+    }
+  };
+
+  const toggleVisibility = async (val: boolean) => {
+    const next = val ? 'clubs_only' : 'hidden';
+    setSavingVis(true);
+    try {
+      await api.setVisibility(next);
+      setVisibility(next);
+      await refresh();
+    } catch (e: any) {
+      Alert.alert('Erreur', e.message || 'Impossible de mettre à jour.');
+    } finally {
+      setSavingVis(false);
+    }
+  };
+
   const handleSignOut = () => {
     Alert.alert('Déconnexion', 'Êtes-vous sûr de vouloir vous déconnecter ?', [
       { text: 'Annuler', style: 'cancel' },
@@ -178,6 +222,14 @@ export default function Profile() {
         testID="profile-screen"
       >
         <View style={styles.headerWrap}>
+          <TouchableOpacity
+            style={[styles.friendsTopBtn, { top: insets.top + 12 }]}
+            onPress={() => router.push('/friends')}
+            testID="profile-friends-btn"
+            activeOpacity={0.8}
+          >
+            <Ionicons name="people" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
           <View style={styles.avatarWrap}>
             {user?.picture ? (
               <Image source={{ uri: user.picture }} style={styles.avatar} />
@@ -235,6 +287,72 @@ export default function Profile() {
             onPress={() => router.push('/(tabs)/events')}
             testID="row-events"
           />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Mes amis</Text>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => {
+              setUsernameDraft((user as any)?.username || '');
+              setEditingUsername(true);
+            }}
+            testID="row-username"
+            activeOpacity={0.85}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: 'rgba(224,26,79,0.12)' }]}>
+              <Ionicons name="at" size={18} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Mon @username</Text>
+              <Text style={styles.bgRowSub}>
+                {(user as any)?.username ? `@${(user as any).username}` : 'Définis-le pour que tes amis puissent te trouver'}
+              </Text>
+            </View>
+            <Ionicons name="pencil" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/friends')}
+            testID="row-friends-manage"
+            activeOpacity={0.85}
+          >
+            <View style={[styles.rowIcon, { backgroundColor: 'rgba(0,240,255,0.12)' }]}>
+              <Ionicons name="people" size={18} color={colors.tertiary} />
+            </View>
+            <Text style={styles.rowLabel}>Gérer mes amis</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
+
+          <View style={styles.bgRow}>
+            <View style={[styles.rowIcon, { backgroundColor: 'rgba(34,211,238,0.12)' }]}>
+              <Ionicons
+                name={visibility === 'clubs_only' ? 'eye' : 'eye-off'}
+                size={18}
+                color={colors.tertiary}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Visible quand je suis en club</Text>
+              <Text style={styles.bgRowSub}>
+                {visibility === 'clubs_only'
+                  ? 'Tes amis voient ton avatar sur la carte (uniquement en boîte)'
+                  : 'Personne ne voit où tu sors'}
+              </Text>
+            </View>
+            {savingVis ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <Switch
+                value={visibility === 'clubs_only'}
+                onValueChange={toggleVisibility}
+                trackColor={{ false: colors.border, true: 'rgba(224,26,79,0.5)' }}
+                thumbColor={visibility === 'clubs_only' ? colors.primary : colors.textTertiary}
+                testID="visibility-switch"
+              />
+            )}
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -444,6 +562,59 @@ export default function Profile() {
         <Text style={styles.version}>Night Finder · v1.0.0</Text>
       </ScrollView>
 
+      {/* Edit Username Modal */}
+      <Modal
+        visible={editingUsername}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setEditingUsername(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalRoot}
+        >
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={() => setEditingUsername(false)}
+          />
+          <View style={styles.modalCard} testID="edit-username-modal">
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Ton @username</Text>
+            <Text style={styles.modalSub}>
+              3 à 20 caractères, en minuscules. Lettres, chiffres et underscore uniquement.
+            </Text>
+            <View style={styles.usernameInputWrap}>
+              <Text style={styles.usernameAt}>@</Text>
+              <TextInput
+                value={usernameDraft}
+                onChangeText={(t) => setUsernameDraft(t.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                autoFocus
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholder="ton_username"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.usernameInput}
+                maxLength={20}
+                testID="edit-username-input"
+              />
+            </View>
+            <TouchableOpacity
+              style={styles.modalCta}
+              onPress={saveUsername}
+              disabled={savingUsername || usernameDraft.trim().length < 3}
+              testID="save-username-btn"
+            >
+              {savingUsername ? (
+                <ActivityIndicator color={colors.bg} />
+              ) : (
+                <Text style={styles.modalCtaText}>Enregistrer</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       {/* Edit Name Modal */}
       <Modal
         visible={editingName}
@@ -594,7 +765,38 @@ function Row({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  headerWrap: { alignItems: 'center', paddingTop: 32, paddingHorizontal: spacing.xl },
+  headerWrap: { alignItems: 'center', paddingTop: 32, paddingHorizontal: spacing.xl, position: 'relative' },
+  friendsTopBtn: {
+    position: 'absolute',
+    right: spacing.lg,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+  },
+  usernameInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    marginTop: 14,
+    paddingHorizontal: 14,
+  },
+  usernameAt: { color: colors.primary, fontSize: 22, fontWeight: '900', marginRight: 4 },
+  usernameInput: {
+    flex: 1,
+    color: colors.textPrimary,
+    paddingVertical: 16,
+    fontSize: 18,
+    fontWeight: '700',
+  },
   avatarWrap: { position: 'relative', marginBottom: 14 },
   avatar: { width: 96, height: 96, borderRadius: 48 },
   avatarFallback: { backgroundColor: colors.surfaceElevated, alignItems: 'center', justifyContent: 'center' },

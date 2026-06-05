@@ -39,6 +39,20 @@ export type User = {
   picture?: string | null;
   music_prefs: string[];
   created_at: string;
+  username?: string | null;
+  visibility?: 'always' | 'clubs_only' | 'hidden';
+};
+
+export type ActiveFriend = {
+  user_id: string;
+  username?: string | null;
+  name?: string | null;
+  picture?: string | null;
+  club_id: string;
+  club_name?: string | null;
+  lat: number;
+  lng: number;
+  checked_in_at?: string;
 };
 
 async function request<T>(
@@ -179,6 +193,38 @@ export const api = {
     }>('/profile/songs'),
   deleteProfileSong: (song_id: string) =>
     request<{ ok: boolean }>(`/profile/songs/${song_id}`, { method: 'DELETE' }),
+
+  // Friends
+  setUsername: (username: string) =>
+    request<{ ok: boolean; username: string }>('/profile/username', {
+      method: 'PUT',
+      body: JSON.stringify({ username }),
+    }),
+  setVisibility: (visibility: 'always' | 'clubs_only' | 'hidden') =>
+    request<{ ok: boolean }>('/profile/visibility', {
+      method: 'PUT',
+      body: JSON.stringify({ visibility }),
+    }),
+  searchFriends: (q: string) =>
+    request<{ user_id: string; username: string; name: string }[]>(`/friends/search?q=${encodeURIComponent(q)}`),
+  sendFriendRequest: (target_user_id: string) =>
+    request<{ ok: boolean }>('/friends/request', {
+      method: 'POST',
+      body: JSON.stringify({ target_user_id }),
+    }),
+  acceptFriend: (friendship_id: string) =>
+    request<{ ok: boolean }>(`/friends/${friendship_id}/accept`, { method: 'POST' }),
+  rejectFriend: (friendship_id: string) =>
+    request<{ ok: boolean }>(`/friends/${friendship_id}/reject`, { method: 'POST' }),
+  removeFriend: (friend_user_id: string) =>
+    request<{ ok: boolean }>(`/friends/${friend_user_id}`, { method: 'DELETE' }),
+  listFriends: () =>
+    request<{
+      friends: any[];
+      incoming: any[];
+      outgoing: any[];
+    }>('/friends/list'),
+  activeFriends: () => request<ActiveFriend[]>('/friends/active'),
 
   // Audd.io audio recognition
   recognizeAudio: (club_id: string, audio_base64: string) =>

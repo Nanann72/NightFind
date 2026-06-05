@@ -172,6 +172,8 @@ def public_user(user: dict) -> dict:
         "picture": user.get("picture"),
         "music_prefs": user.get("music_prefs", []),
         "created_at": user.get("created_at"),
+        "username": user.get("username"),
+        "visibility": user.get("visibility", "clubs_only"),
     }
 
 
@@ -309,7 +311,7 @@ async def google_oauth(body: GoogleOAuth):
         }
         await db.users.insert_one(user)
 
-    token = create_jwt(user["user_id"])
+    token = make_jwt(user["user_id"])
     return {"token": token, "user": public_user(user)}
 
 
@@ -756,6 +758,255 @@ async def delete_user_song(song_id: str, user: dict = Depends(get_current_user))
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Song not found")
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Friends — username search + friend requests
+# ---------------------------------------------------------------------------
+import re as _re
+
+
+class UsernameBody(BaseModel):
+    username: str
+
+
+class FriendRequestBody(BaseModel):
+    target_user_id: str
+
+
+class VisibilityBody(BaseModel):
+    visibility: str  # "always" | "clubs_only" | "hidden"
+
+
+def _public_friend(u: dict) -> dict:
+    return {
+        "user_id": u.get("user_id"),
+        "username": u.get("username"),
+        "name": u.get("name"),
+        "picture": u.get("picture"),
+        "visibility": u.get("visibility", "clubs_only"),
+    }
+
+
+@api_router.put("/profile/username")
+async def set_username(body: UsernameBody, user: dict = Depends(get_current_user)):
+    u = body.username.strip().lower()
+    if not _re.match(r"^[a-z0-9_]{3,20}$", u):
+        raise HTTPException(
+            status_code=400,
+            detail="Username doit être en minuscules (a-z, 0-9, _), 3 à 20 caractères",
+        )
+    existing = await db.users.find_one(
+        {"username": u, "user_id": {"$ne": user["user_id"]}}, {"_id": 0}
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="Username déjà pris")
+    await db.users.update_one(
+        {"user_id": user["user_id"]}, {"$set": {"username": u}}
+    )
+    return {"ok": True, "username": u}
+
+
+@api_router.put("/profile/visibility")
+async def set_visibility(body: VisibilityBody, user: dict = Depends(get_current_user)):
+    if body.visibility not in ("always", "clubs_only", "hidden"):
+        raise HTTPException(status_code=400, detail="visibility invalide")
+    await db.users.update_one(
+        {"user_id": user["user_id"]}, {"$set": {"visibility": body.visibility}}
+    )
+    return {"ok": True, "visibility": body.visibility}
+
+
+@api_router.get("/friends/search")
+async def search_friends(q: str, user: dict = Depends(get_current_user)):
+    q = (q or "").strip().lower()
+    if len(q) < 2:
+        return []
+    cursor = db.users.find(
+        {
+            "username": {"$regex": f"^{_re.escape(q)}", "$options": "i"},
+            "user_id": {"$ne": user["user_id"]},
+        },
+        {"_id": 0},
+    ).limit(20)
+    items = await cursor.to_list(20)
+    return [_public_friend(u) for u in items]
+
+
+@api_router.post("/friends/request")
+async def send_friend_request(body: FriendRequestBody, user: dict = Depends(get_current_user)):
+    target_id = body.target_user_id
+    if target_id == user["user_id"]:
+        raise HTTPException(status_code=400, detail="On ne se demande pas en ami soi-même")
+    target = await db.users.find_one({"user_id": target_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    # Reject duplicate or already accepted
+    existing = await db.friendships.find_one(
+        {
+            "$or": [
+                {"from_user_id": user["user_id"], "to_user_id": target_id},
+                {"from_user_id": target_id, "to_user_id": user["user_id"]},
+            ]
+        }
+    )
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=("Vous êtes déjà amis" if existing.get("status") == "accepted" else "Demande déjà envoyée"),
+        )
+    await db.friendships.insert_one(
+        {
+            "friendship_id": f"fs_{uuid.uuid4().hex[:10]}",
+            "from_user_id": user["user_id"],
+            "to_user_id": target_id,
+            "status": "pending",
+            "created_at": datetime.now(timezone.utc),
+        }
+    )
+    return {"ok": True}
+
+
+@api_router.post("/friends/{friendship_id}/accept")
+async def accept_friend(friendship_id: str, user: dict = Depends(get_current_user)):
+    fs = await db.friendships.find_one(
+        {"friendship_id": friendship_id, "to_user_id": user["user_id"], "status": "pending"}
+    )
+    if not fs:
+        raise HTTPException(status_code=404, detail="Demande introuvable")
+    await db.friendships.update_one(
+        {"friendship_id": friendship_id},
+        {"$set": {"status": "accepted", "accepted_at": datetime.now(timezone.utc)}},
+    )
+    return {"ok": True}
+
+
+@api_router.post("/friends/{friendship_id}/reject")
+async def reject_friend(friendship_id: str, user: dict = Depends(get_current_user)):
+    res = await db.friendships.delete_one(
+        {"friendship_id": friendship_id, "to_user_id": user["user_id"], "status": "pending"}
+    )
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Demande introuvable")
+    return {"ok": True}
+
+
+@api_router.delete("/friends/{friend_user_id}")
+async def remove_friend(friend_user_id: str, user: dict = Depends(get_current_user)):
+    await db.friendships.delete_many(
+        {
+            "status": "accepted",
+            "$or": [
+                {"from_user_id": user["user_id"], "to_user_id": friend_user_id},
+                {"from_user_id": friend_user_id, "to_user_id": user["user_id"]},
+            ],
+        }
+    )
+    return {"ok": True}
+
+
+@api_router.get("/friends/list")
+async def list_friends(user: dict = Depends(get_current_user)):
+    uid = user["user_id"]
+    accepted = await db.friendships.find(
+        {"status": "accepted", "$or": [{"from_user_id": uid}, {"to_user_id": uid}]}, {"_id": 0}
+    ).to_list(500)
+    incoming = await db.friendships.find(
+        {"status": "pending", "to_user_id": uid}, {"_id": 0}
+    ).to_list(200)
+    outgoing = await db.friendships.find(
+        {"status": "pending", "from_user_id": uid}, {"_id": 0}
+    ).to_list(200)
+
+    async def hydrate(fs_list, peer_field):
+        ids = [f[peer_field] for f in fs_list]
+        users = await db.users.find({"user_id": {"$in": ids}}, {"_id": 0}).to_list(500)
+        umap = {u["user_id"]: u for u in users}
+        out = []
+        for f in fs_list:
+            u = umap.get(f[peer_field])
+            if not u:
+                continue
+            out.append({**_public_friend(u), "friendship_id": f.get("friendship_id")})
+        return out
+
+    friends_list = []
+    for f in accepted:
+        peer_id = f["to_user_id"] if f["from_user_id"] == uid else f["from_user_id"]
+        peer = await db.users.find_one({"user_id": peer_id}, {"_id": 0})
+        if peer:
+            friends_list.append({**_public_friend(peer), "friendship_id": f.get("friendship_id")})
+
+    return {
+        "friends": friends_list,
+        "incoming": await hydrate(incoming, "from_user_id"),
+        "outgoing": await hydrate(outgoing, "to_user_id"),
+    }
+
+
+@api_router.get("/friends/active")
+async def list_active_friends(user: dict = Depends(get_current_user)):
+    """Return friends currently checked into a club (within last 8h) and
+    whose visibility allows it. Used to show avatars on the map."""
+    uid = user["user_id"]
+    accepted = await db.friendships.find(
+        {"status": "accepted", "$or": [{"from_user_id": uid}, {"to_user_id": uid}]},
+        {"_id": 0},
+    ).to_list(500)
+    friend_ids = []
+    for f in accepted:
+        peer_id = f["to_user_id"] if f["from_user_id"] == uid else f["from_user_id"]
+        friend_ids.append(peer_id)
+    if not friend_ids:
+        return []
+
+    # Only friends that allow visibility
+    visible_friends = await db.users.find(
+        {"user_id": {"$in": friend_ids}, "visibility": {"$ne": "hidden"}},
+        {"_id": 0},
+    ).to_list(500)
+    visible_ids = [u["user_id"] for u in visible_friends]
+    if not visible_ids:
+        return []
+    umap = {u["user_id"]: u for u in visible_friends}
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=8)
+    # Latest confirmed check-in for each friend within last 8h
+    cursor = db.checkins.find(
+        {"user_id": {"$in": visible_ids}, "confirmed": True, "created_at": {"$gte": cutoff}},
+        {"_id": 0},
+    ).sort("created_at", -1)
+    checkins = await cursor.to_list(1000)
+    latest_by_user: dict[str, dict] = {}
+    for ci in checkins:
+        uid2 = ci["user_id"]
+        if uid2 not in latest_by_user:
+            latest_by_user[uid2] = ci
+
+    club_ids = list({ci["club_id"] for ci in latest_by_user.values()})
+    clubs_list = await db.clubs.find({"club_id": {"$in": club_ids}}, {"_id": 0}).to_list(500)
+    cmap = {c["club_id"]: c for c in clubs_list}
+
+    out = []
+    for fid, ci in latest_by_user.items():
+        club = cmap.get(ci["club_id"])
+        if not club:
+            continue
+        fr = umap.get(fid)
+        if not fr:
+            continue
+        out.append({
+            "user_id": fid,
+            "username": fr.get("username"),
+            "name": fr.get("name"),
+            "picture": fr.get("picture"),
+            "club_id": ci["club_id"],
+            "club_name": club.get("name"),
+            "lat": club.get("lat"),
+            "lng": club.get("lng"),
+            "checked_in_at": ci.get("created_at"),
+        })
+    return out
 
 
 class AudioRecognizeBody(BaseModel):

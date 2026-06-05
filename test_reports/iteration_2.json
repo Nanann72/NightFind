@@ -1,0 +1,60 @@
+{
+  "summary": "Friends System Phase 1 — backend + frontend tested. Backend pytest suite 21/21 PASSED on /api friends endpoints + profile/username + profile/visibility + privacy invariant (hidden friend never appears in /api/friends/active). Frontend E2E (mobile viewport 390x844) confirms: login → /profile shows all new testIDs (profile-friends-btn, row-username, row-friends-manage, visibility-switch); username modal opens, save button correctly disabled at <3 chars, valid username persists and shows on profile (@demo_e2e_55567); profile-friends-btn navigates to /friends; all 4 friends tabs render and switch without errors (Amis, Reçues, Envoyées, Ajouter); Ajouter tab debounced search input returns clean empty-state when no users match. Web map fallback renders 83 clubs and shows no 'Amis en soirée' chips when no friends are active (expected). No red screen errors. Privacy invariant explicitly verified via integration test: peer with visibility='hidden' is excluded from /api/friends/active even right after a confirmed check-in, then switching to 'clubs_only' makes them appear with full club_id/club_name/lat/lng/checked_in_at fields. No critical bugs found in Friends Phase 1.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "PUT /api/profile/username",
+        "issue": "Uppercase input (e.g. 'UPPER') is silently lowercased before validation (returns 200, stores 'upper'). Spec says 'a-z0-9_, 3-20 chars' — this is acceptable as a server-side normalisation but the spec could also be read as 'reject uppercase'. Confirmed via test_uppercase_username_is_lowercased. Frontend input filter already enforces lowercase, so impact is minimal."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "expo-notifications (web)",
+        "issue": "Repeating console warning '[expo-notifications] Listening to push token changes is not yet fully supported on web.' Same as iteration_1. Guard with Platform.OS !== 'web'."
+      },
+      {
+        "component": "shadow* style props",
+        "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Replace shadowColor/shadowOffset/shadowOpacity/shadowRadius with boxShadow for web compatibility (still emitted on every screen load)."
+      },
+      {
+        "component": "pointerEvents prop",
+        "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Still present from iteration_1 — not fixed yet."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_friends_system.py",
+    "/app/test_reports/pytest/friends_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Clarify spec on uppercase usernames — backend currently auto-lowercases; either document this or reject 400. Frontend input already constrains to lowercase, so this is mostly a documentation nit.",
+    "Replace deprecated 'shadow*' RN style props with 'boxShadow' across the codebase to clean up web console noise.",
+    "Replace deprecated `pointerEvents` prop with `style.pointerEvents` (carry-over from iteration_1).",
+    "Guard expo-notifications listeners with Platform.OS !== 'web' (carry-over from iteration_1)."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 1700+ lines — well past the 700-line guideline. Friends routes (lines ~764-1010) and Audd recognize route are good split candidates into routers/friends.py and routers/recognize.py.",
+    "/api/friends/list uses an N+1 pattern for `accepted` friends (one db.users.find_one per friend) inside the route; `incoming`/`outgoing` are hydrated in bulk via the local `hydrate` helper. Use the same bulk strategy for `accepted` to keep latency flat as friend count grows.",
+    "/api/friends/active sorts checkins newest first then keeps the first per user — correct, but a small comment would help readability. The privacy filter (visibility != 'hidden') is correctly applied BEFORE checkin lookup — good.",
+    "Friend request duplicate detection uses the same friendships collection with $or on both directions — correctly prevents reciprocal duplicates (A→B then B→A returns 409). Good.",
+    "Username regex enforces lowercase via lowercasing first; consider documenting this in the endpoint description or applying the regex BEFORE strip().lower() if the intent is strict rejection of uppercase."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_friends_system.py (created — 21 tests; full friends-system regression suite)"
+  ],
+  "success_rate": {
+    "backend": "100% (21/21 friends-system suite)",
+    "frontend": "100% — all friends-system testIDs render, all 4 tabs switch cleanly, username modal works (validation + save + persistence), profile→/friends nav works, search debounce works, no red error screen, map web fallback OK"
+  },
+  "seed_data_creation": "Backend tests create transient users (test_friend_*, test_reject_*) via /api/auth/register. Demo account demo@nightfinder.app now has a username assigned by tests (last one ~demo_e2e_*); main agent may want to reset demo's username to a stable value if E2E demos need a deterministic display name.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Friends Phase 1 backend+frontend fully covered by /app/backend/tests/test_friends_system.py (21 tests, ~3.5s). Suite is idempotent (uses uuid suffixes). Demo user's username was changed by tests — if you need a deterministic value, PUT /api/profile/username with a fresh handle before running E2E demos. Privacy invariant test creates a checkin and visibility toggles on a transient second user; no permanent side effects on demo account other than username changes. Carry-over RN deprecation warnings (shadow*, pointerEvents, expo-notifications-on-web) remain unresolved from iteration_1.",
+  "rca_of_issue": "No new bugs found in Friends Phase 1. Original carry-over deprecation warnings from iteration_1 still emit on each web bundle (shadow*, pointerEvents, expo-notifications)."
+}
