@@ -226,6 +226,13 @@ export const api = {
     }>('/friends/list'),
   activeFriends: () => request<ActiveFriend[]>('/friends/active'),
 
+  // Push notifications
+  registerPush: (body: { user_id: string; platform: 'ios' | 'android'; device_token: string }) =>
+    request<{ status: string; upstream_ok: boolean }>('/register-push', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
   // Audd.io audio recognition
   recognizeAudio: (club_id: string, audio_base64: string) =>
     request<{ ok: boolean; recognised: boolean; song_id?: string; title?: string; artist?: string }>(

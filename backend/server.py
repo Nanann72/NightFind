@@ -36,6 +36,10 @@ http_client: Optional[httpx.AsyncClient] = None
 
 # Local import so server.py can be loaded even if file is missing
 import places_service  # noqa: E402
+import push_service  # noqa: E402
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Night Finder API")
 api_router = APIRouter(prefix="/api")
@@ -675,7 +679,96 @@ async def checkin(body: CheckInBody, user: dict = Depends(get_current_user)):
                 "created_at": datetime.now(timezone.utc),
             }
         )
+
+        # Notify the user's friends (only if HE is visible AND friend allows visibility)
+        try:
+            me_visibility = (user.get("visibility") or "clubs_only")
+            if me_visibility != "hidden":
+                accepted = await db.friendships.find(
+                    {
+                        "status": "accepted",
+                        "$or": [
+                            {"from_user_id": user["user_id"]},
+                            {"to_user_id": user["user_id"]},
+                        ],
+                    },
+                    {"_id": 0},
+                ).to_list(500)
+                friend_ids = []
+                for f in accepted:
+                    peer_id = f["to_user_id"] if f["from_user_id"] == user["user_id"] else f["from_user_id"]
+                    friend_ids.append(peer_id)
+                if friend_ids:
+                    # Only notify friends who haven't hidden themselves either (they care)
+                    notify_users = await db.users.find(
+                        {"user_id": {"$in": friend_ids}, "visibility": {"$ne": "hidden"}},
+                        {"_id": 0, "user_id": 1},
+                    ).to_list(500)
+                    notify_ids = [u["user_id"] for u in notify_users]
+                    if notify_ids:
+                        sender_name = user.get("name") or (
+                            f"@{user.get('username')}" if user.get("username") else "Un ami"
+                        )
+                        # In-app notifications
+                        ts = datetime.now(timezone.utc)
+                        await db.notifications.insert_many(
+                            [
+                                {
+                                    "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+                                    "user_id": fid,
+                                    "title": f"{sender_name} est en soirée 🪩",
+                                    "body": f"Sortie repérée à {club['name']}.",
+                                    "type": "friend_at_club",
+                                    "data": {
+                                        "friend_user_id": user["user_id"],
+                                        "club_id": body.club_id,
+                                    },
+                                    "created_at": ts,
+                                }
+                                for fid in notify_ids
+                            ]
+                        )
+                        await push_service.send_push(
+                            recipients=notify_ids,
+                            title=f"{sender_name} est en soirée 🪩",
+                            message=f"Sortie repérée à {club['name']}.",
+                            action_url=f"/club/{body.club_id}",
+                            idempotency_key=f"ci_{ci_id}",
+                        )
+        except Exception as e:
+            logger.warning("push (friend_at_club) failed: %s", e)
+
     return {"ok": True, "checkin_id": ci_id, "confirmed": body.confirmed}
+
+
+# ---------- Push notifications ---------- #
+
+
+class RegisterPushBody(BaseModel):
+    user_id: str
+    platform: str  # "android" | "ios"
+    device_token: str
+
+
+@api_router.post("/register-push", status_code=201)
+async def register_push(body: RegisterPushBody, user: dict = Depends(get_current_user)):
+    # Require the body user_id to match the authenticated user (light security)
+    if body.user_id != user["user_id"]:
+        raise HTTPException(status_code=403, detail="user_id mismatch")
+    ok = await push_service.register_device(body.user_id, body.platform, body.device_token)
+    # Persist a local copy so we can debug rotation; not used to relay (SuprSend resolves it)
+    await db.push_tokens.update_one(
+        {"user_id": body.user_id, "platform": body.platform},
+        {
+            "$set": {
+                "device_token": body.device_token,
+                "updated_at": datetime.now(timezone.utc),
+                "last_register_ok": ok,
+            }
+        },
+        upsert=True,
+    )
+    return {"status": "registered", "upstream_ok": ok}
 
 
 @api_router.get("/checkins")
@@ -855,15 +948,39 @@ async def send_friend_request(body: FriendRequestBody, user: dict = Depends(get_
             status_code=409,
             detail=("Vous êtes déjà amis" if existing.get("status") == "accepted" else "Demande déjà envoyée"),
         )
+    fs_id = f"fs_{uuid.uuid4().hex[:10]}"
     await db.friendships.insert_one(
         {
-            "friendship_id": f"fs_{uuid.uuid4().hex[:10]}",
+            "friendship_id": fs_id,
             "from_user_id": user["user_id"],
             "to_user_id": target_id,
             "status": "pending",
             "created_at": datetime.now(timezone.utc),
         }
     )
+    # In-app notification + push
+    sender_name = user.get("name") or (f"@{user.get('username')}" if user.get("username") else "Quelqu'un")
+    await db.notifications.insert_one(
+        {
+            "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+            "user_id": target_id,
+            "title": "Nouvelle demande d'ami 🤝",
+            "body": f"{sender_name} veut être ton ami sur Night Finder.",
+            "type": "friend_request",
+            "data": {"from_user_id": user["user_id"], "friendship_id": fs_id},
+            "created_at": datetime.now(timezone.utc),
+        }
+    )
+    try:
+        await push_service.send_push(
+            recipients=[target_id],
+            title="Nouvelle demande d'ami 🤝",
+            message=f"{sender_name} veut être ton ami.",
+            action_url="/friends",
+            idempotency_key=f"fr_req_{fs_id}",
+        )
+    except Exception as e:
+        logger.warning("push (friend_request) failed: %s", e)
     return {"ok": True}
 
 
@@ -878,6 +995,30 @@ async def accept_friend(friendship_id: str, user: dict = Depends(get_current_use
         {"friendship_id": friendship_id},
         {"$set": {"status": "accepted", "accepted_at": datetime.now(timezone.utc)}},
     )
+    # Notify the request sender
+    accepter_name = user.get("name") or (f"@{user.get('username')}" if user.get("username") else "Quelqu'un")
+    sender_id = fs["from_user_id"]
+    await db.notifications.insert_one(
+        {
+            "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+            "user_id": sender_id,
+            "title": "Nouvel ami 🎉",
+            "body": f"{accepter_name} a accepté ta demande.",
+            "type": "friend_accepted",
+            "data": {"friend_user_id": user["user_id"]},
+            "created_at": datetime.now(timezone.utc),
+        }
+    )
+    try:
+        await push_service.send_push(
+            recipients=[sender_id],
+            title="Nouvel ami 🎉",
+            message=f"{accepter_name} a accepté ta demande.",
+            action_url="/friends",
+            idempotency_key=f"fr_acc_{friendship_id}",
+        )
+    except Exception as e:
+        logger.warning("push (friend_accept) failed: %s", e)
     return {"ok": True}
 
 
@@ -1758,3 +1899,7 @@ logger = logging.getLogger(__name__)
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+    try:
+        await push_service.aclose()
+    except Exception:
+        pass

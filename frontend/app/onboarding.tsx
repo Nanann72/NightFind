@@ -36,6 +36,18 @@ type Line = {
   endHaptic?: HapticKind;
   pause: number;
 };
+type Feature = {
+  kind: 'feature';
+  bg: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  accent: string; // hex
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  bullets: string[];
+  cta: string;
+};
+
 type Screen =
   | {
       kind: 'conversation' | 'final';
@@ -44,7 +56,9 @@ type Screen =
       cta: string;
     }
   | { kind: 'selection'; lines: Line[]; cta: string }
-  | { kind: 'location'; lines: Line[]; cta: string };
+  | { kind: 'location'; lines: Line[]; cta: string }
+  | { kind: 'notifications'; lines: Line[]; cta: string }
+  | Feature;
 
 const SCREENS: Screen[] = [
   {
@@ -135,6 +149,62 @@ const SCREENS: Screen[] = [
       },
     ],
     cta: 'Continuer',
+  },
+  // -------- FEATURE SHOWCASE (5 screens) -------- //
+  {
+    kind: 'feature',
+    bg: 'https://images.unsplash.com/photo-1608501078713-8e445a709b39?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwxfHxjaXR5JTIwbmlnaHRsaWZlJTIwYWVyaWFsfGVufDB8fHxwdXJwbGV8MTc4MDY1NjAxMnww&ixlib=rb-4.1.0&q=85',
+    icon: 'map',
+    accent: '#00F0FF',
+    eyebrow: '01 · La carte',
+    title: 'Toutes les boîtes,\nen un coup d\'œil.',
+    subtitle: 'Repère les clubs, rooftops et bars festifs autour de toi sur une carte temps réel.',
+    bullets: ['Rayon ajustable', 'Mise à jour en direct', 'Itinéraire en 1 tap'],
+    cta: 'Suivant',
+  },
+  {
+    kind: 'feature',
+    bg: 'https://images.unsplash.com/photo-1608433348878-e43dea08b910?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Njd8MHwxfHNlYXJjaHwxfHxjbHViJTIwZGFuY2luZyUyMGNyb3dkfGVufDB8fHxwdXJwbGV8MTc4MDY1NjAxMnww&ixlib=rb-4.1.0&q=85',
+    icon: 'heart-circle',
+    accent: '#E01A4F',
+    eyebrow: '02 · Le swipe',
+    title: 'Swipe.\nMatche.\nSors.',
+    subtitle: 'Comme sur Tinder, mais pour les soirées. Like pour adopter, skip pour passer.',
+    bullets: ['Reco basée sur ton style', 'Tes favoris en un balayage', 'Pas de mauvaise surprise'],
+    cta: 'Suivant',
+  },
+  {
+    kind: 'feature',
+    bg: 'https://images.pexels.com/photos/18704290/pexels-photo-18704290.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940',
+    icon: 'people',
+    accent: '#00F0FF',
+    eyebrow: '03 · Tes amis',
+    title: 'Vois tes amis\nen soirée.',
+    subtitle: 'Quand ils sont en club, leur avatar apparaît sur la carte. Tu choisis qui peut te voir.',
+    bullets: ['Visible uniquement en boîte', 'Notif quand un ami arrive', 'Ta vie privée, ton contrôle'],
+    cta: 'Suivant',
+  },
+  {
+    kind: 'feature',
+    bg: 'https://images.unsplash.com/photo-1650631072655-a46f273bf6b1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHwxfHxESiUyMGNvbmNlcnQlMjBsaWdodHN8ZW58MHx8fHB1cnBsZXwxNzgwNjU2MDEyfDA&ixlib=rb-4.1.0&q=85',
+    icon: 'calendar',
+    accent: '#E01A4F',
+    eyebrow: '04 · Les events',
+    title: 'Les soirées\nà ne pas rater.',
+    subtitle: 'Lineups, dates, prix. Ajoute en un tap les events qui comptent à ton calendrier.',
+    bullets: ['DJ sets & guests', 'Rappel J-1 automatique', 'Add to Calendar'],
+    cta: 'Suivant',
+  },
+  {
+    kind: 'feature',
+    bg: 'https://images.pexels.com/photos/16935900/pexels-photo-16935900.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940',
+    icon: 'star',
+    accent: '#FFD93D',
+    eyebrow: '05 · Premium',
+    title: 'L\'accès\nVIP.',
+    subtitle: 'Soirées exclusives, sélections curatées et previews privées. Pour les vrais noctambules.',
+    bullets: ['Spots cachés du week-end', 'Sans pub, sans limite', 'Skip illimité'],
+    cta: 'Suivant',
   },
   {
     kind: 'selection',
@@ -291,8 +361,9 @@ export default function Onboarding() {
   const [lineIdx, setLineIdx] = useState(0);
   const [musicSel, setMusicSel] = useState<string[]>([]);
   const screen = SCREENS[screenIdx];
-  const lines = screen.lines;
-  const ready = lineIdx >= lines.length - 1;
+  const isFeature = screen.kind === 'feature';
+  const lines = isFeature ? [] : (screen as any).lines;
+  const ready = isFeature ? true : lineIdx >= lines.length - 1;
 
   // Reset line index when entering a screen
   useEffect(() => {
@@ -366,7 +437,53 @@ export default function Onboarding() {
       exiting={FadeOut.duration(300)}
       style={styles.contentWrap}
     >
+      {/* Feature showcase card */}
+      {isFeature && (() => {
+        const f = screen as Feature;
+        return (
+          <Animated.View entering={FadeInDown.duration(600)} style={styles.featureBlock}>
+            <Animated.View
+              entering={FadeInDown.delay(120).duration(550)}
+              style={[styles.featureIcon, { backgroundColor: `${f.accent}26`, borderColor: `${f.accent}80` }]}
+            >
+              <Ionicons name={f.icon} size={32} color={f.accent} />
+            </Animated.View>
+            <Animated.Text
+              entering={FadeInDown.delay(200).duration(500)}
+              style={[styles.featureEyebrow, { color: f.accent }]}
+            >
+              {f.eyebrow}
+            </Animated.Text>
+            <Animated.Text
+              entering={FadeInDown.delay(280).duration(550)}
+              style={styles.featureTitle}
+            >
+              {f.title}
+            </Animated.Text>
+            <Animated.Text
+              entering={FadeInDown.delay(360).duration(500)}
+              style={styles.featureSubtitle}
+            >
+              {f.subtitle}
+            </Animated.Text>
+            <View style={styles.featureBullets}>
+              {f.bullets.map((b, i) => (
+                <Animated.View
+                  key={b}
+                  entering={FadeInDown.delay(440 + i * 90).duration(450)}
+                  style={styles.featureBulletRow}
+                >
+                  <View style={[styles.featureBulletDot, { backgroundColor: f.accent }]} />
+                  <Text style={styles.featureBulletText}>{b}</Text>
+                </Animated.View>
+              ))}
+            </View>
+          </Animated.View>
+        );
+      })()}
+
       {/* Existing lines (already revealed) + current revealing line */}
+      {!isFeature && (
       <View style={styles.linesBlock}>
         {lines.slice(0, lineIdx + 1).map((l, i) => (
           <View key={`${screenIdx}-${i}`} style={styles.lineSlot}>
@@ -392,6 +509,7 @@ export default function Onboarding() {
           </View>
         ))}
       </View>
+      )}
 
       {/* Selection (music) */}
       {screen.kind === 'selection' && ready && (
@@ -630,6 +748,49 @@ const styles = StyleSheet.create({
 
   contentWrap: { flex: 1, paddingHorizontal: spacing.xl, justifyContent: 'center' },
   linesBlock: { gap: 14, paddingVertical: 16 },
+
+  // Feature showcase
+  featureBlock: {
+    gap: 14,
+    paddingVertical: 16,
+  },
+  featureIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    marginBottom: 8,
+  },
+  featureEyebrow: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  featureTitle: {
+    color: colors.textPrimary,
+    fontSize: 38,
+    lineHeight: 42,
+    fontWeight: '900',
+    letterSpacing: -1.5,
+    marginBottom: 12,
+  },
+  featureSubtitle: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    lineHeight: 23,
+    fontWeight: '500',
+    opacity: 0.85,
+    marginBottom: 16,
+  },
+  featureBullets: { gap: 10, marginTop: 4 },
+  featureBulletRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  featureBulletDot: { width: 7, height: 7, borderRadius: 4 },
+  featureBulletText: { color: colors.textPrimary, fontWeight: '700', fontSize: 14, opacity: 0.92 },
+
   lineSlot: {},
   bigText: {
     color: colors.textPrimary,

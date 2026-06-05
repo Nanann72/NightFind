@@ -1,0 +1,52 @@
+{
+  "summary": "Push Notifications backend integration (iteration_3) FULLY VERIFIED. New /api/register-push endpoint + friend_request/friend_accept/friend_at_club notification side-effects + push_service relay wiring all working as specced. 9/9 new push tests PASS, 21/21 prior friends-system regression suite still PASS (30/30 total = 100%). Confirmed via backend logs: upstream relay at integrations.emergentagent.com is actually called and returns 401 (placeholder EMERGENT_PUSH_KEY), and push_service soft-fails (logs 'EMERGENT_PUSH_KEY missing or invalid') without ever propagating an exception — endpoints /api/friends/request, /api/friends/{id}/accept, /api/checkins all return 200 despite upstream rejection. db.push_tokens persistence verified (upsert with device_token + last_register_ok=False). Privacy invariants verified both directions: (a) when sender visibility=hidden, NO friend_at_club notification is created for friends; (b) when friend visibility=hidden, that friend receives NO friend_at_club notification. /api/register-push correctly returns 403 on user_id mismatch and 401/403 when unauthenticated. No regressions; no critical issues. Frontend testing intentionally skipped per request (push tokens require a real device — Expo web returns null).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/checkins (confirmed=true)",
+        "issue": "The friend_at_club push block is wrapped in a single broad try/except that also swallows any notifications.insert_many error. Push is correctly best-effort, but a DB insert failure on the in-app notifications collection would now be silently logged — consider splitting the try/except so DB errors surface while only the upstream push call is best-effort. Not blocking; current behavior matches spec ('endpoint must return 200 even when push fails')."
+      },
+      {
+        "endpoint": "POST /api/friends/request, POST /api/friends/{id}/accept",
+        "issue": "db.notifications.insert_one is NOT inside try/except (only push_service.send_push is). If MongoDB is unavailable for the notifications collection, the friend request/accept would 500. Same pattern as before push was added — flagging for awareness, not a regression."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_push_notifications.py",
+    "/app/test_reports/pytest/push_results.xml",
+    "/app/backend/tests/test_friends_system.py",
+    "/app/test_reports/pytest/friends_results.xml"
+  ],
+  "action_items": [
+    "(Optional/cosmetic) In /api/checkins, split the friend_at_club try/except so DB errors on db.notifications.insert_many are not silently swallowed; only push_service.send_push needs to be best-effort.",
+    "(Optional) Consider rate-limiting /api/register-push to avoid token spam from a malicious client (currently no rate limit, upserts unbounded per user/platform — fine in practice since platform is the unique key).",
+    "(Carry-over from iteration_2) Replace deprecated 'shadow*' RN style props with 'boxShadow'; replace pointerEvents prop with style.pointerEvents; guard expo-notifications listeners with Platform.OS !== 'web' — these are FE-only and not in scope for this iteration."
+  ],
+  "critical_code_review_comments": [
+    "push_service.py is well-designed: never raises, soft-fails on 401 (placeholder key) and >=400, caps recipients to 100, supports idempotency_key. Good defensive code.",
+    "server.py grew from 1700 → 1906 lines; the new /register-push + push side-effects are tightly coupled into existing routes. With friends/notifications/push surfaces, splitting server.py into routers/ (push.py, friends.py, notifications.py, checkins.py) is now overdue.",
+    "Privacy filter in /api/checkins is correctly applied in TWO directions before sending push (sender visibility check + recipient visibility filter via $ne='hidden' Mongo query). Verified by integration tests.",
+    "Idempotency keys are well-chosen: fr_req_{fs_id}, fr_acc_{friendship_id}, ci_{checkin_id} — prevents duplicate push deliveries on client retries.",
+    "register_device + send_push share a module-level singleton httpx.AsyncClient with a default 10s timeout; the aclose() hook is correctly wired into FastAPI shutdown."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_push_notifications.py (NEW — 9 tests covering register-push, friend_request/accept notifications, friend_at_club + 2 privacy invariants)"
+  ],
+  "success_rate": {
+    "backend": "100% (30/30 — 9 new push tests + 21 friends-system regression)",
+    "frontend": "skipped per request (push tokens require real device; Expo web cannot test)"
+  },
+  "seed_data_creation": "Transient test users (test_push_*@nightfinder.app) created via /api/auth/register. Demo user receives a few notifications (friend_request from peer accept, friend_at_club from check-in tests). push_tokens entries for demo user (platform=ios, device_token prefixed TEST_TOKEN_) are cleaned up in teardown_module. Demo user's visibility is reset to clubs_only at end of run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Push notifications backend wiring is fully covered by /app/backend/tests/test_push_notifications.py (9 tests, ~1.5s). The tests verify upstream_ok=False is returned because EMERGENT_PUSH_KEY=placeholder — if a real key is ever injected in dev, the test_register_push_success_returns_upstream_ok_false assertion will start failing (expected). To verify push delivery end-to-end you need a real device + production push key — this cannot be tested from CI. The privacy tests use the actual visibility toggle (PUT /api/profile/visibility) and reset to clubs_only at end. Run tests with BACKEND_URL=http://localhost:8001 (default).",
+  "rca_of_issue": "No bugs found. All push integration points behave per spec. Verified upstream relay actually receives requests (backend logs show 'EMERGENT_PUSH_KEY missing or invalid (register)' and '(trigger)' warnings on every call), confirming the httpx call path is exercised end-to-end and the soft-failure handling correctly converts 401 → return False without raising."
+}

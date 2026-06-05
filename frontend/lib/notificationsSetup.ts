@@ -1,5 +1,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import * as Linking from 'expo-linking';
+import { router } from 'expo-router';
 import {
   BG_LOCATION_TASK,
   NOTIF_ACTION_NO,
@@ -21,6 +23,19 @@ if (Platform.OS !== 'web') {
         // Backward compatibility for older expo-notifications
         shouldShowAlert: true,
       }),
+    });
+  } catch {
+    // ignore
+  }
+}
+
+// Android: create the default channel at module scope (before any push lands)
+if (Platform.OS === 'android') {
+  try {
+    Notifications.setNotificationChannelAsync('default', {
+      name: 'Default',
+      importance: Notifications.AndroidImportance.MAX,
+      sound: 'default',
     });
   } catch {
     // ignore
@@ -67,26 +82,61 @@ export function attachNotificationActionListeners() {
 
   actionsSubscription = Notifications.addNotificationResponseReceivedListener(
     async (response) => {
-      try {
-        const actionId = response.actionIdentifier;
-        const data: any = response.notification.request.content.data || {};
-        const clubId = data?.club_id;
-        if (!clubId) return;
-        if (actionId === NOTIF_ACTION_YES) {
-          api.checkIn(clubId, true).catch(() => {});
-        } else if (actionId === NOTIF_ACTION_NO) {
-          api.checkIn(clubId, false).catch(() => {});
-        } else if (actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
-          api.checkIn(clubId, true).catch(() => {});
-        }
-      } catch {
-        // ignore
-      }
+      await handleNotificationResponse(response);
     },
   );
+
+  // Cold-start tap: app launched by tapping a notification while killed
+  Notifications.getLastNotificationResponseAsync()
+    .then((resp) => {
+      if (resp) handleNotificationResponse(resp);
+    })
+    .catch(() => {});
 
   return () => {
     actionsSubscription?.remove();
     actionsSubscription = null;
   };
+}
+
+async function handleNotificationResponse(
+  response: Notifications.NotificationResponse,
+) {
+  try {
+    const actionId = response.actionIdentifier;
+    const data: any = response.notification.request.content.data || {};
+    const clubId = data?.club_id;
+
+    // Interactive geofence buttons
+    if (clubId && (actionId === NOTIF_ACTION_YES || actionId === NOTIF_ACTION_NO)) {
+      if (actionId === NOTIF_ACTION_YES) {
+        api.checkIn(clubId, true).catch(() => {});
+      } else if (actionId === NOTIF_ACTION_NO) {
+        api.checkIn(clubId, false).catch(() => {});
+      }
+      return;
+    }
+
+    // Push-driven deeplinks (friend_request, friend_accepted, friend_at_club, …)
+    const url: string | undefined = data?.deeplink || data?.action_url;
+    if (url) {
+      if (url.startsWith('http')) {
+        await Linking.openURL(url);
+      } else {
+        try {
+          router.push(url as any);
+        } catch {
+          // ignore — router not ready yet
+        }
+      }
+      return;
+    }
+
+    // Default behaviour for the legacy geofence notification (tap = confirm)
+    if (clubId && actionId === Notifications.DEFAULT_ACTION_IDENTIFIER) {
+      api.checkIn(clubId, true).catch(() => {});
+    }
+  } catch {
+    // ignore
+  }
 }

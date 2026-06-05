@@ -44,6 +44,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       const me = await api.me();
       setUser(me);
+      // Best-effort push registration on every authenticated session
+      try {
+        const { registerForPush } = await import('./push');
+        registerForPush(me.user_id).catch(() => {});
+      } catch {}
     } catch {
       await clearToken();
       setUser(null);
