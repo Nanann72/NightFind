@@ -9,12 +9,18 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Modal,
+  Dimensions,
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeIn, ZoomIn, FadeInDown } from 'react-native-reanimated';
+import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { colors, radius, spacing } from '../lib/theme';
+
+const { width } = Dimensions.get('window');
 
 export default function MatchRequests() {
   const router = useRouter();
@@ -22,6 +28,9 @@ export default function MatchRequests() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [matchModal, setMatchModal] = useState<{ matchId: string; name: string; photo?: string } | null>(null);
+  const { user } = useAuth();
+  const myPhoto = ((user as any)?.photos || [])[0] || (user as any)?.picture || null;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -44,10 +53,11 @@ export default function MatchRequests() {
     try {
       const r = await api.acceptMatch(req.request_id);
       setItems((x) => x.filter((it) => it.request_id !== req.request_id));
-      Alert.alert('Match 💞', `Tu peux maintenant discuter avec ${req.name}.`, [
-        { text: 'Plus tard', style: 'cancel' },
-        { text: 'Ouvrir le chat', onPress: () => router.push(`/chat/${r.match_id}`) },
-      ]);
+      setMatchModal({
+        matchId: r.match_id,
+        name: req.name,
+        photo: (req.photos || [])[0],
+      });
     } catch (e: any) {
       Alert.alert('Erreur', e?.message || 'Action impossible.');
     } finally {
@@ -152,6 +162,59 @@ export default function MatchRequests() {
           );
         }}
       />
+
+      <Modal visible={!!matchModal} transparent animationType="fade" onRequestClose={() => setMatchModal(null)}>
+        <Animated.View entering={FadeIn.duration(300)} style={styles.matchOverlay}>
+          <Animated.Text entering={ZoomIn.delay(100).duration(500)} style={styles.matchTitle}>
+            MATCH
+          </Animated.Text>
+          <Animated.View entering={ZoomIn.delay(250).duration(500)} style={styles.avatarsRow}>
+            {myPhoto ? (
+              <Image source={{ uri: myPhoto }} style={styles.matchAvatar} />
+            ) : (
+              <View style={[styles.matchAvatar, styles.matchAvatarFb]}>
+                <Ionicons name="person" size={48} color={colors.textTertiary} />
+              </View>
+            )}
+            <View style={styles.matchHeart}>
+              <Ionicons name="heart" size={28} color="#fff" />
+            </View>
+            {matchModal?.photo ? (
+              <Image source={{ uri: matchModal.photo }} style={styles.matchAvatar} />
+            ) : (
+              <View style={[styles.matchAvatar, styles.matchAvatarFb]}>
+                <Ionicons name="person" size={48} color={colors.textTertiary} />
+              </View>
+            )}
+          </Animated.View>
+          <Animated.Text entering={FadeInDown.delay(450).duration(500)} style={styles.matchHeadline}>
+            C'est un <Text style={{ color: colors.primary }}>match</Text> !
+          </Animated.Text>
+          <Animated.Text entering={FadeInDown.delay(550).duration(500)} style={styles.matchSub}>
+            Vous vous êtes aimés tous les deux. Lance la conversation avec {matchModal?.name}.
+          </Animated.Text>
+          <Animated.View entering={FadeInDown.delay(700).duration(450)} style={{ marginTop: 28, width: '100%', alignItems: 'center' }}>
+            <TouchableOpacity
+              style={styles.matchCta}
+              onPress={() => {
+                const id = matchModal?.matchId;
+                setMatchModal(null);
+                if (id) router.push(`/chat/${id}`);
+              }}
+              testID="match-send-message"
+            >
+              <Text style={styles.matchCtaText}>Envoyer un message</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.matchSecondary}
+              onPress={() => setMatchModal(null)}
+              testID="match-continue-swipe"
+            >
+              <Text style={styles.matchSecondaryText}>Continuer à swiper</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
+      </Modal>
     </View>
   );
 }
@@ -204,4 +267,99 @@ const styles = StyleSheet.create({
   btnLike: { backgroundColor: '#22c55e' },
   btnText: { color: '#fff', fontWeight: '900' },
   empty: { color: colors.textSecondary, textAlign: 'center', marginTop: 60, paddingHorizontal: 30 },
+  // Match Celebration Modal
+  matchOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(8, 6, 22, 0.96)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  matchTitle: {
+    color: colors.primary,
+    fontSize: 64,
+    fontWeight: '900',
+    letterSpacing: 6,
+    textShadowColor: 'rgba(255, 56, 196, 0.6)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 24,
+    marginBottom: 36,
+  },
+  avatarsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 0,
+    marginBottom: 32,
+  },
+  matchAvatar: {
+    width: width * 0.32,
+    height: width * 0.32,
+    borderRadius: width * 0.16,
+    borderWidth: 4,
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceElevated,
+  },
+  matchAvatarFb: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  matchHeart: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: -14,
+    zIndex: 2,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  matchHeadline: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginTop: 8,
+    letterSpacing: -0.5,
+  },
+  matchSub: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 12,
+    lineHeight: 22,
+  },
+  matchCta: {
+    width: '100%',
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    borderRadius: radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  matchCtaText: {
+    color: '#fff',
+    fontWeight: '900',
+    fontSize: 16,
+    letterSpacing: 0.3,
+  },
+  matchSecondary: {
+    paddingVertical: 14,
+    marginTop: 6,
+  },
+  matchSecondaryText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '700',
+    fontSize: 14,
+  },
 });
