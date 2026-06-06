@@ -1842,6 +1842,33 @@ async def list_active_friends(user: dict = Depends(get_current_user)):
             "lng": club.get("lng"),
             "checked_in_at": ci.get("created_at"),
         })
+
+    # ALSO include virtual users with a public location (testing helper).
+    # These are visible to everyone — no friendship required.
+    vu_cursor = db.users.find(
+        {
+            "is_virtual": True,
+            "lat": {"$exists": True, "$ne": None},
+            "lng": {"$exists": True, "$ne": None},
+            "user_id": {"$ne": uid},
+        },
+        {"_id": 0},
+    )
+    vus = await vu_cursor.to_list(200)
+    for vu in vus:
+        photos = vu.get("photos") or []
+        out.append({
+            "user_id": vu["user_id"],
+            "username": vu.get("username"),
+            "name": vu.get("name"),
+            "picture": (photos[0] if photos else None),
+            "club_id": None,
+            "club_name": vu.get("current_club_name"),
+            "lat": vu.get("lat"),
+            "lng": vu.get("lng"),
+            "checked_in_at": None,
+            "is_virtual": True,
+        })
     return out
 
 
@@ -2600,6 +2627,8 @@ VIRTUAL_USERS_SEED = [
         "bio": "Apéro rooftop, after en techno. Toujours partante.",
         "instagram": "lea.paris",
         "music_prefs": ["techno", "house", "electro"],
+        "lat": 48.8566, "lng": 2.3522,
+        "current_club_name": "Concrete (Paris 12e)",
         "photos": [
             "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=600&q=70",
             "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&q=70",
@@ -2615,6 +2644,8 @@ VIRTUAL_USERS_SEED = [
         "bio": "DJ amateur. Vendredi = vinyles, samedi = clubs.",
         "instagram": "maxime.lyon",
         "music_prefs": ["techno", "deep house", "hip-hop"],
+        "lat": 45.7640, "lng": 4.8357,
+        "current_club_name": "Sucre (Lyon)",
         "photos": [
             "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=600&q=70",
             "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=600&q=70",
@@ -2630,6 +2661,8 @@ VIRTUAL_USERS_SEED = [
         "bio": "Bord de mer + open air le week-end. Sushi obligatoire avant 23h.",
         "instagram": "chloe.summer",
         "music_prefs": ["pop", "electro", "indie"],
+        "lat": 43.2965, "lng": 5.3698,
+        "current_club_name": "Cabaret Aléatoire (Marseille)",
         "photos": [
             "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=600&q=70",
             "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=600&q=70",
@@ -2645,6 +2678,8 @@ VIRTUAL_USERS_SEED = [
         "bio": "Festoche, bars à vin, soirées tropicales. Hello l'été.",
         "instagram": "thomas.bx",
         "music_prefs": ["reggaeton", "afro", "latin"],
+        "lat": 44.8378, "lng": -0.5792,
+        "current_club_name": "I.Boat (Bordeaux)",
         "photos": [
             "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&q=70",
         ],
@@ -2659,6 +2694,8 @@ VIRTUAL_USERS_SEED = [
         "bio": "Étudiante archi. J'adore les petits clubs underground.",
         "instagram": "juju.lille",
         "music_prefs": ["techno", "drum & bass"],
+        "lat": 50.6292, "lng": 3.0573,
+        "current_club_name": "La Bulle Café (Lille)",
         "photos": [
             "https://images.unsplash.com/photo-1502323777036-f29e3972d82f?w=600&q=70",
         ],
@@ -2673,6 +2710,8 @@ VIRTUAL_USERS_SEED = [
         "bio": "Plage l'été, club l'hiver. Tu connais le Glam ?",
         "instagram": "kev.nice",
         "music_prefs": ["house", "deep house", "tropical"],
+        "lat": 43.7102, "lng": 7.2620,
+        "current_club_name": "Glam Club (Nice)",
         "photos": [
             "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=600&q=70",
         ],
@@ -2687,6 +2726,8 @@ VIRTUAL_USERS_SEED = [
         "bio": "Concerts indé, soirées rooftop. À fond sur les festivals.",
         "instagram": "sarah.toulouse",
         "music_prefs": ["indie", "rock", "electro"],
+        "lat": 43.6047, "lng": 1.4442,
+        "current_club_name": "Rex (Toulouse)",
         "photos": [
             "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=600&q=70",
             "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=600&q=70",
@@ -2702,6 +2743,8 @@ VIRTUAL_USERS_SEED = [
         "bio": "Trans Musicales tous les ans, La Riff au quotidien.",
         "instagram": "antoine.rnz",
         "music_prefs": ["electro", "indie", "techno"],
+        "lat": 48.1173, "lng": -1.6778,
+        "current_club_name": "La Riff (Rennes)",
         "photos": [
             "https://images.unsplash.com/photo-1521119989659-a83eee488004?w=600&q=70",
         ],
@@ -2716,6 +2759,8 @@ VIRTUAL_USERS_SEED = [
         "bio": "Café terrasse l'aprèm, club le soir. Fan d'arts visuels.",
         "instagram": "cami.strasbourg",
         "music_prefs": ["pop", "electro"],
+        "lat": 48.5734, "lng": 7.7521,
+        "current_club_name": "Le Rafiot (Strasbourg)",
         "photos": [
             "https://images.unsplash.com/photo-1463453091185-61582044d556?w=600&q=70",
         ],
@@ -2730,6 +2775,8 @@ VIRTUAL_USERS_SEED = [
         "bio": "Open airs, after sur la plage. Cocktail addict 🍸",
         "instagram": "yas.montp",
         "music_prefs": ["house", "afro", "tropical"],
+        "lat": 43.6108, "lng": 3.8767,
+        "current_club_name": "Le Rockstore (Montpellier)",
         "photos": [
             "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&q=70",
             "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&q=70",
@@ -3134,6 +3181,9 @@ async def edit_message(message_id: str, body: EditMessageBody, user: dict = Depe
     # Allow edit within 15 minutes
     created_at = msg["created_at"]
     if isinstance(created_at, datetime):
+        # Ensure timezone-aware comparison (MongoDB returns naive UTC datetimes)
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
         if (datetime.now(timezone.utc) - created_at).total_seconds() > 900:
             raise HTTPException(status_code=403, detail="Trop tard pour modifier (>15min)")
     text = (body.text or "").strip()
