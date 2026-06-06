@@ -70,8 +70,11 @@ export default function Login() {
             placeholderTextColor={colors.textTertiary}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoComplete="email"
+            textContentType="emailAddress"
             style={styles.input}
             testID="login-email-input"
+            accessibilityLabel="Adresse email"
           />
         </View>
 
@@ -83,10 +86,18 @@ export default function Login() {
             placeholder="Mot de passe"
             placeholderTextColor={colors.textTertiary}
             secureTextEntry={!showPwd}
+            autoComplete="password"
+            textContentType="password"
             style={styles.input}
             testID="login-password-input"
+            accessibilityLabel="Mot de passe"
           />
-          <TouchableOpacity onPress={() => setShowPwd((v) => !v)}>
+          <TouchableOpacity
+            onPress={() => setShowPwd((v) => !v)}
+            accessibilityLabel={showPwd ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+            accessibilityRole="button"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
             <Ionicons
               name={showPwd ? 'eye-off-outline' : 'eye-outline'}
               size={18}
@@ -96,13 +107,18 @@ export default function Login() {
         </View>
 
         <Link href="/forgot-password" asChild>
-          <TouchableOpacity style={styles.forgot} testID="forgot-link">
+          <TouchableOpacity
+            style={styles.forgot}
+            testID="forgot-link"
+            accessibilityLabel="Mot de passe oublié"
+            accessibilityRole="link"
+          >
             <Text style={styles.forgotText}>Mot de passe oublié ?</Text>
           </TouchableOpacity>
         </Link>
 
         {err && (
-          <Text style={styles.error} testID="login-error">
+          <Text style={styles.error} testID="login-error" accessibilityLiveRegion="polite">
             {err}
           </Text>
         )}
@@ -113,6 +129,9 @@ export default function Login() {
           disabled={loading}
           testID="login-submit-btn"
           activeOpacity={0.85}
+          accessibilityLabel="Se connecter"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: loading, busy: loading }}
         >
           {loading ? (
             <ActivityIndicator color={colors.bg} />
@@ -133,7 +152,7 @@ export default function Login() {
           <Text style={styles.bottomText}>Pas encore de compte ? </Text>
           <Link href="/register" asChild>
             <TouchableOpacity testID="goto-register-link">
-              <Text style={styles.bottomLink}>S'inscrire</Text>
+              <Text style={styles.bottomLink}>{"S'inscrire"}</Text>
             </TouchableOpacity>
           </Link>
         </View>

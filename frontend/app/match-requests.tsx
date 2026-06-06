@@ -131,6 +131,8 @@ export default function MatchRequests() {
                     onPress={() => onReject(item)}
                     disabled={busy === item.request_id}
                     testID={`mr-reject-${item.request_id}`}
+                    accessibilityLabel={`Refuser la demande de ${item.name || 'cette personne'}`}
+                    accessibilityRole="button"
                   >
                     {busy === item.request_id ? (
                       <ActivityIndicator color="#fff" />
@@ -146,6 +148,8 @@ export default function MatchRequests() {
                     onPress={() => onAccept(item)}
                     disabled={busy === item.request_id}
                     testID={`mr-accept-${item.request_id}`}
+                    accessibilityLabel={`Accepter le match avec ${item.name || 'cette personne'}`}
+                    accessibilityRole="button"
                   >
                     {busy === item.request_id ? (
                       <ActivityIndicator color="#fff" />

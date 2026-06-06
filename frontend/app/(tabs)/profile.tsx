@@ -576,7 +576,7 @@ export default function Profile() {
 
         {/* PRÉFÉRENCES APP */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Préférences de l'app</Text>
+          <Text style={styles.sectionTitle}>{"Préférences de l'app"}</Text>
           <Row
             icon="notifications"
             label="Notifications"
@@ -627,7 +627,7 @@ export default function Profile() {
             testID="link-cgu"
           >
             <Text style={styles.legalIcon}>📜</Text>
-            <Text style={styles.legalLabel}>Conditions Générales d'Utilisation</Text>
+            <Text style={styles.legalLabel}>{"Conditions Générales d'Utilisation"}</Text>
             <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
           </TouchableOpacity>
           <TouchableOpacity
@@ -679,6 +679,9 @@ export default function Profile() {
             onPress={confirmDelete}
             testID="row-delete-account"
             activeOpacity={0.85}
+            accessibilityLabel="Supprimer définitivement mon compte"
+            accessibilityRole="button"
+            accessibilityHint="Effacement irréversible de toutes tes données sous 30 jours"
           >
             <Ionicons name="trash-outline" size={18} color={colors.danger} />
             <Text style={styles.deleteText}>Supprimer définitivement mon compte</Text>
@@ -803,7 +806,7 @@ export default function Profile() {
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Tes styles préférés</Text>
             <Text style={styles.modalSub}>
-              On utilise ça pour t'envoyer les meilleures recommandations.
+              {"On utilise ça pour t'envoyer les meilleures recommandations."}
             </Text>
             <View style={styles.musicGrid}>
               {MUSIC_OPTIONS.map((m) => {

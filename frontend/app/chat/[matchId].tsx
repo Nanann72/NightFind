@@ -171,12 +171,16 @@ export default function Chat() {
           multiline
           maxLength={1000}
           testID="chat-input"
+          accessibilityLabel="Écrire un message"
         />
         <TouchableOpacity
           style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
           onPress={send}
           disabled={!text.trim() || sending}
           testID="chat-send"
+          accessibilityLabel="Envoyer le message"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !text.trim() || sending, busy: sending }}
         >
           {sending ? (
             <ActivityIndicator color="#fff" size="small" />
