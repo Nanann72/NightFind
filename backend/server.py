@@ -995,6 +995,27 @@ async def update_swipe_fields(body: SwipeFieldsBody, user: dict = Depends(get_cu
         for p in body.photos:
             if not isinstance(p, str) or len(p) > 3_000_000:
                 raise HTTPException(status_code=413, detail="Photo trop lourde (max 2MB)")
+        # AI moderation: scan each photo. Only previously-saved photos are
+        # exempt (we trust what's already in DB to keep retries cheap).
+        existing_set = set((user.get("photos") or []))
+        from moderation_service import moderate_image, violation_label
+        moderation_results: list[dict] = []
+        for idx, p in enumerate(body.photos):
+            if p in existing_set:
+                moderation_results.append({"index": idx, "skipped": True, "reason": "already_saved"})
+                continue
+            verdict = await moderate_image(p, session_id=f"sf-{user['user_id']}-{idx}")
+            moderation_results.append({"index": idx, **verdict})
+            if not verdict.get("safe", True):
+                label = violation_label(verdict)
+                logger.warning(
+                    "moderation_reject user=%s idx=%s verdict=%s",
+                    user["user_id"], idx, verdict,
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Photo {idx + 1} refusée par la modération : {label}. Choisis une autre image.",
+                )
         updates["photos"] = body.photos
     if body.fav_clubs is not None:
         if len(body.fav_clubs) > 10:
@@ -2504,6 +2525,25 @@ async def get_my_billing(user: dict = Depends(get_current_user)):
 # Block / Report / Delete account / Export — Apple App Store compliance
 # (Guidelines 1.2 UGC, 5.1.1(v) account deletion, RGPD Art.20 portability)
 # ---------------------------------------------------------------------------
+
+
+class ModerationCheckBody(BaseModel):
+    image: str  # base64 or data URI
+
+
+@api_router.post("/moderation/check-image")
+async def moderation_check_image(
+    body: ModerationCheckBody, user: dict = Depends(get_current_user)
+):
+    """Run Gemini-Flash vision moderation on a single image.
+
+    Returns a structured safety verdict. Used by the frontend to give live
+    feedback before saving a photo to the profile.
+    """
+    from moderation_service import moderate_image
+    verdict = await moderate_image(body.image, session_id=f"check-{user['user_id']}")
+    return verdict
+
 
 ALLOWED_REPORT_REASONS = {
     "harassment",

@@ -317,6 +317,11 @@ export const api = {
   listNotifications: () => request<any[]>('/notifications'),
 
   // ---- Apple compliance: block / report / delete / export ----
+  checkImageModeration: (image: string) =>
+    request<{ safe: boolean; nudity?: boolean; gore?: boolean; violence?: boolean; sexual_content?: boolean; hate_symbols?: boolean; reason?: string; fail_open?: boolean; latency_ms?: number }>(
+      '/moderation/check-image',
+      { method: 'POST', body: JSON.stringify({ image }) },
+    ),
   blockUser: (target_user_id: string) =>
     request<{ ok: boolean }>('/blocks', {
       method: 'POST',

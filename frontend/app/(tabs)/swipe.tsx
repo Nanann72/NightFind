@@ -189,12 +189,16 @@ export default function SwipePeople() {
   }
 
   const top = deck[0];
-  const photo = top.photos?.[photoIdx] || top.photos?.[0];
+  // Filter out empty/invalid photos. A user with no real photo will fall back
+  // to the initial-letter placeholder rather than a blank gray box.
+  const validPhotos = (top.photos || []).filter((p) => typeof p === 'string' && p.trim().length > 16);
+  const photo = validPhotos[photoIdx] || validPhotos[0];
   const photoSrc = photo
     ? photo.startsWith('http') || photo.startsWith('data:')
       ? photo
       : `data:image/jpeg;base64,${photo}`
     : null;
+  const initial = (top.name || '?').trim().charAt(0).toUpperCase();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 8 }]} testID="swipe-people-screen">
@@ -218,13 +222,16 @@ export default function SwipePeople() {
               <Image source={{ uri: photoSrc }} style={styles.photo} />
             ) : (
               <View style={[styles.photo, styles.photoFallback]}>
-                <Ionicons name="person" size={120} color={colors.textTertiary} />
+                <View style={styles.fallbackBubble}>
+                  <Text style={styles.fallbackInitial}>{initial}</Text>
+                </View>
+                <Text style={styles.fallbackHint}>Photo non disponible</Text>
               </View>
             )}
             {/* Photo pager dots */}
-            {(top.photos?.length ?? 0) > 1 && (
+            {validPhotos.length > 1 && (
               <View style={styles.dotsRow}>
-                {top.photos!.map((_, i) => (
+                {validPhotos.map((_, i) => (
                   <View key={i} style={[styles.dot, i === photoIdx && styles.dotActive]} />
                 ))}
               </View>
@@ -352,7 +359,34 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   photo: { width: '100%', height: '100%' },
-  photoFallback: { backgroundColor: colors.surfaceElevated, alignItems: 'center', justifyContent: 'center' },
+  photoFallback: {
+    backgroundColor: '#1b1424',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 18,
+  },
+  fallbackBubble: {
+    width: 144,
+    height: 144,
+    borderRadius: 72,
+    backgroundColor: 'rgba(224,26,79,0.18)',
+    borderWidth: 2,
+    borderColor: 'rgba(224,26,79,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fallbackInitial: {
+    color: '#fff',
+    fontSize: 72,
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
+  fallbackHint: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
   dotsRow: {
     position: 'absolute',
     top: 12,
