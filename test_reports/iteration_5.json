@@ -1,0 +1,50 @@
+{
+  "summary": "App Store compliance bundle (P0 blockers) FULLY VALIDATED end-to-end. Backend: 30/30 pytest tests pass for /api/blocks (CRUD + idempotency + self-block 400 + unknown-target 404 + auth), /api/reports (7 reasons parametrized + invalid 400 + self 400 + unknown 404 + auth), block-filter on /api/swipe/deck AND on /api/match-requests (verified the 'peer who blocked me' is filtered out of my pending requests), /api/users/me/export (full schema with all 12 required keys, no password_hash leak, lists are lists), DELETE /api/users/me (confirm=DELETE required → 400, wrong password → 401, full cascade across 13+ collections verified, login after delete fails 401/404, stale token also fails, demo account remains functional). Frontend: register screen has all 6 testIDs, submit button correctly disabled until terms accepted (opacity 0.5 → 1, aria-disabled true → false), all client-side validations fire (name/email required, password<8, underage<18 — verified messages match spec); DOBPicker on web renders native HTML <input type=date> with max=18yo limit; CGU + Privacy links are inline-clickable. Paywall has Restaurer top-right + paywall-buy-btn + paywall-close-btn testIDs, displays 4,99 €/mois AND 79,99 €/an, auto-renewal + 24h cancellation disclosure, CGU + Privacy footer links present. Profile /(tabs)/profile shows 'Données & confidentialité' section with row-blocked, row-export-data, row-delete-account (all visible after scroll). /blocked-users empty state 'Aucun utilisateur bloqué' renders correctly and row-blocked → /blocked-users navigation works. legal.tsx fully aligned: 79,99 €/an (zero occurrences of stale 39,99 € across the codebase). No critical, no minor backend bugs observed during this run. The 4 carry-over FE warnings (shadow*, textShadow*, pointerEvents, push token listener on web) persist but are not P0 blockers and were already flagged in iteration_4.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "shadow*/textShadow* style props", "issue": "Deprecation warnings in console: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' and '\"textShadow*\" style props are deprecated. Use \"textShadow\".' Carry-over from iteration_4 — non-blocking, but should be migrated before SDK upgrades."},
+      {"component": "props.pointerEvents", "issue": "Deprecation warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Carry-over from iteration_4 — non-blocking."},
+      {"component": "expo-notifications on web", "issue": "Warning: '[expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect.' Should be guarded with Platform.OS !== 'web' (carry-over). Non-blocking for TestFlight (native build will work)."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_compliance_block_report_delete.py",
+    "/app/test_reports/pytest/compliance_results.xml"
+  ],
+  "action_items": [
+    "(Optional / non-blocking for TestFlight) Update /app/memory/test_credentials.md: line 14 still references 'nightfinder_premium_annual (39.99€)' — should be 79,99€ to match the new aligned price.",
+    "(Carry-over, non-blocking) Replace deprecated React Native web style props: shadow* → boxShadow, textShadow* → textShadow, props.pointerEvents → style.pointerEvents.",
+    "(Carry-over, non-blocking) Guard expo-notifications listeners with `Platform.OS !== 'web'`.",
+    "(Optional) DELETE /api/users/me cascade does NOT delete /api/match-messages where from_user_id == uid but match_id is for a match NOT involving uid (impossible by construction, since uid would have to be user_a/user_b — confirmed safe, just noting). The current implementation deletes by match_ids of matches involving uid, which is correct.",
+    "(Optional) Consider returning 204 No Content (or 200 with empty body) on DELETE /api/blocks/{id} when nothing was removed, vs. the current {ok:true, removed:0} — current behaviour is fine but slightly non-RESTful."
+  ],
+  "critical_code_review_comments": [
+    "_blocked_user_ids() correctly returns the SYMMETRIC set (people I blocked + people who blocked me) and is wired into both /api/swipe/deck (line 838) AND /api/match-requests (line 1010). Verified end-to-end: a peer who blocks demo is filtered out of demo's pending match-requests list.",
+    "DELETE /api/users/me cascade covers: user_swipes (both user_id and target_user_id), checkins, profile_songs, notifications, favorites, push_tokens, user_sessions, user_blocks (both directions), user_reports (both directions), events, match_requests (both directions), matches + match_messages (by match_id), friendships (4 possible fields). The user document is deleted LAST so a mid-cascade failure won't orphan the auth principal. Good.",
+    "export_my_data() correctly excludes password_hash via projection {_id: 0, password_hash: 0} on the users.find_one — verified in test_export_user_has_no_password_hash. Note that messages query uses $or with from_user_id (covers messages I sent in matches I'm not in — currently impossible, but defensive) AND match_id IN [matches I'm in].",
+    "block_user() also flips any pending match_request between the two users to status='blocked' (best-effort) — this prevents the request from re-appearing if the block is later removed, which is the safer behavior for App Review.",
+    "report_user() validates reason against an explicit ALLOWED_REPORT_REASONS set (7 reasons) — verified all 7 are accepted and any other value returns 400. The report is persisted in user_reports collection with status='open' and a warning is logged for ops visibility. Good.",
+    "delete_my_account() requires password re-entry ONLY for accounts with password_hash (email accounts), not for OAuth — verified by code review. The body schema (DeleteAccountBody) correctly types password as Optional.",
+    "Frontend register.tsx: terms checkbox uses accessibilityRole='checkbox' + accessibilityState={{checked}} which is correctly screen-reader compliant. The submit button is disabled both via the `disabled` prop AND visually (opacity 0.5) — verified.",
+    "DOBPicker web fallback uses native <input type=date> with max attribute set to 18-years-ago — server still validates, but client-side max provides immediate UX feedback. Good defense-in-depth."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_compliance_block_report_delete.py (NEW — 30 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (30/30 pytest tests pass in 10.12s)",
+    "frontend": "100% in-scope (register flow, paywall, profile data section, blocked-users empty state — all verified)"
+  },
+  "seed_data_creation": "Test data: ~10 transient users created and deleted by their own DELETE /api/users/me during the run (emails prefixed 'block-test-*', 'peer-*', 'mr-blocker-*', 'del-*'). All cleaned up. Demo account state preserved (login still works at end). cleanup_demo_blocks fixture restores demo's block list to its pre-test state.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run with: `BACKEND_URL=http://localhost:8001 pytest /app/backend/tests/test_compliance_block_report_delete.py -v` (~10s). The TestBlockFilter::test_blocker_excluded_from_match_requests test creates a peer, has them like demo (creates pending match_request), then has peer block demo, and asserts the peer disappears from demo's /api/match-requests. The TestAccountDeletion::test_delete_cascade_and_login_after_fails test creates a fresh user, seeds a block + report, deletes the user, then verifies login fails and the old token is no longer valid. Both clean up after themselves. The demo@nightfinder.app account is NEVER deleted by this suite.",
+  "rca_of_issue": "No production bugs found. The implementation matches the Apple App Store compliance specs (Guidelines 1.2 UGC, 5.1.1(v) account deletion, RGPD Art. 20 data portability). The four P0 blockers are ready for TestFlight submission. The only carry-over warnings are non-blocking React Native web style migrations (shadow*, textShadow*, pointerEvents) which were already documented in iteration_4 and do not affect the iOS/Android native runtime."
+}
