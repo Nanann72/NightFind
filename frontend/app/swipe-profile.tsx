@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
+  Modal,
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,6 +34,15 @@ export default function SwipeProfileEdit() {
   const [instagram, setInstagram] = useState<string>(u.instagram || '');
   const [photos, setPhotos] = useState<string[]>(Array.isArray(u.photos) ? u.photos : []);
   const [saving, setSaving] = useState(false);
+  const [savingState, setSavingState] = useState<'idle' | 'moderating' | 'saving'>('idle');
+
+  // Detect which photos are brand-new vs already on the account
+  const initialPhotosRef = useRef<string[]>([]);
+  useEffect(() => {
+    if (user) {
+      initialPhotosRef.current = Array.isArray((user as any).photos) ? (user as any).photos : [];
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -80,6 +90,11 @@ export default function SwipeProfileEdit() {
       return;
     }
     setSaving(true);
+    // If user added new photos that are not yet in initialPhotosRef, the
+    // backend will run AI moderation (5-8s per photo). Surface this clearly.
+    const initialSet = new Set(initialPhotosRef.current || []);
+    const newPhotosCount = photos.filter((p) => !initialSet.has(p)).length;
+    setSavingState(newPhotosCount > 0 ? 'moderating' : 'saving');
     try {
       await api.updateSwipeFields({
         dob: dob || undefined,
@@ -94,8 +109,14 @@ export default function SwipeProfileEdit() {
       Alert.alert('Erreur', e?.message || 'Impossible de sauvegarder.');
     } finally {
       setSaving(false);
+      setSavingState('idle');
     }
   };
+
+  const newPhotosCount = useMemo(() => {
+    const initialSet = new Set(initialPhotosRef.current || []);
+    return photos.filter((p) => !initialSet.has(p)).length;
+  }, [photos]);
 
   return (
     <KeyboardAvoidingView
@@ -179,6 +200,28 @@ export default function SwipeProfileEdit() {
           testID="sf-instagram"
         />
       </ScrollView>
+
+      {/* Moderation in-progress overlay */}
+      <Modal visible={saving} transparent animationType="fade">
+        <View style={styles.modOverlay}>
+          <View style={styles.modCard}>
+            <ActivityIndicator color={colors.primary} size="large" />
+            {savingState === 'moderating' ? (
+              <>
+                <Text style={styles.modTitle}>Modération IA en cours…</Text>
+                <Text style={styles.modSub}>
+                  {`Notre IA vérifie ${newPhotosCount === 1 ? 'ta nouvelle photo' : `tes ${newPhotosCount} nouvelles photos`} pour s'assurer qu'elles respectent les règles (5–8 sec).`}
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.modTitle}>Enregistrement…</Text>
+                <Text style={styles.modSub}>On met à jour ton profil swipe.</Text>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -226,6 +269,36 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   photoImg: { width: '100%', height: '100%' },
+  modOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(7,5,18,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  modCard: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.lg,
+    padding: 28,
+    alignItems: 'center',
+    gap: 14,
+    maxWidth: 340,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  modTitle: {
+    color: colors.textPrimary,
+    fontSize: 17,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  modSub: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
   photoRemove: {
     position: 'absolute',
     top: 6,
