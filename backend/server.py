@@ -2786,16 +2786,28 @@ VIRTUAL_USERS_SEED = [
 
 
 @api_router.post("/dev/seed-virtual-users")
-async def seed_virtual_users(user: dict = Depends(get_current_user)):
+async def seed_virtual_users(
+    user: dict = Depends(get_current_user),
+    near_lat: Optional[float] = None,
+    near_lng: Optional[float] = None,
+):
     """Idempotent seed of ~10 virtual profiles for testing.
 
     These users have ``is_virtual=True`` and will auto-accept any match
     request sent by the calling user, creating a match + greeting message.
+
+    If ``near_lat`` and ``near_lng`` are provided, the virtual users are
+    distributed in a ~2km radius around that point so they show up on the
+    map of the calling user, regardless of their original city.
     """
+    import math
+    import random as _rand
     now = datetime.now(timezone.utc)
+    use_near = near_lat is not None and near_lng is not None
     created = 0
     updated = 0
-    for raw in VIRTUAL_USERS_SEED:
+    n = len(VIRTUAL_USERS_SEED)
+    for i, raw in enumerate(VIRTUAL_USERS_SEED):
         doc = {
             **raw,
             "is_virtual": True,
@@ -2805,6 +2817,13 @@ async def seed_virtual_users(user: dict = Depends(get_current_user)):
             "verified": True,
             "created_at": now,
         }
+        if use_near:
+            # Spread the 10 users on a ring of ~1.5km around the caller
+            angle = (2 * math.pi * i) / max(n, 1)
+            radius_deg = 0.012 + _rand.random() * 0.006  # ~1.3–2km
+            doc["lat"] = float(near_lat) + math.cos(angle) * radius_deg
+            doc["lng"] = float(near_lng) + math.sin(angle) * radius_deg
+            doc["current_club_name"] = doc.get("current_club_name") or f"Spot #{i + 1}"
         result = await db.users.update_one(
             {"user_id": raw["user_id"]},
             {
@@ -2823,7 +2842,8 @@ async def seed_virtual_users(user: dict = Depends(get_current_user)):
         "created": created,
         "updated": updated,
         "total_virtual_users": total,
-        "tip": "Va dans Swipe : tu verras ces profils. Tout 'like' déclenche un match instantané.",
+        "positioned_near": [near_lat, near_lng] if use_near else None,
+        "tip": "Va dans Swipe / Carte : tu verras ces profils. Tout 'like' déclenche un match instantané.",
     }
 
 

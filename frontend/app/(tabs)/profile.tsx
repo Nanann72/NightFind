@@ -404,10 +404,30 @@ export default function Profile() {
                 style={styles.devResetBtn}
                 onPress={async () => {
                   try {
-                    const res = await api.seedVirtualUsers();
+                    // Try to get user's coords so virtual users spawn nearby on the map
+                    let lat: number | undefined;
+                    let lng: number | undefined;
+                    try {
+                      const { useLocation: _useLocation } = await import('../../lib/useLocation');
+                      // We can't call hooks here — instead read last known coords from expo-location directly
+                      const Location = await import('expo-location');
+                      const has = await Location.getForegroundPermissionsAsync();
+                      if (has.status === 'granted') {
+                        const pos = await Location.getLastKnownPositionAsync();
+                        if (pos) {
+                          lat = pos.coords.latitude;
+                          lng = pos.coords.longitude;
+                        }
+                      }
+                    } catch {}
+                    const res = await api.seedVirtualUsers(lat, lng);
                     Alert.alert(
                       'Utilisateurs virtuels prêts 🤖',
-                      `${res.created} créés, ${res.updated} mis à jour.\n\n${res.tip}`,
+                      `${res.created} créés, ${res.updated} mis à jour.\n${
+                        res.positioned_near
+                          ? `📍 Placés autour de toi (~1,5 km)`
+                          : '🌍 Placés dans leur ville d\'origine'
+                      }\n\n${res.tip}`,
                     );
                   } catch (e: any) {
                     Alert.alert('Erreur', e?.message || 'Seed impossible');

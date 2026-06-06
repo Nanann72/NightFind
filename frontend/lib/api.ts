@@ -333,11 +333,16 @@ export const api = {
 
   // ---- Apple compliance: block / report / delete / export ----
   // Dev helpers
-  seedVirtualUsers: () =>
-    request<{ ok: boolean; created: number; updated: number; total_virtual_users: number; tip: string }>(
-      '/dev/seed-virtual-users',
+  seedVirtualUsers: (nearLat?: number, nearLng?: number) => {
+    const qs =
+      nearLat !== undefined && nearLng !== undefined
+        ? `?near_lat=${nearLat}&near_lng=${nearLng}`
+        : '';
+    return request<{ ok: boolean; created: number; updated: number; total_virtual_users: number; tip: string; positioned_near?: [number, number] | null }>(
+      `/dev/seed-virtual-users${qs}`,
       { method: 'POST' },
-    ),
+    );
+  },
   deleteVirtualUsers: () =>
     request<{ ok: boolean; removed: number }>('/dev/seed-virtual-users', { method: 'DELETE' }),
 
