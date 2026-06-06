@@ -332,20 +332,6 @@ export const api = {
   listNotifications: () => request<any[]>('/notifications'),
 
   // ---- Apple compliance: block / report / delete / export ----
-  // Dev helpers
-  seedVirtualUsers: (nearLat?: number, nearLng?: number) => {
-    const qs =
-      nearLat !== undefined && nearLng !== undefined
-        ? `?near_lat=${nearLat}&near_lng=${nearLng}`
-        : '';
-    return request<{ ok: boolean; created: number; updated: number; total_virtual_users: number; tip: string; positioned_near?: [number, number] | null }>(
-      `/dev/seed-virtual-users${qs}`,
-      { method: 'POST' },
-    );
-  },
-  deleteVirtualUsers: () =>
-    request<{ ok: boolean; removed: number }>('/dev/seed-virtual-users', { method: 'DELETE' }),
-
   checkImageModeration: (image: string) =>
     request<{ safe: boolean; nudity?: boolean; gore?: boolean; violence?: boolean; sexual_content?: boolean; hate_symbols?: boolean; reason?: string; fail_open?: boolean; latency_ms?: number }>(
       '/moderation/check-image',
