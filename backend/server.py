@@ -908,11 +908,12 @@ async def _user_swipe(target_user_id: str, action: str, user: dict) -> dict:
     })
     if action == "like":
         # Create or refresh a match request (the target will see it in inbox)
+        mr_id = f"mr_{uuid.uuid4().hex[:10]}"
         await db.match_requests.update_one(
             {"from_user_id": user["user_id"], "to_user_id": target_user_id},
             {
                 "$setOnInsert": {
-                    "request_id": f"mr_{uuid.uuid4().hex[:10]}",
+                    "request_id": mr_id,
                     "from_user_id": user["user_id"],
                     "to_user_id": target_user_id,
                     "status": "pending",
@@ -921,10 +922,70 @@ async def _user_swipe(target_user_id: str, action: str, user: dict) -> dict:
             },
             upsert=True,
         )
-        # In-app notification
         sender_name = user.get("name") or (
             f"@{user.get('username')}" if user.get("username") else "Quelqu'un"
         )
+        # 🤖 Virtual users auto-accept the match instantly (testing helper).
+        # This creates the Match record, fires the celebration modal flow on
+        # the next frontend poll, and optionally seeds a friendly greeting.
+        if target.get("is_virtual"):
+            existing_mr = await db.match_requests.find_one(
+                {"from_user_id": user["user_id"], "to_user_id": target_user_id}
+            )
+            request_id = (existing_mr or {}).get("request_id") or mr_id
+            await db.match_requests.update_one(
+                {"request_id": request_id},
+                {"$set": {"status": "accepted", "accepted_at": datetime.now(timezone.utc)}},
+            )
+            pair_a, pair_b = sorted([user["user_id"], target_user_id])
+            match_doc = await db.matches.find_one({"user_a": pair_a, "user_b": pair_b})
+            if match_doc:
+                match_id = match_doc["match_id"]
+            else:
+                match_id = f"mt_{uuid.uuid4().hex[:10]}"
+                await db.matches.insert_one({
+                    "match_id": match_id,
+                    "user_a": pair_a,
+                    "user_b": pair_b,
+                    "created_at": datetime.now(timezone.utc),
+                    "last_message_at": datetime.now(timezone.utc),
+                })
+            virtual_name = target.get("name") or "Quelqu'un"
+            # Notify the swiper that the match was accepted (drives the modal)
+            await db.notifications.insert_one({
+                "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+                "user_id": user["user_id"],
+                "title": "Nouveau match 💞",
+                "body": f"{virtual_name} a accepté ton like ! Lance la conversation.",
+                "type": "match_accepted",
+                "data": {"match_id": match_id, "with_user_id": target_user_id, "auto": True},
+                "created_at": datetime.now(timezone.utc),
+            })
+            # Seed a friendly first message from the virtual user (only if chat empty)
+            existing_msg = await db.match_messages.find_one({"match_id": match_id})
+            if not existing_msg:
+                greetings = [
+                    f"Hello {sender_name} ! 👋",
+                    "Salut, ça te dit qu'on sorte ensemble cette semaine ?",
+                    "Hey, on se retrouve où vendredi ? 🎉",
+                    "Hello ! Stp dis-moi que tu connais un bon rooftop à Paris 😎",
+                    "Coucou ! Ça te tente une soirée techno ce week-end ?",
+                ]
+                import random
+                greeting = random.choice(greetings)
+                await db.match_messages.insert_one({
+                    "message_id": f"msg_{uuid.uuid4().hex[:10]}",
+                    "match_id": match_id,
+                    "from_user_id": target_user_id,
+                    "text": greeting,
+                    "created_at": datetime.now(timezone.utc),
+                })
+                await db.matches.update_one(
+                    {"match_id": match_id},
+                    {"$set": {"last_message_at": datetime.now(timezone.utc)}},
+                )
+            return {"ok": True, "auto_matched": True, "match_id": match_id}
+        # Normal flow: in-app notification to the real target user
         await db.notifications.insert_one({
             "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
             "user_id": target_user_id,
@@ -2519,6 +2580,228 @@ async def get_my_billing(user: dict = Depends(get_current_user)):
         "expires_at": u.get("premium_expires_at"),
         "source": "cache",
     }
+
+
+# ---------------------------------------------------------------------------
+# Virtual / demo users — testing helper.
+# Seeded users automatically accept any incoming swipe-like so the developer
+# can walk through the full match→chat flow without needing a second device.
+# ---------------------------------------------------------------------------
+
+
+VIRTUAL_USERS_SEED = [
+    {
+        "user_id": "vu_lea_paris",
+        "name": "Léa",
+        "username": "lea_p",
+        "email": "lea+virtual@nightfinder.app",
+        "dob": "1998-05-12",
+        "city": "Paris",
+        "bio": "Apéro rooftop, after en techno. Toujours partante.",
+        "instagram": "lea.paris",
+        "music_prefs": ["techno", "house", "electro"],
+        "photos": [
+            "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=600&q=70",
+            "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&q=70",
+        ],
+    },
+    {
+        "user_id": "vu_maxime_lyon",
+        "name": "Maxime",
+        "username": "maxime_l",
+        "email": "max+virtual@nightfinder.app",
+        "dob": "1996-03-22",
+        "city": "Lyon",
+        "bio": "DJ amateur. Vendredi = vinyles, samedi = clubs.",
+        "instagram": "maxime.lyon",
+        "music_prefs": ["techno", "deep house", "hip-hop"],
+        "photos": [
+            "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=600&q=70",
+            "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=600&q=70",
+        ],
+    },
+    {
+        "user_id": "vu_chloe_marseille",
+        "name": "Chloé",
+        "username": "chlo_marseille",
+        "email": "chloe+virtual@nightfinder.app",
+        "dob": "2000-11-03",
+        "city": "Marseille",
+        "bio": "Bord de mer + open air le week-end. Sushi obligatoire avant 23h.",
+        "instagram": "chloe.summer",
+        "music_prefs": ["pop", "electro", "indie"],
+        "photos": [
+            "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=600&q=70",
+            "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=600&q=70",
+        ],
+    },
+    {
+        "user_id": "vu_thomas_bordeaux",
+        "name": "Thomas",
+        "username": "tom_bx",
+        "email": "thomas+virtual@nightfinder.app",
+        "dob": "1995-08-19",
+        "city": "Bordeaux",
+        "bio": "Festoche, bars à vin, soirées tropicales. Hello l'été.",
+        "instagram": "thomas.bx",
+        "music_prefs": ["reggaeton", "afro", "latin"],
+        "photos": [
+            "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&q=70",
+        ],
+    },
+    {
+        "user_id": "vu_julie_lille",
+        "name": "Julie",
+        "username": "julie_lille",
+        "email": "julie+virtual@nightfinder.app",
+        "dob": "1999-02-14",
+        "city": "Lille",
+        "bio": "Étudiante archi. J'adore les petits clubs underground.",
+        "instagram": "juju.lille",
+        "music_prefs": ["techno", "drum & bass"],
+        "photos": [
+            "https://images.unsplash.com/photo-1502323777036-f29e3972d82f?w=600&q=70",
+        ],
+    },
+    {
+        "user_id": "vu_kevin_nice",
+        "name": "Kévin",
+        "username": "kev_nice",
+        "email": "kev+virtual@nightfinder.app",
+        "dob": "1994-07-08",
+        "city": "Nice",
+        "bio": "Plage l'été, club l'hiver. Tu connais le Glam ?",
+        "instagram": "kev.nice",
+        "music_prefs": ["house", "deep house", "tropical"],
+        "photos": [
+            "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=600&q=70",
+        ],
+    },
+    {
+        "user_id": "vu_sarah_toulouse",
+        "name": "Sarah",
+        "username": "sarah_tlse",
+        "email": "sarah+virtual@nightfinder.app",
+        "dob": "1997-09-25",
+        "city": "Toulouse",
+        "bio": "Concerts indé, soirées rooftop. À fond sur les festivals.",
+        "instagram": "sarah.toulouse",
+        "music_prefs": ["indie", "rock", "electro"],
+        "photos": [
+            "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=600&q=70",
+            "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=600&q=70",
+        ],
+    },
+    {
+        "user_id": "vu_antoine_rennes",
+        "name": "Antoine",
+        "username": "ant_rennes",
+        "email": "ant+virtual@nightfinder.app",
+        "dob": "1993-12-30",
+        "city": "Rennes",
+        "bio": "Trans Musicales tous les ans, La Riff au quotidien.",
+        "instagram": "antoine.rnz",
+        "music_prefs": ["electro", "indie", "techno"],
+        "photos": [
+            "https://images.unsplash.com/photo-1521119989659-a83eee488004?w=600&q=70",
+        ],
+    },
+    {
+        "user_id": "vu_camille_strasbourg",
+        "name": "Camille",
+        "username": "cam_strg",
+        "email": "camille+virtual@nightfinder.app",
+        "dob": "2001-04-17",
+        "city": "Strasbourg",
+        "bio": "Café terrasse l'aprèm, club le soir. Fan d'arts visuels.",
+        "instagram": "cami.strasbourg",
+        "music_prefs": ["pop", "electro"],
+        "photos": [
+            "https://images.unsplash.com/photo-1463453091185-61582044d556?w=600&q=70",
+        ],
+    },
+    {
+        "user_id": "vu_yasmine_montpellier",
+        "name": "Yasmine",
+        "username": "yas_montp",
+        "email": "yasmine+virtual@nightfinder.app",
+        "dob": "1996-06-11",
+        "city": "Montpellier",
+        "bio": "Open airs, after sur la plage. Cocktail addict 🍸",
+        "instagram": "yas.montp",
+        "music_prefs": ["house", "afro", "tropical"],
+        "photos": [
+            "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&q=70",
+            "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&q=70",
+        ],
+    },
+]
+
+
+@api_router.post("/dev/seed-virtual-users")
+async def seed_virtual_users(user: dict = Depends(get_current_user)):
+    """Idempotent seed of ~10 virtual profiles for testing.
+
+    These users have ``is_virtual=True`` and will auto-accept any match
+    request sent by the calling user, creating a match + greeting message.
+    """
+    now = datetime.now(timezone.utc)
+    created = 0
+    updated = 0
+    for raw in VIRTUAL_USERS_SEED:
+        doc = {
+            **raw,
+            "is_virtual": True,
+            "is_premium": False,
+            "visibility": "public",
+            "auth_provider": "virtual",
+            "verified": True,
+            "created_at": now,
+        }
+        result = await db.users.update_one(
+            {"user_id": raw["user_id"]},
+            {
+                "$setOnInsert": {"created_at": now},
+                "$set": {k: v for k, v in doc.items() if k != "created_at"},
+            },
+            upsert=True,
+        )
+        if result.upserted_id:
+            created += 1
+        elif result.modified_count:
+            updated += 1
+    total = await db.users.count_documents({"is_virtual": True})
+    return {
+        "ok": True,
+        "created": created,
+        "updated": updated,
+        "total_virtual_users": total,
+        "tip": "Va dans Swipe : tu verras ces profils. Tout 'like' déclenche un match instantané.",
+    }
+
+
+@api_router.delete("/dev/seed-virtual-users")
+async def delete_virtual_users(user: dict = Depends(get_current_user)):
+    """Remove all virtual users + the matches/messages/swipes they're part of."""
+    cursor = db.users.find({"is_virtual": True}, {"_id": 0, "user_id": 1})
+    ids = [u["user_id"] async for u in cursor]
+    if not ids:
+        return {"ok": True, "removed": 0}
+    await db.users.delete_many({"user_id": {"$in": ids}})
+    await db.user_swipes.delete_many({"target_user_id": {"$in": ids}})
+    await db.match_requests.delete_many(
+        {"$or": [{"from_user_id": {"$in": ids}}, {"to_user_id": {"$in": ids}}]}
+    )
+    mt_cursor = db.matches.find(
+        {"$or": [{"user_a": {"$in": ids}}, {"user_b": {"$in": ids}}]}, {"_id": 0, "match_id": 1}
+    )
+    mt_ids = [m["match_id"] async for m in mt_cursor]
+    if mt_ids:
+        await db.match_messages.delete_many({"match_id": {"$in": mt_ids}})
+        await db.matches.delete_many({"match_id": {"$in": mt_ids}})
+    await db.notifications.delete_many({"data.from_user_id": {"$in": ids}})
+    await db.notifications.delete_many({"data.with_user_id": {"$in": ids}})
+    return {"ok": True, "removed": len(ids)}
 
 
 # ---------------------------------------------------------------------------

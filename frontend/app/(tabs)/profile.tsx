@@ -397,6 +397,55 @@ export default function Profile() {
               <Text style={styles.devResetText}>⚙️ Reset Premium (DEV)</Text>
             </TouchableOpacity>
           ) : null}
+
+          {__DEV__ ? (
+            <View style={{ marginTop: 12, gap: 8 }}>
+              <TouchableOpacity
+                style={styles.devResetBtn}
+                onPress={async () => {
+                  try {
+                    const res = await api.seedVirtualUsers();
+                    Alert.alert(
+                      'Utilisateurs virtuels prêts 🤖',
+                      `${res.created} créés, ${res.updated} mis à jour.\n\n${res.tip}`,
+                    );
+                  } catch (e: any) {
+                    Alert.alert('Erreur', e?.message || 'Seed impossible');
+                  }
+                }}
+                testID="dev-seed-virtual-users"
+              >
+                <Text style={styles.devResetText}>🤖 Seed 10 utilisateurs virtuels (DEV)</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.devResetBtn}
+                onPress={() => {
+                  Alert.alert(
+                    'Supprimer les utilisateurs virtuels ?',
+                    'Cela retire les 10 profils virtuels + leurs matches/messages.',
+                    [
+                      { text: 'Annuler', style: 'cancel' },
+                      {
+                        text: 'Supprimer',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            const res = await api.deleteVirtualUsers();
+                            Alert.alert('Nettoyé', `${res.removed} utilisateur(s) virtuel(s) supprimé(s).`);
+                          } catch (e: any) {
+                            Alert.alert('Erreur', e?.message || 'Suppression impossible');
+                          }
+                        },
+                      },
+                    ],
+                  );
+                }}
+                testID="dev-delete-virtual-users"
+              >
+                <Text style={styles.devResetText}>🧹 Supprimer les utilisateurs virtuels (DEV)</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
 
         {/* MON COMPTE */}
