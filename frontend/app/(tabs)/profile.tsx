@@ -470,7 +470,7 @@ export default function Profile() {
 
         {/* MON COMPTE */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Mon compte</Text>
+          <Text style={styles.sectionTitle}>Compte</Text>
           <TouchableOpacity
             style={styles.row}
             onPress={() => router.push('/swipe-profile')}
@@ -552,7 +552,7 @@ export default function Profile() {
 
         {/* CONFIDENTIALITÉ & AMIS */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Confidentialité & amis</Text>
+          <Text style={styles.sectionTitle}>Confidentialité</Text>
           <TouchableOpacity
             style={styles.row}
             onPress={() => router.push('/friends')}
@@ -730,7 +730,7 @@ export default function Profile() {
 
         {/* DONNÉES & CONFIDENTIALITÉ — RGPD + Apple 5.1.1(v) + 1.2 UGC */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Données & confidentialité</Text>
+          <Text style={styles.sectionTitle}>Tes données</Text>
           <Row
             icon="ban-outline"
             label="Utilisateurs bloqués"
@@ -759,6 +759,9 @@ export default function Profile() {
 
         <Text style={styles.version}>Night Finder · v1.0.0</Text>
       </ScrollView>
+
+      {/* DEPRECATED PLACEHOLDER (kept for state references) */}
+      <View style={{ display: 'none' }}>{null}</View>
 
       {/* Edit Username Modal */}
       <Modal
@@ -1024,13 +1027,16 @@ const styles = StyleSheet.create({
   },
   statValue: { color: colors.textPrimary, fontSize: 24, fontWeight: '900' },
   statLabel: { color: colors.textSecondary, marginTop: 2, fontSize: 12, fontWeight: '600' },
-  section: { marginTop: spacing.xl, paddingHorizontal: spacing.lg },
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  section: { marginTop: spacing.xl + 6, paddingHorizontal: spacing.lg },
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   sectionTitle: {
     color: colors.textTertiary,
     fontSize: 11,
-    letterSpacing: 2,
-    fontWeight: '900',
+    letterSpacing: 1.6,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    paddingHorizontal: 2,
+    marginBottom: 2,
   },
   sectionAction: { color: colors.tertiary, fontSize: 12, fontWeight: '800' },
   row: {
