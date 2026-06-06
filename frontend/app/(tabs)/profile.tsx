@@ -212,6 +212,92 @@ export default function Profile() {
     ]);
   };
 
+  const exportData = async () => {
+    try {
+      const data = await api.exportMyData();
+      const json = JSON.stringify(data, null, 2);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `night-finder-export-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+      try {
+        const FS = await import('expo-file-system');
+        const Sharing = await import('expo-sharing');
+        const fileUri = `${(FS as any).cacheDirectory || (FS as any).documentDirectory}night-finder-export-${Date.now()}.json`;
+        await (FS as any).writeAsStringAsync(fileUri, json, { encoding: 'utf8' });
+        if (await (Sharing as any).isAvailableAsync()) {
+          await (Sharing as any).shareAsync(fileUri, { mimeType: 'application/json' });
+        } else {
+          Alert.alert('Export prêt', `Fichier enregistré dans : ${fileUri}`);
+        }
+      } catch {
+        Alert.alert('Export terminé', 'Tes données ont été récupérées. Contacte le support pour les recevoir par email.');
+      }
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message || "Impossible d'exporter tes données.");
+    }
+  };
+
+  const confirmDelete = () => {
+    Alert.alert(
+      'Supprimer mon compte ?',
+      'Cette action est IRRÉVERSIBLE. Toutes tes données (profil, matches, messages, photos, favoris, événements créés) seront définitivement effacées sous 30 jours maximum.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Continuer',
+          style: 'destructive',
+          onPress: () => {
+            // Step 2: ask for password (email accounts) or final confirm
+            const isEmailAuth = !!(user as any)?.email && !((user as any)?.auth_provider && (user as any)?.auth_provider !== 'email');
+            if (isEmailAuth) {
+              if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                const pwd = (window as any).prompt('Confirme ton mot de passe pour supprimer ton compte :');
+                if (pwd) runDelete(pwd);
+                return;
+              }
+              Alert.prompt(
+                'Confirmation',
+                'Saisis ton mot de passe pour supprimer définitivement ton compte.',
+                [
+                  { text: 'Annuler', style: 'cancel' },
+                  { text: 'Supprimer', style: 'destructive', onPress: (pwd?: string) => runDelete(pwd || '') },
+                ],
+                'secure-text',
+              );
+            } else {
+              Alert.alert(
+                'Suppression définitive',
+                'Confirme une dernière fois : ton compte sera supprimé.',
+                [
+                  { text: 'Annuler', style: 'cancel' },
+                  { text: 'Supprimer', style: 'destructive', onPress: () => runDelete() },
+                ],
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const runDelete = async (password?: string) => {
+    try {
+      await api.deleteMyAccount('DELETE', password);
+      await signOut();
+      Alert.alert('Compte supprimé', 'Tes données ont été effacées. À bientôt 👋');
+      router.replace('/login');
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message || 'Suppression impossible. Vérifie ton mot de passe et réessaie.');
+    }
+  };
+
   const userPrefs = user?.music_prefs || [];
 
   return (
@@ -293,7 +379,7 @@ export default function Profile() {
               <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
             )}
           </TouchableOpacity>
-          {isPremium && devMode ? (
+          {isPremium && devMode && __DEV__ ? (
             <TouchableOpacity
               style={styles.devResetBtn}
               onPress={() => {
@@ -572,6 +658,32 @@ export default function Profile() {
           <Ionicons name="log-out-outline" size={18} color={colors.danger} />
           <Text style={styles.signOutText}>Se déconnecter</Text>
         </TouchableOpacity>
+
+        {/* DONNÉES & CONFIDENTIALITÉ — RGPD + Apple 5.1.1(v) + 1.2 UGC */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Données & confidentialité</Text>
+          <Row
+            icon="ban-outline"
+            label="Utilisateurs bloqués"
+            onPress={() => router.push('/blocked-users')}
+            testID="row-blocked"
+          />
+          <Row
+            icon="download-outline"
+            label="Exporter mes données (JSON)"
+            onPress={exportData}
+            testID="row-export-data"
+          />
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={confirmDelete}
+            testID="row-delete-account"
+            activeOpacity={0.85}
+          >
+            <Ionicons name="trash-outline" size={18} color={colors.danger} />
+            <Text style={styles.deleteText}>Supprimer définitivement mon compte</Text>
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.version}>Night Finder · v1.0.0</Text>
       </ScrollView>
@@ -911,6 +1023,20 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(239,68,68,0.3)',
   },
   signOutText: { color: colors.danger, fontWeight: '700' },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(239,68,68,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.4)',
+    marginTop: 12,
+  },
+  deleteText: { color: colors.danger, fontWeight: '800', fontSize: 13 },
   bgRow: {
     flexDirection: 'row',
     alignItems: 'center',

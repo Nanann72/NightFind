@@ -315,4 +315,30 @@ export const api = {
 
   // Notifications
   listNotifications: () => request<any[]>('/notifications'),
+
+  // ---- Apple compliance: block / report / delete / export ----
+  blockUser: (target_user_id: string) =>
+    request<{ ok: boolean }>('/blocks', {
+      method: 'POST',
+      body: JSON.stringify({ target_user_id }),
+    }),
+  unblockUser: (target_user_id: string) =>
+    request<{ ok: boolean; removed: number }>(`/blocks/${target_user_id}`, {
+      method: 'DELETE',
+    }),
+  listBlocks: () =>
+    request<Array<{ user_id: string; name?: string; username?: string; photo?: string | null; blocked_at?: string }>>(
+      '/blocks',
+    ),
+  reportUser: (target_user_id: string, reason: string, context?: string, details?: string) =>
+    request<{ ok: boolean; report_id: string }>('/reports', {
+      method: 'POST',
+      body: JSON.stringify({ target_user_id, reason, context, details }),
+    }),
+  exportMyData: () => request<Record<string, any>>('/users/me/export'),
+  deleteMyAccount: (confirm: 'DELETE', password?: string) =>
+    request<{ ok: boolean; deleted_user_id: string }>('/users/me', {
+      method: 'DELETE',
+      body: JSON.stringify({ confirm, password }),
+    }),
 };

@@ -16,6 +16,7 @@ import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { loadOnboarding, clearOnboarding } from '../lib/onboardingStore';
 import { SocialAuthButtons } from '../components/SocialAuthButtons';
+import { DOBPicker } from '../components/DOBPicker';
 import { colors, radius, spacing } from '../lib/theme';
 
 export default function Register() {
@@ -25,6 +26,7 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [dob, setDob] = useState(''); // YYYY-MM-DD
+  const [acceptTerms, setAcceptTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [prefilledMusic, setPrefilledMusic] = useState<string[]>([]);
@@ -38,12 +40,31 @@ export default function Register() {
 
   const onSubmit = async () => {
     setErr(null);
-    if (!name || !email || password.length < 6) {
-      setErr('Nom, email et mot de passe (6+ caractères) requis');
+    if (!name.trim() || !email.trim()) {
+      setErr('Nom et email requis');
+      return;
+    }
+    if (password.length < 8) {
+      setErr('Mot de passe trop court (8 caractères minimum)');
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
-      setErr('Date de naissance requise (format AAAA-MM-JJ)');
+      setErr('Choisis ta date de naissance');
+      return;
+    }
+    // Client-side 18+ check (server also validates)
+    const dt = new Date(dob);
+    const today = new Date();
+    const age = today.getFullYear() - dt.getFullYear() - (
+      today.getMonth() < dt.getMonth() ||
+      (today.getMonth() === dt.getMonth() && today.getDate() < dt.getDate()) ? 1 : 0
+    );
+    if (age < 18) {
+      setErr('Tu dois avoir 18 ans ou plus pour utiliser Night Finder');
+      return;
+    }
+    if (!acceptTerms) {
+      setErr("Tu dois accepter les CGU et la Politique de confidentialité");
       return;
     }
     setLoading(true);
@@ -109,16 +130,12 @@ export default function Register() {
             testID="register-email-input"
           />
         </View>
-        <View style={styles.field}>
-          <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} />
-          <TextInput
+        <View style={{ marginBottom: spacing.md }}>
+          <DOBPicker
             value={dob}
-            onChangeText={setDob}
-            placeholder="Date de naissance (AAAA-MM-JJ)"
-            placeholderTextColor={colors.textTertiary}
-            autoCapitalize="none"
-            style={styles.input}
+            onChange={setDob}
             testID="register-dob-input"
+            placeholder="Date de naissance (18+)"
           />
         </View>
         <View style={styles.field}>
@@ -126,13 +143,43 @@ export default function Register() {
           <TextInput
             value={password}
             onChangeText={setPassword}
-            placeholder="Mot de passe (6+ caractères)"
+            placeholder="Mot de passe (8+ caractères)"
             placeholderTextColor={colors.textTertiary}
             secureTextEntry
             style={styles.input}
             testID="register-password-input"
           />
         </View>
+
+        <TouchableOpacity
+          style={styles.termsRow}
+          onPress={() => setAcceptTerms((v) => !v)}
+          activeOpacity={0.7}
+          testID="register-accept-terms"
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: acceptTerms }}
+        >
+          <View style={[styles.checkbox, acceptTerms && styles.checkboxChecked]}>
+            {acceptTerms && <Ionicons name="checkmark" size={14} color={colors.bg} />}
+          </View>
+          <Text style={styles.termsText}>
+            J'accepte les{' '}
+            <Text
+              style={styles.termsLink}
+              onPress={() => router.push({ pathname: '/legal', params: { doc: 'cgu' } })}
+            >
+              Conditions Générales d'Utilisation
+            </Text>{' '}
+            et la{' '}
+            <Text
+              style={styles.termsLink}
+              onPress={() => router.push({ pathname: '/legal', params: { doc: 'privacy' } })}
+            >
+              Politique de Confidentialité
+            </Text>
+            .
+          </Text>
+        </TouchableOpacity>
 
         {err && (
           <Text style={styles.error} testID="register-error">
@@ -141,9 +188,9 @@ export default function Register() {
         )}
 
         <TouchableOpacity
-          style={styles.primaryBtn}
+          style={[styles.primaryBtn, (!acceptTerms || loading) && { opacity: 0.5 }]}
           onPress={onSubmit}
-          disabled={loading}
+          disabled={loading || !acceptTerms}
           testID="register-submit-btn"
           activeOpacity={0.85}
         >
@@ -221,6 +268,27 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   primaryBtnText: { color: colors.bg, fontWeight: '800', fontSize: 16 },
+  termsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: spacing.md,
+    paddingHorizontal: 4,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
+  termsText: { flex: 1, color: colors.textSecondary, fontSize: 13, lineHeight: 18 },
+  termsLink: { color: colors.primary, fontWeight: '800', textDecorationLine: 'underline' },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',

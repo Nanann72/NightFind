@@ -196,9 +196,18 @@ export default function Paywall() {
         </View>
 
         <Text style={styles.footnote}>
-          Renouvellement automatique. Annulable à tout moment depuis les réglages de ton store.
+          Abonnement Night Finder Premium — {selectedPkg?.period === 'year' ? 'annuel (79,99 €/an)' : 'mensuel (4,99 €/mois)'}. Le paiement est prélevé sur ton compte Apple ID / Google Play au moment de la confirmation. L'abonnement se renouvelle automatiquement (même prix, même durée) sauf si tu désactives le renouvellement au moins 24h avant la date d'échéance, depuis les Réglages de ton store. Tu peux gérer ou annuler ton abonnement à tout moment.
         </Text>
-        {devMode ? (
+        <View style={styles.legalLinksRow}>
+          <TouchableOpacity onPress={() => router.push({ pathname: '/legal', params: { doc: 'cgu' } })}>
+            <Text style={styles.legalLink}>Conditions d'utilisation</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalSep}>·</Text>
+          <TouchableOpacity onPress={() => router.push({ pathname: '/legal', params: { doc: 'privacy' } })}>
+            <Text style={styles.legalLink}>Politique de confidentialité</Text>
+          </TouchableOpacity>
+        </View>
+        {__DEV__ && devMode ? (
           <Text style={styles.devNote}>
             ⚙️ Mode DEV — achat simulé sur web/Expo Go. Build natif requis pour vrais paiements.
           </Text>
@@ -375,6 +384,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontWeight: '700',
   },
+  legalLinksRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
+  legalLink: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', textDecorationLine: 'underline' },
+  legalSep: { color: colors.textTertiary, fontSize: 11 },
 
   ctaBar: {
     position: 'absolute',

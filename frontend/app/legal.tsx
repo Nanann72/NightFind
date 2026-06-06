@@ -11,7 +11,7 @@ const EMAIL = 'contact@nightfinder.app';
 const SIRET = '[Numéro SIRET — à compléter]';
 const PUBLICATION_DIR = '[Directeur de publication — à compléter]';
 const HOST = 'Emergent Cloud (Kubernetes)';
-const LAST_UPDATE = '4 juin 2026';
+const LAST_UPDATE = '5 juin 2026';
 
 const CGU = `Les présentes Conditions Générales d'Utilisation (« CGU ») régissent l'utilisation de l'application mobile ${APP_NAME} éditée par ${COMPANY}.
 
@@ -22,13 +22,13 @@ ARTICLE 2 — ACCEPTATION
 L'inscription et l'utilisation de l'application impliquent l'acceptation pleine et entière des présentes CGU. L'utilisateur déclare avoir au moins 18 ans (ou la majorité légale dans son pays de résidence).
 
 ARTICLE 3 — COMPTE UTILISATEUR
-La création d'un compte requiert une adresse email valide et un mot de passe. L'utilisateur peut également se connecter via Apple Sign-In ou Google Sign-In. L'utilisateur est responsable de la confidentialité de ses identifiants.
+La création d'un compte requiert une adresse email valide et un mot de passe. L'utilisateur peut également se connecter via Apple Sign-In ou Google Sign-In. L'utilisateur est responsable de la confidentialité de ses identifiants. L'utilisateur peut supprimer son compte à tout moment depuis l'application (Profil → Supprimer mon compte), avec effacement complet de ses données sous 30 jours maximum.
 
 ARTICLE 4 — ABONNEMENT PREMIUM
 ${APP_NAME} propose un abonnement Premium :
-- Mensuel : 4,99 € / mois
-- Annuel : 39,99 € / an (-33%)
-Les abonnements sont gérés via l'App Store (iOS) ou Google Play (Android) et se renouvellent automatiquement sauf désactivation au moins 24h avant la date d'échéance. L'utilisateur peut gérer son abonnement directement depuis les paramètres de son store.
+- Mensuel : 4,99 € / mois — renouvellement automatique chaque mois
+- Annuel : 79,99 € / an (économie de 33 % vs mensuel) — renouvellement automatique chaque année
+Le paiement est prélevé via l'App Store (iOS) ou Google Play (Android). Le renouvellement est automatique sauf désactivation au moins 24 heures avant la fin de la période en cours. L'utilisateur peut gérer son abonnement directement depuis les paramètres de son store (Réglages → Apple ID → Abonnements sur iOS).
 
 ARTICLE 5 — DROIT DE RÉTRACTATION
 Conformément à l'article L.221-28 du Code de la consommation, l'utilisateur renonce expressément à son droit de rétractation dès le début de l'exécution du service numérique fourni par ${APP_NAME}.
@@ -39,19 +39,22 @@ L'application utilise la géolocalisation (en avant-plan et arrière-plan, sur c
 ARTICLE 7 — RECONNAISSANCE MUSICALE
 Sur consentement, ${APP_NAME} peut enregistrer de courts échantillons audio (5 secondes) pour identifier les morceaux joués dans les établissements visités. Les échantillons sont envoyés à un service tiers (Audd.io) pour reconnaissance puis supprimés. Seul le titre identifié est conservé dans le profil utilisateur.
 
-ARTICLE 8 — PROPRIÉTÉ INTELLECTUELLE
+ARTICLE 8 — CONTENU UTILISATEUR & MODÉRATION
+L'application contient des fonctionnalités sociales (swipe profils, chat, événements). Tout contenu illicite, harcelant, haineux, ou inapproprié est strictement interdit. ${APP_NAME} dispose d'un système de signalement et de blocage : tout utilisateur peut signaler un profil abusif depuis le menu "⋯" et bloquer définitivement une personne. Les signalements sont examinés sous 24h ; les comptes en infraction sont suspendus ou supprimés sans préavis. L'utilisateur s'engage à respecter les autres et à ne diffuser aucun contenu illicite.
+
+ARTICLE 9 — PROPRIÉTÉ INTELLECTUELLE
 Tous les éléments graphiques, textuels et logiciels de l'application sont la propriété exclusive de ${COMPANY}. Toute reproduction est interdite sans autorisation écrite préalable.
 
-ARTICLE 9 — RESPONSABILITÉ
+ARTICLE 10 — RESPONSABILITÉ
 ${COMPANY} ne saurait être tenue responsable des informations publiées par les utilisateurs ou les établissements partenaires. Les utilisateurs s'engagent à se comporter de manière responsable et à respecter la législation en vigueur lors de leurs sorties.
 
-ARTICLE 10 — RÉSILIATION
+ARTICLE 11 — RÉSILIATION
 ${COMPANY} se réserve le droit de suspendre ou résilier le compte d'un utilisateur en cas de non-respect des présentes CGU, sans préavis ni indemnité.
 
-ARTICLE 11 — MODIFICATION DES CGU
+ARTICLE 12 — MODIFICATION DES CGU
 ${COMPANY} peut modifier les CGU à tout moment. Les utilisateurs sont informés via l'application. La poursuite de l'utilisation vaut acceptation.
 
-ARTICLE 12 — DROIT APPLICABLE
+ARTICLE 13 — DROIT APPLICABLE
 Les présentes CGU sont soumises au droit français. Tout litige sera de la compétence exclusive des tribunaux de [Ville du siège — à compléter].
 
 Dernière mise à jour : ${LAST_UPDATE}`;

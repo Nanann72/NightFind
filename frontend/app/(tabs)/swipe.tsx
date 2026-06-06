@@ -24,6 +24,7 @@ import Animated, {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { UserActionsMenu } from '../../components/UserActionsMenu';
 import { colors, radius, spacing } from '../../lib/theme';
 
 const { width } = Dimensions.get('window');
@@ -228,6 +229,30 @@ export default function SwipePeople() {
                 ))}
               </View>
             )}
+            {/* Report/Block menu — Apple 1.2 UGC */}
+            <View style={styles.menuBtn} pointerEvents="box-none">
+              <UserActionsMenu
+                targetUserId={top.user_id}
+                targetName={top.name}
+                context="swipe"
+                onBlocked={() => {
+                  // Remove this profile from the deck after block
+                  setDeck((d) => d.filter((p) => p.user_id !== top.user_id));
+                }}
+                renderTrigger={(open) => (
+                  <TouchableOpacity
+                    onPress={open}
+                    style={styles.menuBtnCircle}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityLabel="Signaler ou bloquer ce profil"
+                    accessibilityRole="button"
+                    testID="swipe-card-menu"
+                  >
+                    <Ionicons name="ellipsis-horizontal" size={20} color="#fff" />
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
             {/* Tap left/right to switch photos */}
             <View style={styles.tapZones}>
               <TouchableOpacity
@@ -338,6 +363,13 @@ const styles = StyleSheet.create({
   },
   dot: { flex: 1, height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.3)' },
   dotActive: { backgroundColor: '#fff' },
+  menuBtn: { position: 'absolute', top: 26, right: 14, zIndex: 10 },
+  menuBtnCircle: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)',
+  },
   tapZones: { position: 'absolute', top: 24, left: 0, right: 0, bottom: 220, flexDirection: 'row' },
   gradient: {
     position: 'absolute',

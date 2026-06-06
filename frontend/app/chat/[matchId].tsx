@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { UserActionsMenu } from '../../components/UserActionsMenu';
 import { colors, radius, spacing } from '../../lib/theme';
 
 const POLL_MS = 3000;
@@ -28,6 +29,7 @@ export default function Chat() {
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [otherUser, setOtherUser] = useState<{ user_id: string; name?: string } | null>(null);
   const listRef = useRef<FlatList<any> | null>(null);
   const sinceRef = useRef<string | undefined>(undefined);
 
@@ -40,6 +42,12 @@ export default function Chat() {
       if (list && list.length > 0) {
         sinceRef.current = list[list.length - 1].created_at;
       }
+      // Also resolve the "other" user for the report/block menu
+      try {
+        const matches = await api.listMatches();
+        const m = (matches || []).find((x: any) => x.match_id === matchId);
+        if (m && m.other) setOtherUser({ user_id: m.other.user_id, name: m.other.name });
+      } catch {}
     } catch {
       setMessages([]);
     } finally {
@@ -114,8 +122,17 @@ export default function Chat() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Chat</Text>
-        <View style={{ width: 26 }} />
+        <Text style={styles.headerTitle}>{otherUser?.name || 'Chat'}</Text>
+        {otherUser ? (
+          <UserActionsMenu
+            targetUserId={otherUser.user_id}
+            targetName={otherUser.name}
+            context="chat"
+            onBlocked={() => router.replace('/matches')}
+          />
+        ) : (
+          <View style={{ width: 26 }} />
+        )}
       </View>
 
       {loading ? (

@@ -89,7 +89,8 @@
       "expo-task-manager",
       "expo-background-task",
       "expo-web-browser",
-      "expo-audio"
+      "expo-audio",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

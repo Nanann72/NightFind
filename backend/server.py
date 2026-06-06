@@ -111,6 +111,22 @@ class ProfileUpdate(BaseModel):
     picture: Optional[str] = None
 
 
+class ReportBody(BaseModel):
+    target_user_id: str
+    reason: str  # e.g. "inappropriate_photos", "harassment", "spam", "fake_profile", "other"
+    context: Optional[str] = None  # e.g. "swipe", "chat", "profile"
+    details: Optional[str] = None  # free-text user description (max 500)
+
+
+class BlockBody(BaseModel):
+    target_user_id: str
+
+
+class DeleteAccountBody(BaseModel):
+    password: Optional[str] = None  # required for email accounts, ignored for OAuth
+    confirm: str  # must equal "DELETE" to confirm
+
+
 # -------------- Auth helpers -------------- #
 
 
@@ -810,13 +826,16 @@ async def swipe_quota(user: dict = Depends(get_current_user)):
 @api_router.get("/swipe/deck")
 async def swipe_deck(user: dict = Depends(get_current_user)):
     """Return up to 10 profiles the user has not swiped on yet (and is not
-    themself). Hidden users and profiles missing the minimum data are skipped."""
+    themself). Hidden users, blocked users and profiles missing the minimum
+    data are skipped."""
     # Already swiped target ids
     already = await db.user_swipes.find(
         {"user_id": user["user_id"]}, {"_id": 0, "target_user_id": 1},
     ).to_list(1000)
     exclude = {s["target_user_id"] for s in already}
     exclude.add(user["user_id"])
+    # Filter out blocked users (both directions) — Apple 1.2 UGC
+    exclude |= await _blocked_user_ids(user["user_id"])
     cursor = db.users.find(
         {
             "user_id": {"$nin": list(exclude)},
@@ -988,8 +1007,14 @@ def _other_user_id(m: dict, me: str) -> str:
 @api_router.get("/match-requests")
 async def list_match_requests(user: dict = Depends(get_current_user)):
     """Pending likes received by this user (someone right-swiped me)."""
+    blocked = await _blocked_user_ids(user["user_id"])
     cursor = db.match_requests.find(
-        {"to_user_id": user["user_id"], "status": "pending"}, {"_id": 0}
+        {
+            "to_user_id": user["user_id"],
+            "status": "pending",
+            "from_user_id": {"$nin": list(blocked)} if blocked else {"$exists": True},
+        },
+        {"_id": 0},
     ).sort("created_at", -1).limit(50)
     items = await cursor.to_list(50)
     if not items:
@@ -2466,6 +2491,239 @@ async def get_my_billing(user: dict = Depends(get_current_user)):
     }
 
 
+# ---------------------------------------------------------------------------
+# Block / Report / Delete account / Export — Apple App Store compliance
+# (Guidelines 1.2 UGC, 5.1.1(v) account deletion, RGPD Art.20 portability)
+# ---------------------------------------------------------------------------
+
+ALLOWED_REPORT_REASONS = {
+    "harassment",
+    "inappropriate_photos",
+    "spam",
+    "fake_profile",
+    "underage",
+    "hate_speech",
+    "other",
+}
+
+
+async def _blocked_user_ids(me_id: str) -> set:
+    """Return the set of user_ids the current user CANNOT interact with
+    (people they blocked + people who blocked them)."""
+    blocked = await db.user_blocks.find(
+        {"$or": [{"blocker_id": me_id}, {"blocked_id": me_id}]},
+        {"_id": 0, "blocker_id": 1, "blocked_id": 1},
+    ).to_list(2000)
+    out: set = set()
+    for b in blocked:
+        out.add(b["blocker_id"])
+        out.add(b["blocked_id"])
+    out.discard(me_id)
+    return out
+
+
+@api_router.post("/blocks", status_code=201)
+async def block_user(body: BlockBody, user: dict = Depends(get_current_user)):
+    if body.target_user_id == user["user_id"]:
+        raise HTTPException(status_code=400, detail="On ne peut pas se bloquer soi-même")
+    target = await db.users.find_one({"user_id": body.target_user_id}, {"_id": 0, "user_id": 1})
+    if not target:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    await db.user_blocks.update_one(
+        {"blocker_id": user["user_id"], "blocked_id": body.target_user_id},
+        {"$set": {
+            "blocker_id": user["user_id"],
+            "blocked_id": body.target_user_id,
+            "created_at": datetime.now(timezone.utc),
+        }},
+        upsert=True,
+    )
+    # Best-effort: also remove any pending match request between the two
+    await db.match_requests.update_many(
+        {
+            "$or": [
+                {"from_user_id": user["user_id"], "to_user_id": body.target_user_id},
+                {"from_user_id": body.target_user_id, "to_user_id": user["user_id"]},
+            ],
+            "status": "pending",
+        },
+        {"$set": {"status": "blocked", "blocked_at": datetime.now(timezone.utc)}},
+    )
+    return {"ok": True}
+
+
+@api_router.delete("/blocks/{target_user_id}")
+async def unblock_user(target_user_id: str, user: dict = Depends(get_current_user)):
+    res = await db.user_blocks.delete_one(
+        {"blocker_id": user["user_id"], "blocked_id": target_user_id}
+    )
+    return {"ok": True, "removed": res.deleted_count}
+
+
+@api_router.get("/blocks")
+async def list_blocks(user: dict = Depends(get_current_user)):
+    cursor = db.user_blocks.find(
+        {"blocker_id": user["user_id"]}, {"_id": 0}
+    ).sort("created_at", -1)
+    rows = await cursor.to_list(500)
+    if not rows:
+        return []
+    ids = [r["blocked_id"] for r in rows]
+    users = await db.users.find(
+        {"user_id": {"$in": ids}},
+        {"_id": 0, "user_id": 1, "name": 1, "username": 1, "picture": 1, "photos": 1},
+    ).to_list(500)
+    umap = {u["user_id"]: u for u in users}
+    out = []
+    for r in rows:
+        u = umap.get(r["blocked_id"]) or {"user_id": r["blocked_id"]}
+        out.append({
+            "user_id": u.get("user_id"),
+            "name": u.get("name"),
+            "username": u.get("username"),
+            "photo": (u.get("photos") or [None])[0] or u.get("picture"),
+            "blocked_at": r.get("created_at"),
+        })
+    return out
+
+
+@api_router.post("/reports", status_code=201)
+async def report_user(body: ReportBody, user: dict = Depends(get_current_user)):
+    reason = (body.reason or "").strip().lower()
+    if reason not in ALLOWED_REPORT_REASONS:
+        raise HTTPException(status_code=400, detail="Motif de signalement invalide")
+    if body.target_user_id == user["user_id"]:
+        raise HTTPException(status_code=400, detail="On ne peut pas se signaler soi-même")
+    target = await db.users.find_one({"user_id": body.target_user_id}, {"_id": 0, "user_id": 1})
+    if not target:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    details = (body.details or "")[:500]
+    context = (body.context or "")[:50]
+    report_id = f"rep_{uuid.uuid4().hex[:10]}"
+    await db.user_reports.insert_one({
+        "report_id": report_id,
+        "reporter_id": user["user_id"],
+        "reported_id": body.target_user_id,
+        "reason": reason,
+        "context": context,
+        "details": details,
+        "status": "open",
+        "created_at": datetime.now(timezone.utc),
+    })
+    logger.warning(
+        "user_report received report_id=%s reporter=%s reported=%s reason=%s",
+        report_id, user["user_id"], body.target_user_id, reason,
+    )
+    return {"ok": True, "report_id": report_id}
+
+
+@api_router.get("/users/me/export")
+async def export_my_data(user: dict = Depends(get_current_user)):
+    """RGPD Art. 20 — Right to data portability.
+
+    Returns all data we hold about the current user as a JSON object."""
+    uid = user["user_id"]
+    me = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 0})
+    swipes = await db.user_swipes.find({"user_id": uid}, {"_id": 0}).to_list(5000)
+    match_requests = await db.match_requests.find(
+        {"$or": [{"from_user_id": uid}, {"to_user_id": uid}]}, {"_id": 0}
+    ).to_list(5000)
+    matches = await db.matches.find(
+        {"$or": [{"user_a": uid}, {"user_b": uid}]}, {"_id": 0}
+    ).to_list(2000)
+    match_ids = [m["match_id"] for m in matches]
+    messages = await db.match_messages.find(
+        {"$or": [{"from_user_id": uid}, {"match_id": {"$in": match_ids}}]}, {"_id": 0}
+    ).to_list(10000) if match_ids else []
+    checkins = await db.checkins.find({"user_id": uid}, {"_id": 0}).to_list(5000)
+    songs = await db.profile_songs.find({"user_id": uid}, {"_id": 0}).to_list(5000)
+    friends = await db.friendships.find(
+        {"$or": [{"user_a": uid}, {"user_b": uid}]}, {"_id": 0}
+    ).to_list(5000)
+    notifs = await db.notifications.find({"user_id": uid}, {"_id": 0}).to_list(2000)
+    blocks = await db.user_blocks.find(
+        {"$or": [{"blocker_id": uid}, {"blocked_id": uid}]}, {"_id": 0}
+    ).to_list(2000)
+    events = await db.events.find({"creator_id": uid}, {"_id": 0}).to_list(2000)
+    return {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "user": me,
+        "swipes": swipes,
+        "match_requests": match_requests,
+        "matches": matches,
+        "messages": messages,
+        "checkins": checkins,
+        "detected_songs": songs,
+        "friendships": friends,
+        "notifications": notifs,
+        "blocks": blocks,
+        "events_created": events,
+    }
+
+
+@api_router.delete("/users/me")
+async def delete_my_account(body: DeleteAccountBody, user: dict = Depends(get_current_user)):
+    """Apple Guideline 5.1.1(v): in-app account deletion (mandatory since June 2022).
+
+    Cascades the deletion across all collections that reference this user."""
+    if (body.confirm or "").strip().upper() != "DELETE":
+        raise HTTPException(status_code=400, detail="Confirmation manquante (champ confirm = 'DELETE')")
+    uid = user["user_id"]
+    # For email accounts, require password re-entry to prevent abuse
+    if user.get("password_hash"):
+        if not body.password or not verify_password(body.password, user["password_hash"]):
+            raise HTTPException(status_code=401, detail="Mot de passe incorrect")
+    # Cascade delete
+    collections_user_field = [
+        ("user_swipes", "user_id"),
+        ("user_swipes", "target_user_id"),
+        ("checkins", "user_id"),
+        ("profile_songs", "user_id"),
+        ("notifications", "user_id"),
+        ("favorites", "user_id"),
+        ("push_tokens", "user_id"),
+        ("user_sessions", "user_id"),
+        ("user_blocks", "blocker_id"),
+        ("user_blocks", "blocked_id"),
+        ("user_reports", "reporter_id"),
+        ("user_reports", "reported_id"),
+        ("events", "creator_id"),
+    ]
+    for coll, field in collections_user_field:
+        try:
+            await db[coll].delete_many({field: uid})
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("cascade delete %s.%s failed: %s", coll, field, exc)
+    # Match-related
+    try:
+        await db.match_requests.delete_many(
+            {"$or": [{"from_user_id": uid}, {"to_user_id": uid}]}
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("cascade match_requests failed: %s", exc)
+    try:
+        matches_cursor = db.matches.find(
+            {"$or": [{"user_a": uid}, {"user_b": uid}]}, {"_id": 0, "match_id": 1}
+        )
+        match_ids = [m["match_id"] async for m in matches_cursor]
+        if match_ids:
+            await db.match_messages.delete_many({"match_id": {"$in": match_ids}})
+            await db.matches.delete_many({"match_id": {"$in": match_ids}})
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("cascade matches failed: %s", exc)
+    # Friendships
+    try:
+        await db.friendships.delete_many(
+            {"$or": [{"user_a": uid}, {"user_b": uid}, {"user_id": uid}, {"friend_user_id": uid}]}
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("cascade friendships failed: %s", exc)
+    # Finally remove the user document
+    await db.users.delete_one({"user_id": uid})
+    logger.warning("account_deleted user_id=%s email=%s", uid, user.get("email"))
+    return {"ok": True, "deleted_user_id": uid}
+
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -2475,9 +2733,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 @app.on_event("shutdown")
