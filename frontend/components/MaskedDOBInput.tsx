@@ -96,7 +96,7 @@ export function MaskedDOBInput({
   };
 
   return (
-    <View style={styles.field} testID={testID}>
+    <View style={styles.field}>
       <Ionicons name="calendar-outline" size={18} color={colors.textSecondary} />
       <TextInput
         value={display}
@@ -109,6 +109,7 @@ export function MaskedDOBInput({
         autoCorrect={false}
         autoComplete="birthdate-full"
         textContentType="none"
+        testID={testID}
         accessibilityLabel="Date de naissance, format jour slash mois slash année"
       />
     </View>
