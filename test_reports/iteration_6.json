@@ -1,0 +1,66 @@
+{
+  "summary": "Verified MaskedDOBInput + onboarding 'swipe-profile' step + PUT /api/profile/swipe-fields. Backend: 12/12 pytest cases pass after fixing the ROOT-CAUSE bug for 'swipe profile config not saving' — public_user() was not exposing bio/city/instagram/dob/photos/fav_clubs in /api/auth/me, so the frontend swipe-profile screen always reloaded with empty fields (looked like the save did not work). I patched public_user() in server.py to include those 6 fields. Also discovered Metro was serving a STALE cached bundle of /register that still imported the OLD DOBPicker (native HTML5 type='date'); after `rm -rf .metro-cache && restart expo`, /register now correctly renders the new MaskedDOBInput with placeholder 'JJ/MM/AAAA' and auto-formats '15021995' to '15/02/1995'. Backend correctly rejects DD/MM/YYYY, <18, Feb 29 on non-leap years, bad Instagram handles, bios >500 chars.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/auth/me",
+        "issue": "public_user() did not return bio/city/instagram/dob/photos/fav_clubs → frontend swipe-profile screen always loaded empty values, making PUT /profile/swipe-fields appear to never persist (this is the actual user-reported bug). FIXED by extending public_user() to include those fields.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "MaskedDOBInput",
+        "issue": "testID prop is set on the wrapper <View> but not forwarded to the underlying TextInput, so e2e tests cannot select the actual <input> via [data-testid=...]. Tests have to fall back to placeholder-based selectors. Suggest: <TextInput testID={testID ? `${testID}-input` : undefined} ...>.",
+        "testID": "register-dob-input / sf-dob (none on input)",
+        "priority": "LOW"
+      },
+      {
+        "component": "components/DOBPicker.tsx",
+        "issue": "Old component still present in repo and was being served from Metro cache to /register, masking the fix until cache was wiped. Recommend deleting DOBPicker.tsx entirely (or at minimum removing the `<input type='date'>` web fallback) so a future stale-cache scenario cannot re-introduce the 'invalid date' bug.",
+        "testID": "",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Edit swipe profile after signup",
+        "issue": "Was broken end-to-end because /api/auth/me did not return bio/city/instagram/dob/photos. Fixed in backend. retest_needed for the full E2E once frontend is verified.",
+        "affected_testIDs": ["sf-bio", "sf-city", "sf-instagram", "sf-save"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_swipe_fields.py",
+    "/app/test_reports/pytest/swipe_fields_results.xml"
+  ],
+  "action_items": [
+    "[VERIFY] Main agent should manually run the full E2E (onboarding → swipe-profile step → 'Continuer' → register → /(tabs) → Profil → Modifier mon profil swipe) to confirm bio/city/instagram now display the values entered during onboarding. Backend fix is in place; backend test test_auth_me_returns_swipe_fields_after_update PASSES.",
+    "[CLEANUP] Delete /app/frontend/components/DOBPicker.tsx (no longer imported anywhere) to remove the legacy `<input type='date'>` web fallback that caused the original 'invalid date' bug.",
+    "[POLISH] Forward MaskedDOBInput's testID to the inner TextInput so Playwright can target it directly via [data-testid='register-dob-input'].",
+    "[OPS] Document that whenever a component import is replaced (DOBPicker → MaskedDOBInput), Metro cache MUST be cleared: `rm -rf /app/frontend/.metro-cache && sudo supervisorctl restart expo`. The hot-reload watcher did not pick up the import swap automatically in this iteration."
+  ],
+  "critical_code_review_comments": [
+    "BUG (root cause of user-reported 'config not saving'): server.py public_user() omitted swipe-profile fields. FIXED — added dob/bio/city/instagram/photos/fav_clubs.",
+    "Server-side validation of /profile/swipe-fields is solid: rejects bad ISO dates, <18, >120 years, bios >500, Instagram handles outside [A-Za-z0-9._]{1,30}, photos heavier than ~2MB.",
+    "Frontend MaskedDOBInput emits '' for incomplete or invalid calendar dates — matches backend contract (always YYYY-MM-DD).",
+    "register.tsx age check uses `today.getMonth() < dt.getMonth() || (today.getMonth() === dt.getMonth() && today.getDate() < dt.getDate())` — correct.",
+    "Onboarding 'swipe-profile' screen (index 7) is wired correctly: writes bio/city/instagram into onboardingStore on Continue, and register.tsx calls api.updateSwipeFields after signUp. End-to-end persistence now works thanks to the public_user() patch."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (public_user() now exposes dob/bio/city/instagram/photos/fav_clubs)",
+    "/app/backend/tests/test_swipe_fields.py (new — 12 pytest cases)",
+    "/app/frontend/.metro-cache (deleted to force fresh bundle of /register)"
+  ],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "MaskedDOBInput verified on /register (auto-slash works); full onboarding→signup E2E not driven end-to-end (would require creating a real account and waiting for /(tabs) bundle)"},
+  "seed_data_creation": "Each pytest run creates one disposable test_sf_<ts>_<rand>@nightfinder.app account. The demo account demo@nightfinder.app was NOT mutated.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "If /register or /swipe-profile suddenly shows the OLD HTML5 date picker (placeholder 'mm/dd/yyyy' and a calendar icon embedded on the right) again, that is a Metro stale-cache bug. Clear /app/frontend/.metro-cache and restart expo. Backend test_auth_me_returns_swipe_fields_after_update is the canary for the public_user() exposure bug — if it fails, the user-reported 'config not saving' bug has regressed.",
+  "rca_of_issue": "User-reported bug 'swipe profile config not saving': PUT /api/profile/swipe-fields was correctly persisting bio/city/instagram to MongoDB (verified by 12/12 pytest cases). However GET /api/auth/me went through public_user() which only returned name/picture/music_prefs/username/visibility/email/created_at — it stripped bio/city/instagram/dob/photos. The frontend (useAuth → /auth/me) therefore re-hydrated the swipe-profile screen with empty fields every time, so users perceived the save as broken. FIX: extended public_user() to return all 6 swipe-profile fields. Reproduction: 1) login demo or any user, 2) PUT /api/profile/swipe-fields with bio='X', 3) GET /api/auth/me — before fix: no 'bio' key; after fix: 'bio':'X'. User-reported bug 'date format invalid': caused by Metro serving cached bundle that imported the old DOBPicker (`<input type='date'>` whose iOS/Safari WebKit behavior surfaced an empty value as 'invalid'). FIX: clear .metro-cache + restart expo so the new MaskedDOBInput bundle is delivered."
+}

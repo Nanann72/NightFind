@@ -195,6 +195,15 @@ def public_user(user: dict) -> dict:
         "created_at": user.get("created_at"),
         "username": user.get("username"),
         "visibility": user.get("visibility", "clubs_only"),
+        # Swipe-profile fields (must be exposed so the frontend can prefill the
+        # "Modifier mon profil swipe" screen — otherwise the user perceives the
+        # configuration as "not saving").
+        "dob": user.get("dob"),
+        "bio": user.get("bio"),
+        "city": user.get("city"),
+        "instagram": user.get("instagram"),
+        "photos": user.get("photos", []),
+        "fav_clubs": user.get("fav_clubs", []),
     }
 
 
