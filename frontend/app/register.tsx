@@ -16,7 +16,7 @@ import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { loadOnboarding, clearOnboarding } from '../lib/onboardingStore';
 import { SocialAuthButtons } from '../components/SocialAuthButtons';
-import { DOBPicker } from '../components/DOBPicker';
+import { MaskedDOBInput } from '../components/MaskedDOBInput';
 import { colors, radius, spacing } from '../lib/theme';
 
 export default function Register() {
@@ -30,11 +30,23 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [prefilledMusic, setPrefilledMusic] = useState<string[]>([]);
+  const [prefilledSwipe, setPrefilledSwipe] = useState<{
+    photos?: string[]; bio?: string; city?: string; instagram?: string; dob?: string;
+  }>({});
 
   useEffect(() => {
     loadOnboarding().then((data) => {
       if (data.name) setName(data.name);
       if (data.music) setPrefilledMusic(data.music);
+      // Pre-fill DOB from onboarding if collected there
+      if (data.dob) setDob(data.dob);
+      setPrefilledSwipe({
+        photos: data.photos,
+        bio: data.bio,
+        city: data.city,
+        instagram: data.instagram,
+        dob: data.dob,
+      });
     });
   }, []);
 
@@ -73,6 +85,15 @@ export default function Register() {
       // Push onboarding music prefs to profile
       if (prefilledMusic.length > 0) {
         api.updateProfile({ music_prefs: prefilledMusic }).catch(() => {});
+      }
+      // Push onboarding swipe profile fields (photos/bio/city/instagram) collected during intro
+      const swipeFields: any = {};
+      if (prefilledSwipe.photos && prefilledSwipe.photos.length > 0) swipeFields.photos = prefilledSwipe.photos;
+      if (prefilledSwipe.bio) swipeFields.bio = prefilledSwipe.bio;
+      if (prefilledSwipe.city) swipeFields.city = prefilledSwipe.city;
+      if (prefilledSwipe.instagram) swipeFields.instagram = prefilledSwipe.instagram;
+      if (Object.keys(swipeFields).length > 0) {
+        api.updateSwipeFields(swipeFields).catch(() => {});
       }
       await clearOnboarding();
       router.replace('/(tabs)');
@@ -131,11 +152,11 @@ export default function Register() {
           />
         </View>
         <View style={{ marginBottom: spacing.md }}>
-          <DOBPicker
+          <MaskedDOBInput
             value={dob}
             onChange={setDob}
             testID="register-dob-input"
-            placeholder="Date de naissance (18+)"
+            placeholder="JJ/MM/AAAA"
           />
         </View>
         <View style={styles.field}>

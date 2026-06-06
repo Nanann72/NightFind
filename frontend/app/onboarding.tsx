@@ -7,6 +7,9 @@ import {
   Dimensions,
   Platform,
   ImageBackground,
+  TextInput,
+  ScrollView,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -58,6 +61,7 @@ type Screen =
   | { kind: 'selection'; lines: Line[]; cta: string }
   | { kind: 'location'; lines: Line[]; cta: string }
   | { kind: 'notifications'; lines: Line[]; cta: string }
+  | { kind: 'swipe-profile'; cta: string; ctaSkip: string }
   | Feature;
 
 const SCREENS: Screen[] = [
@@ -257,6 +261,11 @@ const SCREENS: Screen[] = [
     cta: 'Activer les notifications',
   },
   {
+    kind: 'swipe-profile',
+    cta: 'Continuer',
+    ctaSkip: 'Plus tard',
+  },
+  {
     kind: 'final',
     bg: 'https://images.unsplash.com/photo-1545128485-c400e7702796?crop=entropy&cs=srgb&fm=jpg&q=85',
     lines: [
@@ -371,10 +380,15 @@ export default function Onboarding() {
   const [screenIdx, setScreenIdx] = useState(0);
   const [lineIdx, setLineIdx] = useState(0);
   const [musicSel, setMusicSel] = useState<string[]>([]);
+  // Swipe-profile mini config (collected during onboarding, persisted at signup)
+  const [spBio, setSpBio] = useState('');
+  const [spCity, setSpCity] = useState('');
+  const [spInsta, setSpInsta] = useState('');
   const screen = SCREENS[screenIdx];
   const isFeature = screen.kind === 'feature';
-  const lines = isFeature ? [] : (screen as any).lines;
-  const ready = isFeature ? true : lineIdx >= lines.length - 1;
+  const isSwipeProfile = screen.kind === 'swipe-profile';
+  const lines = (isFeature || isSwipeProfile) ? [] : (screen as any).lines;
+  const ready = (isFeature || isSwipeProfile) ? true : lineIdx >= lines.length - 1;
 
   // Reset line index when entering a screen
   useEffect(() => {
@@ -391,11 +405,22 @@ export default function Onboarding() {
   const next = async () => {
     vibrate('medium');
     if (screenIdx === SCREENS.length - 1) {
-      // Going to register, save selections
-      await saveOnboarding({ music: musicSel, done: true });
+      // Going to register, save selections + swipe-profile fields
+      await saveOnboarding({
+        music: musicSel,
+        bio: spBio.trim() || undefined,
+        city: spCity.trim() || undefined,
+        instagram: spInsta.trim() || undefined,
+        done: true,
+      });
       router.replace('/register');
       return;
     }
+    setScreenIdx((s) => s + 1);
+  };
+
+  const skipSwipeProfile = async () => {
+    vibrate('light');
     setScreenIdx((s) => s + 1);
   };
 
@@ -561,6 +586,72 @@ export default function Onboarding() {
         </Animated.View>
       )}
 
+      {/* Swipe-profile mini config — collected during onboarding, persisted at signup */}
+      {screen.kind === 'swipe-profile' && (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <ScrollView
+            contentContainerStyle={styles.spScroll}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <Animated.View entering={FadeInDown.duration(450)} style={styles.spHeaderBlock}>
+              <View style={[styles.featureIcon, { backgroundColor: 'rgba(224,26,79,0.18)', borderColor: 'rgba(224,26,79,0.6)' }]}>
+                <Ionicons name="person-circle" size={32} color={colors.primary} />
+              </View>
+              <Text style={styles.spEyebrow}>{"07 · Ton profil swipe"}</Text>
+              <Text style={styles.spTitle}>{"Présente-toi\naux autres."}</Text>
+              <Text style={styles.spSubtitle}>
+                Ces infos apparaîtront sur ton profil quand on swipe sur toi. Tu peux tout compléter plus tard depuis ton profil.
+              </Text>
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(120).duration(450)} style={styles.spFieldBlock}>
+              <Text style={styles.spLabel}>Bio courte</Text>
+              <TextInput
+                value={spBio}
+                onChangeText={setSpBio}
+                placeholder="3 mots qui te définissent en soirée…"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.spInput}
+                multiline
+                maxLength={140}
+                testID="onboarding-sp-bio"
+              />
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(180).duration(450)} style={styles.spFieldBlock}>
+              <Text style={styles.spLabel}>Ville</Text>
+              <TextInput
+                value={spCity}
+                onChangeText={setSpCity}
+                placeholder="Paris, Lyon, Marseille…"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.spInput}
+                maxLength={60}
+                testID="onboarding-sp-city"
+              />
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(240).duration(450)} style={styles.spFieldBlock}>
+              <Text style={styles.spLabel}>Instagram (optionnel)</Text>
+              <TextInput
+                value={spInsta}
+                onChangeText={setSpInsta}
+                placeholder="@ton_pseudo"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.spInput}
+                autoCapitalize="none"
+                maxLength={40}
+                testID="onboarding-sp-insta"
+              />
+            </Animated.View>
+            <Text style={styles.spHint}>
+              📸 Tes photos de profil pourront être ajoutées juste après ton inscription, depuis Profil → Modifier mon profil swipe.
+            </Text>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      )}
+
       {/* Location icon */}
       {screen.kind === 'location' && ready && (
         <Animated.View entering={FadeInDown.duration(500)} style={styles.locWrap}>
@@ -628,6 +719,15 @@ export default function Onboarding() {
       {Content}
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+        {isSwipeProfile && (
+          <TouchableOpacity
+            style={styles.spSkipBtn}
+            onPress={skipSwipeProfile}
+            testID="onboarding-sp-skip"
+          >
+            <Text style={styles.spSkipText}>Plus tard, je le ferai depuis mon profil</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={[styles.cta, !canContinue && styles.ctaDisabled]}
           onPress={
@@ -892,4 +992,52 @@ const styles = StyleSheet.create({
   ctaDisabled: { backgroundColor: 'rgba(255,255,255,0.06)', borderWidth: 1, borderColor: colors.border },
   ctaText: { color: colors.bg, fontSize: 17, fontWeight: '800' },
   ctaTextDisabled: { color: colors.textTertiary },
+
+  // Swipe-profile mini config
+  spScroll: { paddingHorizontal: 4, paddingTop: 4, paddingBottom: 20 },
+  spHeaderBlock: { gap: 8, marginBottom: 14 },
+  spEyebrow: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+    color: colors.primary,
+  },
+  spTitle: {
+    color: colors.textPrimary,
+    fontSize: 30,
+    lineHeight: 34,
+    fontWeight: '900',
+    letterSpacing: -1.2,
+  },
+  spSubtitle: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '500',
+    opacity: 0.85,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  spFieldBlock: { gap: 6, marginTop: 10 },
+  spLabel: { color: colors.textSecondary, fontWeight: '700', fontSize: 12, letterSpacing: 0.4, textTransform: 'uppercase' },
+  spInput: {
+    backgroundColor: 'rgba(24,24,27,0.85)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: colors.textPrimary,
+    fontSize: 14,
+    minHeight: 46,
+    textAlignVertical: 'top',
+  },
+  spHint: { color: colors.textTertiary, fontSize: 12, lineHeight: 17, marginTop: 14, marginBottom: 8 },
+  spSkipBtn: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginBottom: 8,
+  },
+  spSkipText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13, textDecorationLine: 'underline' },
 });

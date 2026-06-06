@@ -9,6 +9,12 @@ export type OnboardingData = {
   music?: string[];
   frequency?: string;
   vibes?: string[];
+  // Swipe profile preview (collected during onboarding, persisted to account on signup)
+  photos?: string[]; // base64 data URIs, max 3
+  dob?: string; // YYYY-MM-DD
+  bio?: string;
+  city?: string;
+  instagram?: string;
   done?: boolean;
 };
 

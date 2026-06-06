@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { MaskedDOBInput } from '../components/MaskedDOBInput';
 import { colors, radius, spacing } from '../lib/theme';
 
 export default function SwipeProfileEdit() {
@@ -75,7 +76,7 @@ export default function SwipeProfileEdit() {
 
   const save = async () => {
     if (dob && !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
-      Alert.alert('Date invalide', 'Format attendu : AAAA-MM-JJ');
+      Alert.alert('Date invalide', 'Vérifie le jour/mois/année (JJ/MM/AAAA).');
       return;
     }
     setSaving(true);
@@ -136,15 +137,13 @@ export default function SwipeProfileEdit() {
         <Text style={styles.helper}>La première photo est ta photo principale.</Text>
 
         <Text style={styles.label}>Date de naissance *</Text>
-        <TextInput
+        <MaskedDOBInput
           value={dob}
-          onChangeText={setDob}
-          placeholder="AAAA-MM-JJ"
-          placeholderTextColor={colors.textTertiary}
-          style={styles.input}
-          autoCapitalize="none"
+          onChange={setDob}
           testID="sf-dob"
+          placeholder="JJ/MM/AAAA"
         />
+        <Text style={styles.helper}>Tu dois avoir 18 ans minimum pour swiper.</Text>
 
         <Text style={styles.label}>Ville</Text>
         <TextInput
