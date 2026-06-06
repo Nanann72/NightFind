@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
-  Alert,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -97,14 +97,7 @@ export default function SwipePeople() {
       } catch (e: any) {
         const msg = e?.message || '';
         if (msg.includes('402') || msg.includes('Limite')) {
-          Alert.alert(
-            'Limite atteinte 💎',
-            `Tu as utilisé tes ${quota?.limit ?? 10} swipes du jour. Passe Premium pour swiper sans limite !`,
-            [
-              { text: 'Plus tard', style: 'cancel' },
-              { text: 'Passer Premium', onPress: () => router.push('/paywall') },
-            ],
-          );
+          setLimitModalOpen(true);
           // Re-add the card we removed
           setDeck((d) => [card, ...d]);
         }
@@ -112,6 +105,8 @@ export default function SwipePeople() {
     },
     [deck, tx, ty, quota, router],
   );
+
+  const [limitModalOpen, setLimitModalOpen] = useState(false);
 
   const gesture = Gesture.Pan()
     .onUpdate((e) => {
@@ -333,6 +328,53 @@ export default function SwipePeople() {
           <Ionicons name="heart" size={32} color="#fff" />
         </TouchableOpacity>
       </View>
+
+      {/* Premium swipe-limit modal — branded */}
+      <Modal
+        visible={limitModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLimitModalOpen(false)}
+      >
+        <View style={styles.limitOverlay}>
+          <TouchableOpacity style={styles.limitBackdrop} activeOpacity={1} onPress={() => setLimitModalOpen(false)} />
+          <View style={styles.limitCard}>
+            <View style={styles.limitGemWrap}>
+              <Text style={styles.limitGem}>💎</Text>
+            </View>
+            <Text style={styles.limitTitle}>Limite atteinte</Text>
+            <Text style={styles.limitSub}>
+              {`Tu as utilisé tes ${quota?.limit ?? 10} swipes du jour. Passe Premium pour swiper sans limite, voir qui t'a liké, et débloquer le mode 200 km.`}
+            </Text>
+            <View style={styles.limitPerks}>
+              <View style={styles.limitPerkRow}>
+                <Ionicons name="infinite" size={16} color={colors.primary} />
+                <Text style={styles.limitPerkText}>Swipes illimités</Text>
+              </View>
+              <View style={styles.limitPerkRow}>
+                <Ionicons name="eye" size={16} color={colors.primary} />
+                <Text style={styles.limitPerkText}>{"Vois qui t'a liké"}</Text>
+              </View>
+              <View style={styles.limitPerkRow}>
+                <Ionicons name="navigate" size={16} color={colors.primary} />
+                <Text style={styles.limitPerkText}>Rayon 200 km</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.limitCta}
+              onPress={() => { setLimitModalOpen(false); router.push('/paywall'); }}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Passer Premium"
+            >
+              <Text style={styles.limitCtaText}>Passer Premium</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.limitSkip} onPress={() => setLimitModalOpen(false)}>
+              <Text style={styles.limitSkipText}>Plus tard</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -387,6 +429,46 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
+
+  // Premium limit modal
+  limitOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
+  limitBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(7,5,18,0.82)' },
+  limitCard: {
+    backgroundColor: '#1a1226',
+    borderRadius: 28,
+    padding: 26,
+    width: '100%',
+    maxWidth: 380,
+    borderWidth: 1,
+    borderColor: 'rgba(224,26,79,0.35)',
+    alignItems: 'center',
+  },
+  limitGemWrap: {
+    width: 76, height: 76, borderRadius: 38,
+    backgroundColor: 'rgba(224,26,79,0.18)',
+    borderWidth: 2, borderColor: 'rgba(224,26,79,0.55)',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+  },
+  limitGem: { fontSize: 36 },
+  limitTitle: { color: '#fff', fontSize: 24, fontWeight: '900', letterSpacing: -0.5, marginBottom: 6, textAlign: 'center' },
+  limitSub: { color: 'rgba(255,255,255,0.78)', fontSize: 14, lineHeight: 20, textAlign: 'center', marginBottom: 18 },
+  limitPerks: { alignSelf: 'stretch', gap: 10, marginBottom: 18 },
+  limitPerkRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+  },
+  limitPerkText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  limitCta: {
+    alignSelf: 'stretch',
+    backgroundColor: colors.primary,
+    paddingVertical: 15, borderRadius: 999,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  limitCtaText: { color: '#fff', fontWeight: '900', fontSize: 16, letterSpacing: 0.3 },
+  limitSkip: { paddingVertical: 12, marginTop: 4 },
+  limitSkipText: { color: 'rgba(255,255,255,0.6)', fontWeight: '700', fontSize: 14 },
   dotsRow: {
     position: 'absolute',
     top: 12,

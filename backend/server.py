@@ -962,7 +962,7 @@ async def _user_swipe(target_user_id: str, action: str, user: dict) -> dict:
                 "created_at": datetime.now(timezone.utc),
             })
             # Seed a friendly first message from the virtual user (only if chat empty)
-            existing_msg = await db.match_messages.find_one({"match_id": match_id})
+            existing_msg = await db.messages.find_one({"match_id": match_id})
             if not existing_msg:
                 greetings = [
                     f"Hello {sender_name} ! 👋",
@@ -973,7 +973,7 @@ async def _user_swipe(target_user_id: str, action: str, user: dict) -> dict:
                 ]
                 import random
                 greeting = random.choice(greetings)
-                await db.match_messages.insert_one({
+                await db.messages.insert_one({
                     "message_id": f"msg_{uuid.uuid4().hex[:10]}",
                     "match_id": match_id,
                     "from_user_id": target_user_id,
@@ -3054,6 +3054,113 @@ async def delete_my_account(body: DeleteAccountBody, user: dict = Depends(get_cu
     await db.users.delete_one({"user_id": uid})
     logger.warning("account_deleted user_id=%s email=%s", uid, user.get("email"))
     return {"ok": True, "deleted_user_id": uid}
+
+
+# ---------------------------------------------------------------------------
+# Chat enhancements — typing indicator, read receipts, edit, delete
+# ---------------------------------------------------------------------------
+
+
+class EditMessageBody(BaseModel):
+    text: str
+
+
+@api_router.post("/matches/{match_id}/typing")
+async def chat_typing(match_id: str, user: dict = Depends(get_current_user)):
+    """Signal that the current user is typing in this match."""
+    m = await db.matches.find_one({"match_id": match_id}, {"_id": 0})
+    if not m or user["user_id"] not in (m["user_a"], m["user_b"]):
+        raise HTTPException(status_code=404, detail="Match introuvable")
+    await db.matches.update_one(
+        {"match_id": match_id},
+        {"$set": {f"typing.{user['user_id']}": datetime.now(timezone.utc)}},
+    )
+    return {"ok": True}
+
+
+@api_router.get("/matches/{match_id}/peer-state")
+async def chat_peer_state(match_id: str, user: dict = Depends(get_current_user)):
+    """Returns the other user's typing status + last_read_at for this match."""
+    m = await db.matches.find_one({"match_id": match_id}, {"_id": 0})
+    if not m or user["user_id"] not in (m["user_a"], m["user_b"]):
+        raise HTTPException(status_code=404, detail="Match introuvable")
+    peer_id = m["user_a"] if m["user_b"] == user["user_id"] else m["user_b"]
+    typing_map = m.get("typing") or {}
+    peer_typing_at = typing_map.get(peer_id)
+    now = datetime.now(timezone.utc)
+    is_typing = False
+    if peer_typing_at:
+        if isinstance(peer_typing_at, datetime):
+            is_typing = (now - peer_typing_at).total_seconds() < 6
+    read_map = m.get("last_read") or {}
+    peer_last_read = read_map.get(peer_id)
+    return {
+        "peer_user_id": peer_id,
+        "is_typing": is_typing,
+        "peer_last_read_at": peer_last_read.isoformat() if isinstance(peer_last_read, datetime) else peer_last_read,
+    }
+
+
+@api_router.post("/matches/{match_id}/read")
+async def chat_mark_read(match_id: str, user: dict = Depends(get_current_user)):
+    """Mark all messages of this match as read by the current user."""
+    m = await db.matches.find_one({"match_id": match_id}, {"_id": 0})
+    if not m or user["user_id"] not in (m["user_a"], m["user_b"]):
+        raise HTTPException(status_code=404, detail="Match introuvable")
+    now = datetime.now(timezone.utc)
+    await db.matches.update_one(
+        {"match_id": match_id},
+        {"$set": {f"last_read.{user['user_id']}": now}},
+    )
+    # Mark unread messages from the other user as read
+    res = await db.messages.update_many(
+        {
+            "match_id": match_id,
+            "from_user_id": {"$ne": user["user_id"]},
+            "read_at": {"$exists": False},
+        },
+        {"$set": {"read_at": now}},
+    )
+    return {"ok": True, "marked": res.modified_count}
+
+
+@api_router.patch("/messages/{message_id}")
+async def edit_message(message_id: str, body: EditMessageBody, user: dict = Depends(get_current_user)):
+    msg = await db.messages.find_one({"message_id": message_id}, {"_id": 0})
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message introuvable")
+    if msg["from_user_id"] != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Action interdite (pas ton message)")
+    # Allow edit within 15 minutes
+    created_at = msg["created_at"]
+    if isinstance(created_at, datetime):
+        if (datetime.now(timezone.utc) - created_at).total_seconds() > 900:
+            raise HTTPException(status_code=403, detail="Trop tard pour modifier (>15min)")
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Message vide")
+    if len(text) > 1000:
+        raise HTTPException(status_code=400, detail="Message trop long (max 1000)")
+    now = datetime.now(timezone.utc)
+    await db.messages.update_one(
+        {"message_id": message_id},
+        {"$set": {"text": text, "edited_at": now}},
+    )
+    return {"ok": True, "text": text, "edited_at": now.isoformat()}
+
+
+@api_router.delete("/messages/{message_id}")
+async def delete_message(message_id: str, user: dict = Depends(get_current_user)):
+    msg = await db.messages.find_one({"message_id": message_id}, {"_id": 0})
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message introuvable")
+    if msg["from_user_id"] != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Action interdite (pas ton message)")
+    await db.messages.update_one(
+        {"message_id": message_id},
+        {"$set": {"deleted_at": datetime.now(timezone.utc), "text": ""}},
+    )
+    return {"ok": True}
 
 
 app.include_router(api_router)

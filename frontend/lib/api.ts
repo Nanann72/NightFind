@@ -211,6 +211,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ text }),
     }),
+  editMessage: (message_id: string, text: string) =>
+    request<{ ok: boolean; text: string; edited_at: string }>(`/messages/${message_id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ text }),
+    }),
+  deleteMessage: (message_id: string) =>
+    request<{ ok: boolean }>(`/messages/${message_id}`, { method: 'DELETE' }),
+  setTyping: (match_id: string) =>
+    request<{ ok: boolean }>(`/matches/${match_id}/typing`, { method: 'POST' }),
+  markChatRead: (match_id: string) =>
+    request<{ ok: boolean; marked: number }>(`/matches/${match_id}/read`, { method: 'POST' }),
+  getChatPeerState: (match_id: string) =>
+    request<{ peer_user_id: string; is_typing: boolean; peer_last_read_at: string | null }>(
+      `/matches/${match_id}/peer-state`,
+    ),
   reserveEvent: (id: string) =>
     request<{ reservation_id: string; status: string }>(
       `/events/${id}/reserve`,
