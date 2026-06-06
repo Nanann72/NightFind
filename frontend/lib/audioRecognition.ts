@@ -23,42 +23,58 @@ export type ScanResult = {
   recognised?: boolean;
   title?: string;
   artist?: string;
-  reason?: 'no-mic-permission' | 'native-only' | 'error' | 'unknown';
+  reason?: 'no-mic-permission' | 'native-only' | 'error' | 'unknown' | 'no-audio-recorded' | 'audd-not-recognised';
+  errorMessage?: string;
 };
 
 async function recordAndRecognise(club: Club, returnResult = false): Promise<ScanResult> {
   if (Platform.OS === 'web') {
-    // Web preview / Expo Go fallback — keep the mock library experience
-    const lib = await import('./liveListening');
-    (lib as any).recordTrack?.(club);
-    return { ok: false, reason: 'native-only' };
+    return {
+      ok: false,
+      reason: 'native-only',
+      errorMessage: "L'écoute audio nécessite l'app native (iOS/Android). Indisponible sur le web.",
+    };
   }
   try {
-    // Lazy require so the web bundle doesn't try to load the native module
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ExpoAudio = require('expo-audio');
     const permission = await ExpoAudio.requestRecordingPermissionsAsync();
     if (!permission?.granted) {
-      return { ok: false, reason: 'no-mic-permission' };
+      return {
+        ok: false,
+        reason: 'no-mic-permission',
+        errorMessage: 'Autorise le microphone dans les réglages pour identifier la musique.',
+      };
     }
 
-    await ExpoAudio.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+    await ExpoAudio.setAudioModeAsync({
+      allowsRecording: true,
+      playsInSilentMode: true,
+    });
 
     const recorder = ExpoAudio.createAudioRecorder(
       ExpoAudio.RecordingPresets.HIGH_QUALITY,
     );
     await recorder.prepareToRecordAsync();
-    await recorder.record();
+    recorder.record();
     await new Promise((r) => setTimeout(r, SAMPLE_DURATION_MS));
     await recorder.stop();
     const uri = recorder.uri;
-    if (!uri) return { ok: false, reason: 'error' };
+    if (!uri) {
+      return {
+        ok: false,
+        reason: 'no-audio-recorded',
+        errorMessage: "Impossible d'enregistrer l'audio. Vérifie que le micro fonctionne.",
+      };
+    }
 
     const FileSystem = require('expo-file-system');
     const base64 = await FileSystem.readAsStringAsync(uri, {
       encoding: FileSystem.EncodingType.Base64,
     });
-    if (!base64) return { ok: false, reason: 'error' };
+    if (!base64) {
+      return { ok: false, reason: 'no-audio-recorded', errorMessage: 'Fichier audio vide.' };
+    }
 
     const resp: any = await api.recognizeAudio(club.club_id, base64);
     if (returnResult) {
@@ -67,11 +83,17 @@ async function recordAndRecognise(club: Club, returnResult = false): Promise<Sca
         recognised: !!resp?.recognised,
         title: resp?.song?.title,
         artist: resp?.song?.artist,
+        reason: resp?.recognised ? undefined : 'audd-not-recognised',
+        errorMessage: resp?.recognised
+          ? undefined
+          : "Aucune musique reconnue. Rapproche-toi des enceintes et réessaie.",
       };
     }
     return { ok: true };
-  } catch {
-    return { ok: false, reason: 'error' };
+  } catch (e: any) {
+    const msg = String(e?.message || e || 'Erreur inconnue').slice(0, 200);
+    if (typeof console !== 'undefined') console.warn('[audioRecognition] error:', msg);
+    return { ok: false, reason: 'error', errorMessage: msg };
   }
 }
 
