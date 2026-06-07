@@ -6,8 +6,11 @@
  * forwards it to Audd.io for recognition. Detected tracks are persisted in
  * MongoDB and shown in the "Mes musiques" screen.
  *
- * Falls back to the legacy mock library if microphone recording is not
- * available on the current platform (e.g. web preview, Expo Go limits).
+ * Compatible with:
+ *  - expo-audio ≥ 1.1 (uses AudioModule.AudioRecorder directly)
+ *  - expo-file-system ≥ 19   (uses new File(uri).base64())
+ * Falls back gracefully if microphone recording is not available on the
+ * current platform (e.g. web preview, Expo Go limits).
  */
 import { Platform } from 'react-native';
 import { api, Club } from './api';
@@ -23,76 +26,123 @@ export type ScanResult = {
   recognised?: boolean;
   title?: string;
   artist?: string;
-  reason?: 'no-mic-permission' | 'native-only' | 'error' | 'unknown' | 'no-audio-recorded' | 'audd-not-recognised';
+  reason?:
+    | 'no-mic-permission'
+    | 'native-only'
+    | 'error'
+    | 'unknown'
+    | 'no-audio-recorded'
+    | 'audd-not-recognised';
   errorMessage?: string;
 };
 
-async function recordAndRecognise(club: Club, returnResult = false): Promise<ScanResult> {
+async function recordAndRecognise(
+  club: Club,
+  returnResult = false,
+): Promise<ScanResult> {
   if (Platform.OS === 'web') {
     return {
       ok: false,
       reason: 'native-only',
-      errorMessage: "L'écoute audio nécessite l'app native (iOS/Android). Indisponible sur le web.",
+      errorMessage:
+        "L'écoute audio nécessite l'app native (iOS/Android). Indisponible sur le web.",
     };
   }
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ExpoAudio = require('expo-audio');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const AudioModule = require('expo-audio/build/AudioModule').default;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const FileSystem = require('expo-file-system');
+
+    // 1. Permissions
     const permission = await ExpoAudio.requestRecordingPermissionsAsync();
     if (!permission?.granted) {
       return {
         ok: false,
         reason: 'no-mic-permission',
-        errorMessage: 'Autorise le microphone dans les réglages pour identifier la musique.',
+        errorMessage:
+          'Autorise le microphone dans les réglages pour identifier la musique.',
       };
     }
 
+    // 2. Activate recording audio mode
     await ExpoAudio.setAudioModeAsync({
       allowsRecording: true,
       playsInSilentMode: true,
     });
 
-    const recorder = ExpoAudio.createAudioRecorder(
-      ExpoAudio.RecordingPresets.HIGH_QUALITY,
-    );
+    // 3. Build recorder — instantiate AudioRecorder directly (no public
+    //    createAudioRecorder API in expo-audio 1.1+)
+    const RecorderClass =
+      AudioModule?.AudioRecorder ||
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('expo-audio').AudioRecorder;
+    if (!RecorderClass) {
+      throw new Error('AudioRecorder class unavailable in expo-audio module');
+    }
+    const recorder = new RecorderClass(ExpoAudio.RecordingPresets.HIGH_QUALITY);
     await recorder.prepareToRecordAsync();
     recorder.record();
     await new Promise((r) => setTimeout(r, SAMPLE_DURATION_MS));
     await recorder.stop();
-    const uri = recorder.uri;
+    const uri: string | null = recorder.uri;
     if (!uri) {
       return {
         ok: false,
         reason: 'no-audio-recorded',
-        errorMessage: "Impossible d'enregistrer l'audio. Vérifie que le micro fonctionne.",
+        errorMessage:
+          "Impossible d'enregistrer l'audio. Vérifie que le micro fonctionne.",
       };
     }
 
-    const FileSystem = require('expo-file-system');
-    const base64 = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+    // 4. Read file as base64 — modern API: new File(uri).base64()
+    let base64 = '';
+    try {
+      if (FileSystem?.File) {
+        const file = new FileSystem.File(uri);
+        base64 = await file.base64();
+      } else if (typeof FileSystem?.readAsStringAsync === 'function') {
+        base64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType?.Base64 || 'base64',
+        });
+      } else {
+        throw new Error('No FileSystem.base64 API available');
+      }
+    } catch (readErr: any) {
+      throw new Error(
+        `Lecture audio impossible : ${String(readErr?.message || readErr)}`,
+      );
+    }
     if (!base64) {
-      return { ok: false, reason: 'no-audio-recorded', errorMessage: 'Fichier audio vide.' };
+      return {
+        ok: false,
+        reason: 'no-audio-recorded',
+        errorMessage: 'Fichier audio vide.',
+      };
     }
 
+    // 5. Send to backend → Audd.io
     const resp: any = await api.recognizeAudio(club.club_id, base64);
     if (returnResult) {
       return {
         ok: true,
         recognised: !!resp?.recognised,
-        title: resp?.song?.title,
-        artist: resp?.song?.artist,
+        title: resp?.song?.title || resp?.title,
+        artist: resp?.song?.artist || resp?.artist,
         reason: resp?.recognised ? undefined : 'audd-not-recognised',
         errorMessage: resp?.recognised
           ? undefined
-          : "Aucune musique reconnue. Rapproche-toi des enceintes et réessaie.",
+          : 'Aucune musique reconnue. Rapproche-toi des enceintes et réessaie.',
       };
     }
     return { ok: true };
   } catch (e: any) {
     const msg = String(e?.message || e || 'Erreur inconnue').slice(0, 200);
-    if (typeof console !== 'undefined') console.warn('[audioRecognition] error:', msg);
+    if (typeof console !== 'undefined') {
+      console.warn('[audioRecognition] error:', msg);
+    }
     return { ok: false, reason: 'error', errorMessage: msg };
   }
 }
@@ -104,8 +154,10 @@ export async function scanOnce(club: Club): Promise<ScanResult> {
 
 export function startLiveListening(club: Club): void {
   if (sessions.has(club.club_id)) return;
-  recordAndRecognise(club);
-  const id = setInterval(() => recordAndRecognise(club), DETECT_INTERVAL_MS);
+  void recordAndRecognise(club);
+  const id = setInterval(() => {
+    void recordAndRecognise(club);
+  }, DETECT_INTERVAL_MS);
   sessions.set(club.club_id, id);
   setTimeout(() => stopLiveListening(club.club_id), SESSION_DURATION_MS);
 }
