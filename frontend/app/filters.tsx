@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useClubs } from '../lib/clubs';
+import { usePremium } from '../lib/premium';
 import { colors, radius, spacing } from '../lib/theme';
 
 const MUSIC_GENRES = [
@@ -19,11 +20,13 @@ const MUSIC_GENRES = [
   'afro-house', 'latin', 'jazz', 'soul', 'rock', 'indie',
 ];
 const RADIUS_OPTIONS = [5, 10, 25, 50];
+const RADIUS_PREMIUM = 200;
 
 export default function Filters() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { filters, setFilters } = useClubs();
+  const { isPremium } = usePremium();
 
   const [music, setMusic] = useState<string | undefined>(filters.music);
   const [radiusKm, setRadiusKm] = useState(filters.radius_km);
@@ -82,7 +85,43 @@ export default function Filters() {
                 </Text>
               </TouchableOpacity>
             ))}
+            <TouchableOpacity
+              style={[
+                styles.pill,
+                styles.pillPremium,
+                radiusKm === RADIUS_PREMIUM && styles.pillActive,
+              ]}
+              onPress={() => {
+                if (isPremium) {
+                  setRadiusKm(RADIUS_PREMIUM);
+                } else {
+                  router.push('/paywall');
+                }
+              }}
+              testID={`radius-${RADIUS_PREMIUM}`}
+            >
+              <Ionicons
+                name={isPremium ? 'flash' : 'lock-closed'}
+                size={12}
+                color={radiusKm === RADIUS_PREMIUM ? colors.bg : '#F472B6'}
+                style={{ marginRight: 4 }}
+              />
+              <Text
+                style={[
+                  styles.pillText,
+                  styles.pillPremiumText,
+                  radiusKm === RADIUS_PREMIUM && styles.pillTextActive,
+                ]}
+              >
+                {RADIUS_PREMIUM} km
+              </Text>
+            </TouchableOpacity>
           </View>
+          {!isPremium ? (
+            <Text style={styles.premiumHint}>
+              ✨ Élargis ta recherche jusqu&apos;à 200 km avec Premium
+            </Text>
+          ) : null}
         </Section>
 
         <Section title="Style musical">
@@ -188,8 +227,10 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginBottom: 12,
   },
-  radiusRow: { flexDirection: 'row', gap: 8 },
+  radiusRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: radius.full,
@@ -197,9 +238,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  pillPremium: {
+    borderColor: '#F472B6',
+    backgroundColor: 'rgba(244, 114, 182, 0.08)',
+  },
+  pillPremiumText: { color: '#F472B6' },
   pillActive: { backgroundColor: colors.tertiary, borderColor: colors.tertiary },
   pillText: { color: colors.textPrimary, fontWeight: '700' },
   pillTextActive: { color: colors.bg },
+  premiumHint: {
+    color: '#A1A1AA',
+    fontSize: 12,
+    marginTop: 10,
+    fontStyle: 'italic',
+  },
   tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tag: {
     paddingHorizontal: 14,

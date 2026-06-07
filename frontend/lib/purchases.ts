@@ -163,7 +163,16 @@ export async function purchasePackage(pkg: PremiumPackage): Promise<CustomerInfo
       source: 'real',
     };
   }
-  // DEV mode — simulate immediate success and persist
+  // PRODUCTION SAFETY: if real RC is configured but no rawPackage was attached
+  // (i.e. RevenueCat dashboard has no Offering / no products mapped), refuse
+  // the purchase rather than silently granting Premium for free.
+  if (realModeAvailable && !pkg.rawPackage) {
+    throw new Error(
+      "L'abonnement Premium n'est pas disponible actuellement. " +
+        "Veuillez réessayer dans quelques instants.",
+    );
+  }
+  // DEV mode (Expo Go / web preview) — simulate immediate success and persist
   await storage.set(DEV_PREMIUM_KEY, '1');
   return {
     isPremium: true,
