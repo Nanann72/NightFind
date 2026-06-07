@@ -2405,49 +2405,114 @@ PREMIUM_ENTITLEMENT_ID = os.environ.get("PREMIUM_ENTITLEMENT_ID", "premium")
 REVENUECAT_WEBHOOK_SECRET = os.environ.get("REVENUECAT_WEBHOOK_SECRET", "")
 
 
-async def _apply_rc_event(payload: dict) -> None:
+async def _apply_rc_event(payload: dict) -> bool:
+    """Apply a RevenueCat webhook event to the user document.
+
+    Returns True if applied, False if duplicate / ignored.
+    Idempotent: stores rc_last_event_id to skip already-processed events.
+    """
     event = (payload or {}).get("event") or {}
     subscriber = event.get("subscriber") or (payload or {}).get("subscriber") or {}
     app_user_id = event.get("app_user_id") or subscriber.get("app_user_id")
+    event_id = event.get("id")
+    event_type = (event.get("type") or "").upper()
+    environment = (event.get("environment") or "").upper()
     if not app_user_id:
-        return
+        return False
+
+    # Idempotency: skip if we already processed this event_id for this user
+    if event_id:
+        existing = await db.users.find_one(
+            {"user_id": app_user_id, "rc_last_event_id": event_id},
+            {"_id": 1},
+        )
+        if existing:
+            logging.info("RC webhook duplicate skipped: %s for %s", event_id, app_user_id)
+            return False
+
     entitlements = subscriber.get("entitlements") or {}
     ent = entitlements.get(PREMIUM_ENTITLEMENT_ID) or {}
-    is_active = bool(ent.get("expires_date")) or event.get("type") in (
+
+    # Refund detection (CANCELLATION with CUSTOMER_SUPPORT reason)
+    cancellation_reason = (event.get("cancellation_reason") or "").upper()
+    is_refund = event_type == "CANCELLATION" and cancellation_reason == "CUSTOMER_SUPPORT"
+
+    # Compute new is_premium state
+    grant_events = {
         "INITIAL_PURCHASE",
         "RENEWAL",
         "PRODUCT_CHANGE",
         "UNCANCELLATION",
         "NON_RENEWING_PURCHASE",
-    )
-    if event.get("type") in (
+        "PURCHASE_REDEEMED",
+        "TRANSFER",
+    }
+    revoke_events = {
         "EXPIRATION",
-        "CANCELLATION",
-        "BILLING_ISSUE",
         "SUBSCRIPTION_PAUSED",
-    ):
+    }
+    if event_type in grant_events:
+        is_active = True
+    elif event_type in revoke_events:
         is_active = False
+    elif is_refund:
+        is_active = False
+    elif event_type == "CANCELLATION":
+        # Non-refund cancellation: keep premium until EXPIRATION arrives
+        is_active = None
+    elif event_type == "BILLING_ISSUE":
+        # Grace period — keep premium, surface warning
+        is_active = None
+    else:
+        is_active = bool(ent.get("expires_date"))
+
+    expiration = ent.get("expires_date") or event.get("expiration_at_ms")
+    update: dict = {
+        "rc_last_event": event_type,
+        "rc_last_event_id": event_id,
+        "rc_environment": environment,
+        "rc_updated_at": datetime.now(timezone.utc),
+    }
+    if is_active is not None:
+        update["is_premium"] = is_active
+    if expiration is not None:
+        update["premium_expires_at"] = expiration
+    product = ent.get("product_identifier") or event.get("product_id")
+    if product:
+        update["premium_product_id"] = product
 
     await db.users.update_one(
         {"user_id": app_user_id},
-        {
-            "$set": {
-                "is_premium": is_active,
-                "premium_product_id": ent.get("product_identifier") or event.get("product_id"),
-                "premium_expires_at": ent.get("expires_date") or event.get("expiration_at_ms"),
-                "rc_last_event": event.get("type"),
-                "rc_updated_at": datetime.now(timezone.utc),
-            }
-        },
+        {"$set": update},
         upsert=False,
     )
+    logging.info("RC webhook applied: %s for %s (premium=%s)", event_type, app_user_id, is_active)
+    return True
 
 
 @api_router.post("/billing/webhook")
 async def revenuecat_webhook(request: Request):
+    """Legacy alias of /api/webhooks/revenuecat (kept for backward compat)."""
+    return await _revenuecat_webhook_impl(request)
+
+
+@api_router.post("/webhooks/revenuecat")
+async def revenuecat_webhook_v2(request: Request):
+    """Recommended public webhook URL for RevenueCat dashboard.
+
+    Configure this in RevenueCat → Integrations → Webhooks:
+      URL: https://<your-domain>/api/webhooks/revenuecat
+      Authorization header: <REVENUECAT_WEBHOOK_SECRET from backend/.env>
+    """
+    return await _revenuecat_webhook_impl(request)
+
+
+async def _revenuecat_webhook_impl(request: Request):
     if REVENUECAT_WEBHOOK_SECRET:
         auth = request.headers.get("authorization", "")
-        if auth != REVENUECAT_WEBHOOK_SECRET:
+        # Accept both raw secret and "Bearer <secret>" formats
+        token = auth.split(" ", 1)[1] if auth.lower().startswith("bearer ") else auth
+        if token != REVENUECAT_WEBHOOK_SECRET:
             raise HTTPException(status_code=401, detail="invalid webhook secret")
     try:
         payload = await request.json()
