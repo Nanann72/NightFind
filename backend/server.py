@@ -504,8 +504,11 @@ async def list_clubs(
     )
     if use_google and http_client is not None:
         try:
+            # Premium users can request up to 200km. Below cap is the
+            # per-call Google limit; places_service handles the multi-search
+            # fan-out internally.
             google_clubs = await places_service.search_places_nearby(
-                db, http_client, lat, lng, min(radius_km, 50.0), max_results=20
+                db, http_client, lat, lng, min(radius_km, 200.0), max_results=20
             )
             # Apply same query filters in Python
             for c in google_clubs:

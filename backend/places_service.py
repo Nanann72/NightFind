@@ -94,7 +94,7 @@ async def _search_nearby_raw(
     radius_m = max(1.0, min(radius_km * 1000.0, 50000.0))
     url = f"{PLACES_BASE}/places:searchNearby"
     body = {
-        "includedPrimaryTypes": ["night_club", "bar"],
+        "includedPrimaryTypes": ["night_club", "bar", "dance_hall"],
         "maxResultCount": max_results,
         "rankPreference": "POPULARITY",
         "locationRestriction": {
@@ -120,6 +120,32 @@ async def _search_nearby_raw(
         LOG.warning("Places nearby error: %s", exc)
         return []
     return (resp.json() or {}).get("places", []) or []
+
+
+def _grid_offsets_km(radius_km: float) -> List[tuple[float, float]]:
+    """For a Premium 200km search, fan out 4 satellite circles around the
+    center one so we cover the full disc (Google caps each call at 50km).
+
+    Returns offsets (dlat_km, dlng_km) from the center. The center circle
+    (0, 0) is always included.
+    """
+    if radius_km <= 50:
+        return [(0.0, 0.0)]
+    # 4 satellites at distance ≈ radius - 25 from center, in NE/NW/SE/SW
+    # quadrants so each satellite's 50km disc overlaps slightly with the
+    # center disc and covers up to ``radius_km`` from the user.
+    step = max(40.0, radius_km * 0.5)
+    offsets: List[tuple[float, float]] = [(0.0, 0.0)]
+    for dlat, dlng in [(step, step), (step, -step), (-step, step), (-step, -step)]:
+        offsets.append((dlat, dlng))
+    return offsets
+
+
+def _offset_geo(lat: float, lng: float, dlat_km: float, dlng_km: float) -> tuple[float, float]:
+    """Translate (lat, lng) by (dlat_km, dlng_km). Good enough for ≤500km."""
+    dlat = dlat_km / 111.0
+    dlng = dlng_km / (111.0 * max(0.01, math.cos(math.radians(lat))))
+    return lat + dlat, lng + dlng
 
 
 def _photo_proxy_url(name: str, max_width: int = 1200) -> str:
