@@ -9,7 +9,7 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.nightfinder.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Te montrer les clubs et soirées à proximité.",
