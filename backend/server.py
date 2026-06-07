@@ -1271,6 +1271,136 @@ async def swipe_history(user: dict = Depends(get_current_user)):
     return history
 
 
+# ---------------------------------------------------------------------------
+# Club Moments — BeReal-style live photos linked to a check-in
+# 5 min capture window after the user confirms they're at a club.
+# Free users → moments visible 24h. Premium → 7 days.
+# Indexed by club + expires_at for fast map queries.
+# ---------------------------------------------------------------------------
+
+
+MOMENT_WINDOW_MIN = 5
+MOMENT_TTL_FREE_HOURS = 24
+MOMENT_TTL_PREMIUM_HOURS = 24 * 7
+
+
+class MomentUploadBody(BaseModel):
+    image: str  # base64 (data URI ok)
+    caption: Optional[str] = None
+
+
+@api_router.post("/clubs/{club_id}/moments")
+async def upload_moment(
+    club_id: str,
+    body: MomentUploadBody,
+    user: dict = Depends(get_current_user),
+):
+    """Upload a BeReal-style moment. Must be within 5 min of a confirmed
+    check-in to this club. Stored as base64; cleaned up via expires_at."""
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(minutes=MOMENT_WINDOW_MIN)
+    recent_ci = await db.checkins.find_one(
+        {
+            "user_id": user["user_id"],
+            "club_id": club_id,
+            "confirmed": True,
+            "created_at": {"$gte": cutoff},
+        },
+        sort=[("created_at", -1)],
+    )
+    if not recent_ci:
+        raise HTTPException(
+            status_code=403,
+            detail="Fenêtre de capture expirée. Ta fenêtre de 5 min après le check-in est passée.",
+        )
+    # Reject duplicate upload for the same check-in
+    existing = await db.club_moments.find_one({"checkin_id": recent_ci.get("checkin_id")})
+    if existing:
+        raise HTTPException(status_code=409, detail="Tu as déjà publié un moment pour ce check-in.")
+
+    ttl_hours = MOMENT_TTL_PREMIUM_HOURS if user.get("is_premium") else MOMENT_TTL_FREE_HOURS
+    moment = {
+        "moment_id": f"mom_{uuid.uuid4().hex[:12]}",
+        "user_id": user["user_id"],
+        "user_name": user.get("name") or user.get("username") or "Quelqu'un",
+        "user_picture": (user.get("photos") or [None])[0],
+        "club_id": club_id,
+        "checkin_id": recent_ci.get("checkin_id"),
+        "image": body.image,
+        "caption": (body.caption or "")[:280],
+        "is_premium_author": bool(user.get("is_premium")),
+        "created_at": now,
+        "expires_at": now + timedelta(hours=ttl_hours),
+        "likes_count": 0,
+    }
+    await db.club_moments.insert_one(moment)
+    moment.pop("_id", None)
+    moment.pop("image", None)  # Don't echo the base64 back
+    return moment
+
+
+@api_router.get("/clubs/{club_id}/moments")
+async def list_club_moments(
+    club_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Get all currently-active moments for a club (sorted newest first)."""
+    now = datetime.now(timezone.utc)
+    cursor = db.club_moments.find(
+        {"club_id": club_id, "expires_at": {"$gt": now}},
+        {"_id": 0},
+    ).sort("created_at", -1).limit(50)
+    return await cursor.to_list(50)
+
+
+@api_router.get("/moments/active-clubs")
+async def list_clubs_with_active_moments(user: dict = Depends(get_current_user)):
+    """Return club_ids that currently have ≥ 1 active moment. The map uses
+    this to render a "✨ live" badge over the club marker.
+    """
+    now = datetime.now(timezone.utc)
+    pipeline = [
+        {"$match": {"expires_at": {"$gt": now}}},
+        {"$group": {
+            "_id": "$club_id",
+            "count": {"$sum": 1},
+            "preview": {"$first": "$user_picture"},
+        }},
+        {"$limit": 200},
+    ]
+    rows = await db.club_moments.aggregate(pipeline).to_list(200)
+    return [
+        {"club_id": r["_id"], "count": r["count"], "preview": r.get("preview")}
+        for r in rows
+    ]
+
+
+@api_router.get("/moments/window-state")
+async def moment_window_state(user: dict = Depends(get_current_user)):
+    """Tells the frontend if the user is currently inside their 5-min capture
+    window (used to push them to the BeReal screen on app open / cold start)."""
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(minutes=MOMENT_WINDOW_MIN)
+    ci = await db.checkins.find_one(
+        {
+            "user_id": user["user_id"],
+            "confirmed": True,
+            "created_at": {"$gte": cutoff},
+        },
+        sort=[("created_at", -1)],
+    )
+    if not ci:
+        return {"in_window": False}
+    already = await db.club_moments.find_one({"checkin_id": ci.get("checkin_id")})
+    expires_at = ci["created_at"] + timedelta(minutes=MOMENT_WINDOW_MIN)
+    return {
+        "in_window": not already,
+        "club_id": ci["club_id"],
+        "expires_at": expires_at.isoformat(),
+        "seconds_left": max(0, int((expires_at - now).total_seconds())),
+    }
+
+
 # -------------- Notifications -------------- #
 
 

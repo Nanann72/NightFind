@@ -269,8 +269,20 @@ export const api = {
             const { startLiveListening } = await import('./audioRecognition');
             startLiveListening(club);
           }
+          // BeReal-style 5min capture window — open camera screen
+          try {
+            const { router } = await import('expo-router');
+            // Best-effort navigation; if no router available, the user can
+            // also access it from the map via the "moments" badge.
+            (router as any)?.push?.({
+              pathname: '/bereal-capture',
+              params: { clubId: club_id, clubName: club?.name || '' },
+            });
+          } catch {
+            // silently ignore — bereal is optional
+          }
         } catch {
-          // Live listening is best-effort; the user can always tap "Identify".
+          // Live listening + bereal are best-effort.
         }
       })();
     }
@@ -353,6 +365,26 @@ export const api = {
 
   // Notifications
   listNotifications: () => request<any[]>('/notifications'),
+
+  // Club Moments (BeReal-style) ---------------------------------------
+  uploadMoment: (clubId: string, image: string, caption?: string) =>
+    request<any>(`/clubs/${clubId}/moments`, {
+      method: 'POST',
+      body: JSON.stringify({ image, caption: caption || null }),
+    }),
+  listClubMoments: (clubId: string) =>
+    request<any[]>(`/clubs/${clubId}/moments`),
+  listActiveMomentClubs: () =>
+    request<{ club_id: string; count: number; preview?: string | null }[]>(
+      '/moments/active-clubs',
+    ),
+  momentWindowState: () =>
+    request<{
+      in_window: boolean;
+      club_id?: string;
+      expires_at?: string;
+      seconds_left?: number;
+    }>('/moments/window-state'),
 
   // ---- Apple compliance: block / report / delete / export ----
   checkImageModeration: (image: string) =>
