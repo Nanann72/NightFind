@@ -163,7 +163,8 @@ export const api = {
     }),
 
   // ----- User-to-user Swipe (Tinder-like) ----- //
-  swipeDeck: () => request<Array<any>>('/swipe/deck'),
+  swipeDeck: (sameClub: boolean = false) =>
+    request<Array<any>>(`/swipe/deck${sameClub ? '?same_club=true' : ''}`),
   swipeQuota: () =>
     request<{ used_today: number; limit: number | null; is_premium: boolean; remaining: number | null }>(
       '/swipe/quota',
@@ -247,12 +248,34 @@ export const api = {
     }),
   swipeHistory: () => request<any[]>('/swipes/history'),
 
-  // Check-ins
-  checkIn: (club_id: string, confirmed: boolean) =>
-    request<{ ok: boolean; checkin_id: string; confirmed: boolean }>('/checkins', {
-      method: 'POST',
-      body: JSON.stringify({ club_id, confirmed }),
-    }),
+  // Check-ins — when the user confirms they're at a club we automatically
+  // start the live listening session (Auto-Shazam). Promised in onboarding
+  // slide "06 · Auto-Shazam".
+  checkIn: async (club_id: string, confirmed: boolean) => {
+    const res = await request<{ ok: boolean; checkin_id: string; confirmed: boolean }>(
+      '/checkins',
+      {
+        method: 'POST',
+        body: JSON.stringify({ club_id, confirmed }),
+      },
+    );
+    if (confirmed) {
+      // Fire-and-forget — never block check-in on Shazam side-effects.
+      (async () => {
+        try {
+          const clubs = await request<any[]>('/clubs?radius_km=200');
+          const club = clubs.find((c: any) => c.club_id === club_id);
+          if (club) {
+            const { startLiveListening } = await import('./audioRecognition');
+            startLiveListening(club);
+          }
+        } catch {
+          // Live listening is best-effort; the user can always tap "Identify".
+        }
+      })();
+    }
+    return res;
+  },
   listCheckIns: () => request<any[]>('/checkins'),
 
   // Detected songs (live listening)

@@ -53,6 +53,7 @@ export default function SwipePeople() {
   const [loading, setLoading] = useState(true);
   const [quota, setQuota] = useState<{ remaining: number | null; limit: number | null; is_premium: boolean } | null>(null);
   const [photoIdx, setPhotoIdx] = useState(0);
+  const [sameClub, setSameClub] = useState(false);
 
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
@@ -60,7 +61,7 @@ export default function SwipePeople() {
   const loadDeck = useCallback(async () => {
     setLoading(true);
     try {
-      const [d, q] = await Promise.all([api.swipeDeck(), api.swipeQuota()]);
+      const [d, q] = await Promise.all([api.swipeDeck(sameClub), api.swipeQuota()]);
       setDeck(d as any);
       setQuota(q);
     } catch {
@@ -68,7 +69,7 @@ export default function SwipePeople() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [sameClub]);
 
   useEffect(() => {
     loadDeck();
@@ -207,6 +208,29 @@ export default function SwipePeople() {
               ? 'Swipes illimités · Premium 💎'
               : `${quota?.remaining ?? 10} / ${quota?.limit ?? 10} swipes restants aujourd'hui`}
           </Text>
+        </View>
+        {/* Toggle "Swipe en club" — onboarding slide #03 */}
+        <View style={styles.modeRow}>
+          <TouchableOpacity
+            style={[styles.modePill, !sameClub && styles.modePillActive]}
+            onPress={() => setSameClub(false)}
+            testID="swipe-mode-all"
+          >
+            <Ionicons name="globe" size={13} color={!sameClub ? colors.bg : '#A1A1AA'} />
+            <Text style={[styles.modePillText, !sameClub && styles.modePillTextActive]}>
+              Partout
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.modePill, sameClub && styles.modePillActive]}
+            onPress={() => setSameClub(true)}
+            testID="swipe-mode-club"
+          >
+            <Ionicons name="location" size={13} color={sameClub ? colors.bg : '#F472B6'} />
+            <Text style={[styles.modePillText, sameClub && styles.modePillTextActive]}>
+              Dans mon club
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -387,6 +411,35 @@ const styles = StyleSheet.create({
   title: { color: colors.textPrimary, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
   quotaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
   quotaText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 12,
+    alignSelf: 'flex-start',
+  },
+  modePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modePillActive: {
+    backgroundColor: '#F472B6',
+    borderColor: '#F472B6',
+  },
+  modePillText: {
+    color: '#A1A1AA',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  modePillTextActive: {
+    color: colors.bg,
+  },
   cardArea: { alignSelf: 'center', alignItems: 'center', justifyContent: 'center' },
   card: {
     width: '100%',

@@ -834,10 +834,18 @@ async def swipe_quota(user: dict = Depends(get_current_user)):
 
 
 @api_router.get("/swipe/deck")
-async def swipe_deck(user: dict = Depends(get_current_user)):
+async def swipe_deck(
+    same_club: bool = False,
+    user: dict = Depends(get_current_user),
+):
     """Return up to 10 profiles the user has not swiped on yet (and is not
     themself). Hidden users, blocked users and profiles missing the minimum
-    data are skipped."""
+    data are skipped.
+
+    When ``same_club=true`` we restrict the deck to users currently checked
+    in at the same club AND whose visibility allows it. This powers the
+    "Swipe en club" feature (onboarding slide #03).
+    """
     # Already swiped target ids
     already = await db.user_swipes.find(
         {"user_id": user["user_id"]}, {"_id": 0, "target_user_id": 1},
@@ -846,10 +854,46 @@ async def swipe_deck(user: dict = Depends(get_current_user)):
     exclude.add(user["user_id"])
     # Filter out blocked users (both directions) — Apple 1.2 UGC
     exclude |= await _blocked_user_ids(user["user_id"])
+
+    extra_filter: dict = {}
+    if same_club:
+        # Find user's most recent confirmed check-in (last 4 hours)
+        from datetime import timedelta as _td  # local import to avoid global churn
+        cutoff = datetime.now(timezone.utc) - _td(hours=4)
+        my_ci = await db.checkins.find_one(
+            {
+                "user_id": user["user_id"],
+                "confirmed": True,
+                "created_at": {"$gte": cutoff},
+            },
+            sort=[("created_at", -1)],
+        )
+        if not my_ci:
+            return []  # not currently in a club
+        # Find everyone else currently in that same club
+        peer_cursor = db.checkins.find(
+            {
+                "club_id": my_ci["club_id"],
+                "confirmed": True,
+                "created_at": {"$gte": cutoff},
+                "user_id": {"$ne": user["user_id"]},
+            },
+            {"_id": 0, "user_id": 1},
+        )
+        peer_ids = [c["user_id"] async for c in peer_cursor]
+        if not peer_ids:
+            return []
+        extra_filter["user_id"] = {"$in": peer_ids, "$nin": list(exclude)}
+        # Only public profiles can be swiped in-club (visibility != hidden,
+        # not private). We treat visibility=="hidden" or "private" as opt-out.
+        extra_filter["visibility"] = {"$nin": ["hidden", "private"]}
+    else:
+        extra_filter["user_id"] = {"$nin": list(exclude)}
+        extra_filter["visibility"] = {"$ne": "hidden"}
+
     cursor = db.users.find(
         {
-            "user_id": {"$nin": list(exclude)},
-            "visibility": {"$ne": "hidden"},
+            **extra_filter,
             "photos": {"$exists": True, "$ne": []},
             "is_virtual": {"$ne": True},
         },
