@@ -37,6 +37,7 @@ http_client: Optional[httpx.AsyncClient] = None
 # Local import so server.py can be loaded even if file is missing
 import places_service  # noqa: E402
 import push_service  # noqa: E402
+import legal_pages  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -2895,6 +2896,7 @@ async def delete_message(message_id: str, user: dict = Depends(get_current_user)
 
 
 app.include_router(api_router)
+app.include_router(legal_pages.router)
 
 app.add_middleware(
     CORSMiddleware,
