@@ -108,9 +108,15 @@ export async function getOfferings(): Promise<PremiumPackage[]> {
   if (realModeAvailable && Purchases) {
     try {
       const offerings = await Purchases.getOfferings();
-      const current = offerings?.current;
-      if (current?.availablePackages?.length) {
-        return current.availablePackages.map((p: any) => {
+      // Try .current first, then any other offering with packages.
+      const candidate =
+        offerings?.current?.availablePackages?.length
+          ? offerings.current
+          : Object.values(offerings?.all || {}).find(
+              (o: any) => o?.availablePackages?.length,
+            );
+      if ((candidate as any)?.availablePackages?.length) {
+        return (candidate as any).availablePackages.map((p: any) => {
           const id = String(p?.product?.identifier || '').toLowerCase();
           const isAnnual =
             id.includes('annual') || id.includes('yearly') || p.packageType === 'ANNUAL';
@@ -126,11 +132,25 @@ export async function getOfferings(): Promise<PremiumPackage[]> {
           } as PremiumPackage;
         });
       }
-    } catch {
-      // fallthrough
+      // Real RC is up but no offerings found → tell the caller honestly,
+      // do NOT return DEV mocks here (would cause a "fake price → fail"
+      // experience when the user taps Continue).
+      if (typeof console !== 'undefined') {
+        console.warn(
+          '[purchases] No offerings configured on RevenueCat dashboard. ' +
+            'Check that the Offering is marked "Current" and that products ' +
+            'are linked to App Store / Play Store.',
+        );
+      }
+      return [];
+    } catch (e: any) {
+      if (typeof console !== 'undefined') {
+        console.warn('[purchases] getOfferings error:', String(e?.message || e));
+      }
+      return [];
     }
   }
-  // DEV mocked offerings — Mensuel 4,99 € + Annuel 79,99 €
+  // DEV mocked offerings — only when real RC is NOT configured
   return [
     {
       identifier: 'monthly',

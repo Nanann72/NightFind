@@ -152,8 +152,17 @@ export default function Paywall() {
         </View>
 
         <View style={styles.plansWrap}>
-          {loading || offerings.length === 0 ? (
+          {loading ? (
             <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
+          ) : offerings.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="alert-circle-outline" size={36} color="#F472B6" />
+              <Text style={styles.emptyTitle}>Abonnements en cours de mise en ligne</Text>
+              <Text style={styles.emptyText}>
+                Nos offres Premium sont en cours d&apos;approbation par l&apos;App Store.
+                Reviens dans quelques heures !
+              </Text>
+            </View>
           ) : (
             offerings.map((p) => {
               const sel = p.identifier === selectedId;
@@ -196,11 +205,11 @@ export default function Paywall() {
         </View>
 
         <Text style={styles.footnote}>
-          Abonnement Night Finder Premium — {selectedPkg?.period === 'year' ? 'annuel (79,99 €/an)' : 'mensuel (4,99 €/mois)'}. Le paiement est prélevé sur ton compte Apple ID / Google Play au moment de la confirmation. L'abonnement se renouvelle automatiquement (même prix, même durée) sauf si tu désactives le renouvellement au moins 24h avant la date d'échéance, depuis les Réglages de ton store. Tu peux gérer ou annuler ton abonnement à tout moment.
+          Abonnement Night Finder Premium — {selectedPkg?.period === 'year' ? 'annuel (79,99 €/an)' : 'mensuel (4,99 €/mois)'}. Le paiement est prélevé sur ton compte Apple ID / Google Play au moment de la confirmation. L&apos;abonnement se renouvelle automatiquement (même prix, même durée) sauf si tu désactives le renouvellement au moins 24h avant la date d&apos;échéance, depuis les Réglages de ton store. Tu peux gérer ou annuler ton abonnement à tout moment.
         </Text>
         <View style={styles.legalLinksRow}>
           <TouchableOpacity onPress={() => router.push({ pathname: '/legal', params: { doc: 'cgu' } })}>
-            <Text style={styles.legalLink}>Conditions d'utilisation</Text>
+            <Text style={styles.legalLink}>Conditions d&apos;utilisation</Text>
           </TouchableOpacity>
           <Text style={styles.legalSep}>·</Text>
           <TouchableOpacity onPress={() => router.push({ pathname: '/legal', params: { doc: 'privacy' } })}>
