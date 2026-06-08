@@ -2004,19 +2004,51 @@ async def recognize_audio(
 
     try:
         files = {"file": ("sample.m4a", raw, "audio/m4a")}
-        data = {"api_token": audd_token, "return": "spotify,apple_music"}
+        data = {
+            "api_token": audd_token,
+            "return": "spotify,apple_music,deezer,musicbrainz",
+        }
         r = await http_client.post(
-            "https://api.audd.io/", data=data, files=files, timeout=20.0
+            "https://api.audd.io/", data=data, files=files, timeout=25.0
         )
     except Exception as exc:
         logging.warning("Audd error: %s", exc)
         raise HTTPException(status_code=502, detail="Recognition provider error")
 
     if r.status_code != 200:
+        try:
+            err_payload = r.json()
+        except Exception:
+            err_payload = {"raw": (r.text or "")[:200]}
+        logging.warning(
+            "Audd HTTP %s — payload=%s — sample_bytes=%d",
+            r.status_code,
+            err_payload,
+            len(raw),
+        )
         raise HTTPException(status_code=502, detail="Audd HTTP error")
     payload = r.json() or {}
+    # Audd returns {"status":"error", "error":{"error_code":..,"error_message":..}}
+    # for quota / auth issues even with HTTP 200.
+    if payload.get("status") == "error":
+        err = payload.get("error") or {}
+        logging.warning(
+            "Audd API error code=%s message=%s",
+            err.get("error_code"),
+            err.get("error_message"),
+        )
+        return {
+            "ok": False,
+            "recognised": False,
+            "error_code": err.get("error_code"),
+            "error_message": err.get("error_message") or "Audd error",
+        }
     result = payload.get("result")
     if not result:
+        # Audd returns null result when sample too short/noisy/silent.
+        logging.info(
+            "Audd no-match — sample_bytes=%d club=%s", len(raw), body.club_id
+        )
         return {"ok": True, "recognised": False}
 
     now = datetime.now(timezone.utc)
@@ -2033,6 +2065,7 @@ async def recognize_audio(
         "release_date": result.get("release_date"),
         "spotify": (result.get("spotify") or {}).get("external_urls", {}).get("spotify"),
         "apple_music": (result.get("apple_music") or {}).get("url"),
+        "deezer": (result.get("deezer") or {}).get("link"),
         "source": "audd",
         "detected_at": now.isoformat(),
         "created_at": now,

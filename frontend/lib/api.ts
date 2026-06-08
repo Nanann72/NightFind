@@ -41,6 +41,8 @@ export type User = {
   created_at: string;
   username?: string | null;
   visibility?: 'always' | 'clubs_only' | 'hidden';
+  is_premium?: boolean;
+  premium_expires_at?: string | null;
 };
 
 export type ActiveFriend = {

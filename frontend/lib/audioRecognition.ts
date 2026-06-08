@@ -17,7 +17,7 @@ import { api, Club } from './api';
 
 const DETECT_INTERVAL_MS = 90 * 1000; // 90s between detections
 const SESSION_DURATION_MS = 10 * 60 * 1000; // stop after 10 min
-const SAMPLE_DURATION_MS = 5000; // 5 seconds of audio
+const SAMPLE_DURATION_MS = 8000; // 8 seconds of audio (Audd.io recommends 6-12s)
 
 const sessions = new Map<string, ReturnType<typeof setInterval>>();
 
@@ -122,10 +122,33 @@ async function recordAndRecognise(
         errorMessage: 'Fichier audio vide.',
       };
     }
+    // Heuristic silence/short-buffer detection. 8s of m4a@128kbps is ~120-160 KB.
+    // base64 inflates by 33%, so a real sample should be > ~80KB encoded.
+    // If we got significantly less, the mic was muted or the recording was
+    // truncated by the OS → skip the API call to save quota and inform the user.
+    if (base64.length < 12_000) {
+      return {
+        ok: false,
+        reason: 'no-audio-recorded',
+        errorMessage:
+          "Le micro n'a presque rien capté. Rapproche-toi des enceintes et réessaie.",
+      };
+    }
 
     // 5. Send to backend → Audd.io
     const resp: any = await api.recognizeAudio(club.club_id, base64);
     if (returnResult) {
+      // Backend may surface an Audd API error (e.g. quota, auth) — show it.
+      if (resp?.ok === false) {
+        return {
+          ok: false,
+          recognised: false,
+          reason: 'audd-not-recognised',
+          errorMessage:
+            resp?.error_message ||
+            'Service de reconnaissance temporairement indisponible. Réessaie plus tard.',
+        };
+      }
       return {
         ok: true,
         recognised: !!resp?.recognised,
@@ -134,7 +157,7 @@ async function recordAndRecognise(
         reason: resp?.recognised ? undefined : 'audd-not-recognised',
         errorMessage: resp?.recognised
           ? undefined
-          : 'Aucune musique reconnue. Rapproche-toi des enceintes et réessaie.',
+          : 'Aucune musique reconnue. Rapproche-toi des enceintes (~1m), augmente le volume et réessaie.',
       };
     }
     return { ok: true };
