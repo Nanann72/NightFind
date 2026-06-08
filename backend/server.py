@@ -205,6 +205,8 @@ def public_user(user: dict) -> dict:
         "instagram": user.get("instagram"),
         "photos": user.get("photos", []),
         "fav_clubs": user.get("fav_clubs", []),
+        "is_premium": bool(user.get("is_premium")),
+        "premium_expires_at": user.get("premium_expires_at"),
     }
 
 
