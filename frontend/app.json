@@ -21,6 +21,7 @@
         "NSCalendarsFullAccessUsageDescription": "Ajouter tes soirées à ton agenda iOS.",
         "NSContactsUsageDescription": "Retrouver tes amis déjà sur Night Finder (hash uniquement).",
         "NSPhotoLibraryUsageDescription": "Choisir tes photos de profil pour le swipe.",
+        "NSCameraUsageDescription": "Capturer ton moment au club (post live BeReal-style).",
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
           "location",
@@ -163,7 +164,8 @@
         "FOREGROUND_SERVICE_LOCATION",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "CAMERA"
       ],
       "edgeToEdgeEnabled": true
     },
@@ -174,6 +176,13 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Capturer ton moment au club (post live BeReal-style).",
+          "recordAudioAndroid": false
+        }
+      ],
       [
         "expo-splash-screen",
         {

@@ -1,0 +1,55 @@
+{
+  "summary": "Backend testing of BeReal-style club moments feature. Created 12 pytest tests covering check-in → window-state → upload → list flow, premium/free TTL, 409 duplicate, 403 forbidden, active-clubs aggregation, and MongoDB index verification. Found and FIXED one CRITICAL bug (window-state 500 due to tz-naive datetime). 11/12 tests now pass. The remaining failure is a minor frontend-integration concern: /api/auth/me does not expose is_premium (server-side premium logic still works correctly — TTL is 168h for the reviewer and is_premium_author=true is returned on moment upload).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/moments/window-state",
+        "issue": "FIXED. Returned 500 'can't subtract offset-naive and offset-aware datetimes' immediately after a confirmed check-in. Root cause: MongoDB returned ci['created_at'] as tz-naive, while datetime.now(timezone.utc) is tz-aware. server.py:1395-1400. Fix applied: coerce ci_created.tzinfo to UTC before adding timedelta. Without this fix the BeReal entry-point endpoint used on every cold start was completely broken.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "GET /api/auth/me",
+        "issue": "Response does not include is_premium field (public_user() filters it out). The frontend BeReal capture screen and any premium gating UI relies on /auth/me to know if the user gets the 7-day TTL. Server-side premium check works (TTL upload test confirms ~168h for reviewer), but the client can't display the premium badge / extended-TTL hint without it. Recommend adding 'is_premium' to public_user() output."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "BeReal premium UX",
+        "issue": "Frontend cannot determine premium status from /auth/me to surface the 7-day TTL messaging on capture screen.",
+        "affected_testIDs": []
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bereal_moments.py",
+    "/app/test_reports/pytest/bereal_moments.xml"
+  ],
+  "action_items": [
+    "Add 'is_premium': bool(user.get('is_premium')) to public_user() output in /app/backend/server.py so /api/auth/me exposes premium status (frontend BeReal UX needs it for 7d TTL hint).",
+    "Validate the window-state fix in /app/backend/server.py around line 1395 (already applied by testing agent — coerce tz on ci['created_at']). Consider applying the same tz-coercion pattern wherever MongoDB datetimes are subtracted from datetime.now(timezone.utc) (search for created_at math).",
+    "Optional: also coerce 'recent_ci.created_at' usage in upload endpoint if ever subtracted from a tz-aware datetime; currently only compared via Mongo $gte which works fine."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 3170 lines — should be split into routers (auth, clubs, moments, checkins, friends, swipe, notifications) for maintainability.",
+    "MongoDB-driven datetimes are stored naive; mixing them with datetime.now(timezone.utc) is a latent bug class. Consider a small util `as_utc(dt)` used everywhere on read.",
+    "Moment upload echoes back the full moment dict minus image, which is good; but list_club_moments returns the full image base64 inline — fine for thumbnails on map, but watch payload size if moments multiply.",
+    "checkin_id index is sparse+unique — correct given older check-ins predate the field. Good."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (window-state tz fix at lines 1394-1399)",
+    "/app/backend/tests/test_bereal_moments.py (new file)"
+  ],
+  "success_rate": {"backend": "91.6% (11/12)", "frontend": "not tested (backend-only request)"},
+  "seed_data_creation": "Created test users TEST_bereal_free_*@nightfinder.app and TEST_nochk_*@nightfinder.app via /auth/register (dob 1995-05-15). Created confirmed check-ins and 2 club_moments (one premium reviewer, one free user). Moments will auto-expire via TTL index (24h / 168h).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "BeReal endpoints live at /api/checkins, /api/moments/window-state, /api/clubs/{id}/moments (POST+GET), /api/moments/active-clubs. Reviewer account apple.reviewer@nightfinder.app is premium (TTL 7d). Tests in /app/backend/tests/test_bereal_moments.py. The only remaining failure documents that /auth/me does not expose is_premium; once main agent adds that field, the test should flip to passing automatically (it just checks `me.is_premium is True`).",
+  "rca_of_issue": "BUG: GET /api/moments/window-state returned 500 immediately after a confirmed check-in. RCA: server.py:1400 computed `expires_at - now` where expires_at = ci['created_at'] + timedelta(...). MongoDB python driver returns BSON datetimes WITHOUT tzinfo, while datetime.now(timezone.utc) is tz-aware. Python refuses to subtract offset-naive from offset-aware → TypeError → 500. REPRO: POST /api/checkins {club_id, confirmed:true} → GET /api/moments/window-state → 500. MITIGATION (applied): wrap ci['created_at'] with `.replace(tzinfo=timezone.utc)` if .tzinfo is None before computing expires_at. Re-tested → 200 with correct payload {in_window, club_id, expires_at, seconds_left}."
+}

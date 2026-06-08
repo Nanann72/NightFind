@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Linking,
   Platform,
+  Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +17,30 @@ import { Ionicons } from '@expo/vector-icons';
 import { api, Club } from '../../lib/api';
 import { useClubs } from '../../lib/clubs';
 import { colors, radius, spacing } from '../../lib/theme';
+
+type ClubMoment = {
+  moment_id: string;
+  user_id: string;
+  user_name?: string;
+  user_picture?: string | null;
+  image: string;
+  caption?: string;
+  is_premium_author?: boolean;
+  created_at: string;
+};
+
+function timeAgo(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (!t) return '';
+  const diff = Math.max(0, Date.now() - t);
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "à l'instant";
+  if (m < 60) return `il y a ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `il y a ${h}h`;
+  const d = Math.floor(h / 24);
+  return `il y a ${d}j`;
+}
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const DAY_LABELS: Record<string, string> = {
@@ -30,6 +55,8 @@ export default function ClubDetail() {
   const { favorites, toggleFavorite } = useClubs();
   const [club, setClub] = useState<Club | null>(null);
   const [loading, setLoading] = useState(true);
+  const [moments, setMoments] = useState<ClubMoment[]>([]);
+  const [openedMoment, setOpenedMoment] = useState<ClubMoment | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -38,6 +65,25 @@ export default function ClubDetail() {
       .then(setClub)
       .catch(() => setClub(null))
       .finally(() => setLoading(false));
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const list = await api.listClubMoments(String(id));
+        if (!cancelled) setMoments(Array.isArray(list) ? list : []);
+      } catch {
+        if (!cancelled) setMoments([]);
+      }
+    };
+    load();
+    const it = setInterval(load, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(it);
+    };
   }, [id]);
 
   const isFav = club ? favorites.has(club.club_id) : false;
@@ -152,6 +198,43 @@ export default function ClubDetail() {
             })}
           </Section>
 
+          {moments.length > 0 && (
+            <View style={{ marginBottom: spacing.lg }}>
+              <View style={styles.momentsHeaderRow}>
+                <Text style={styles.sectionTitle}>✨ MOMENTS LIVE · {moments.length}</Text>
+                <Text style={styles.momentsHeaderHint}>Tap pour ouvrir</Text>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 10, paddingRight: 8 }}
+              >
+                {moments.map((m) => (
+                  <TouchableOpacity
+                    key={m.moment_id}
+                    onPress={() => setOpenedMoment(m)}
+                    activeOpacity={0.85}
+                    style={styles.momentCard}
+                  >
+                    <Image source={{ uri: m.image }} style={styles.momentImg} />
+                    <View style={styles.momentOverlay} />
+                    <View style={styles.momentFooter}>
+                      <Text style={styles.momentAuthor} numberOfLines={1}>
+                        {m.user_name || 'Anonyme'}
+                      </Text>
+                      <Text style={styles.momentTime}>{timeAgo(m.created_at)}</Text>
+                    </View>
+                    {m.is_premium_author && (
+                      <View style={styles.momentBadge}>
+                        <Text style={styles.momentBadgeText}>⭐</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
           {club.features.length > 0 && (
             <Section title="Ambiance">
               <View style={styles.featRow}>
@@ -205,6 +288,42 @@ export default function ClubDetail() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={!!openedMoment}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setOpenedMoment(null)}
+      >
+        <View style={styles.modalRoot}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setOpenedMoment(null)}
+          />
+          {openedMoment && (
+            <View style={styles.modalCard}>
+              <Image source={{ uri: openedMoment.image }} style={styles.modalImg} />
+              <View style={styles.modalMeta}>
+                <Text style={styles.modalAuthor}>
+                  {openedMoment.user_name || 'Anonyme'}
+                  {openedMoment.is_premium_author ? ' ⭐' : ''}
+                </Text>
+                <Text style={styles.modalTime}>{timeAgo(openedMoment.created_at)}</Text>
+              </View>
+              {!!openedMoment.caption && (
+                <Text style={styles.modalCaption}>{openedMoment.caption}</Text>
+              )}
+              <TouchableOpacity
+                style={styles.modalClose}
+                onPress={() => setOpenedMoment(null)}
+              >
+                <Ionicons name="close" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -337,4 +456,96 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
   },
   favText: { color: colors.bg, fontWeight: '800', fontSize: 15 },
+  // Moments (BeReal-style)
+  momentsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  momentsHeaderHint: {
+    color: colors.textTertiary,
+    fontSize: 11,
+    fontStyle: 'italic',
+  },
+  momentCard: {
+    width: 110,
+    height: 150,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: 'rgba(244,114,182,0.4)',
+    position: 'relative',
+  },
+  momentImg: { width: '100%', height: '100%' },
+  momentOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 50,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  momentFooter: {
+    position: 'absolute',
+    bottom: 6,
+    left: 8,
+    right: 8,
+  },
+  momentAuthor: { color: '#fff', fontWeight: '800', fontSize: 11 },
+  momentTime: { color: '#D4D4D8', fontSize: 10, marginTop: 1 },
+  momentBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: 'rgba(255,193,7,0.95)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  momentBadgeText: { fontSize: 10 },
+  modalRoot: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 500,
+    backgroundColor: '#18181B',
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
+  modalImg: { width: '100%', aspectRatio: 3 / 4, backgroundColor: '#000' },
+  modalMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  modalAuthor: { color: '#fff', fontWeight: '900', fontSize: 14 },
+  modalTime: { color: '#A1A1AA', fontSize: 12 },
+  modalCaption: {
+    color: '#E4E4E7',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 6,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  modalClose: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

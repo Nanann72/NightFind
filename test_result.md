@@ -101,3 +101,139 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Night Finder iOS/Android app. Tester la nouvelle fonctionnalité BeReal-style :
+  Quand un utilisateur fait un check-in dans un club, il a 5 minutes pour prendre une photo
+  ("moment") qui apparaît sur la map et la page du club. TTL : 24h pour utilisateurs gratuits,
+  7 jours pour Premium.
+
+backend:
+  - task: "BeReal moments — POST /api/clubs/{club_id}/moments"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Endpoint upload moment. Vérifie qu'un check-in confirmé existe dans la fenêtre des 5 dernières min. TTL 24h gratuit / 7j premium. Doit refuser 403 si pas de check-in récent et 409 si moment déjà publié pour ce check-in."
+
+  - task: "BeReal moments — GET /api/clubs/{club_id}/moments"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Liste les moments actifs (non expirés) d'un club. Trié par created_at DESC."
+
+  - task: "BeReal moments — GET /api/moments/active-clubs"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Renvoie tous les club_ids avec au moins 1 moment actif, pour afficher un badge ✨ sur la map."
+
+  - task: "BeReal moments — GET /api/moments/window-state"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Renvoie {in_window, club_id, expires_at, seconds_left} pour savoir si l'user est encore dans la fenêtre de 5 min après son check-in."
+
+  - task: "MongoDB indexes for club_moments"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "TTL index sur expires_at + indexes performance (club_id,expires_at) (user_id,created_at) (checkin_id unique) (moment_id unique)."
+
+frontend:
+  - task: "Section Moments sur club detail"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/club/[id].tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "ScrollView horizontal des moments. Tap pour ouvrir modal plein écran."
+
+  - task: "Badge ✨ live sur les markers de la map"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/components/MapImpl.native.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Marker pour clubs avec moments actifs (rafraîchi toutes les 45s)."
+
+  - task: "Capture screen BeReal"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/bereal-capture.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Utilise expo-camera (newly installed). Permission caméra demandée. Timer 5 min affiché. Capture base64, prévisualisation, légende optionnelle, publication."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.2.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "BeReal moments — POST /api/clubs/{club_id}/moments"
+    - "BeReal moments — GET /api/clubs/{club_id}/moments"
+    - "BeReal moments — GET /api/moments/window-state"
+    - "BeReal moments — GET /api/moments/active-clubs"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      Tests à effectuer (backend prioritaire — frontend BeReal requiert build native, pas testable via web preview) :
+      1. Auth comme Apple reviewer (apple.reviewer@nightfinder.app / Reviewer2026!).
+      2. Faire un check-in confirmé sur un club existant : POST /api/checkins {club_id, confirmed:true}.
+      3. Vérifier GET /api/moments/window-state retourne in_window=true, club_id, seconds_left.
+      4. Upload un moment : POST /api/clubs/{club_id}/moments {image:"data:image/jpeg;base64,...", caption:"test"}.
+         Vérifier la réponse contient moment_id, expires_at (24h pour user non-premium).
+      5. Re-upload pour même check-in → doit renvoyer 409.
+      6. GET /api/clubs/{club_id}/moments → doit lister le moment (sans le champ "image" ne sera pas... attendre, le GET liste retourne le champ image. Ok le POST le retire seulement de la réponse).
+         Note: GET /api/clubs/{club_id}/moments retourne `image` (la base64 complète) car le frontend en a besoin.
+      7. GET /api/moments/active-clubs → doit contenir le club_id avec count>=1.
+      8. Test 403 : Sans check-in récent, POST /api/clubs/X/moments doit renvoyer 403.
+      9. Vérifier TTL : si user est premium (le reviewer l'est), expires_at doit être ~7j après now (premium=7j).

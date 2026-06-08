@@ -25,6 +25,7 @@ export default function MapImpl() {
   const loc = useLocation();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [friends, setFriends] = useState<ActiveFriend[]>([]);
+  const [liveClubIds, setLiveClubIds] = useState<Set<string>>(new Set());
   const mapRef = useRef<MapView | null>(null);
 
   useEffect(() => {
@@ -42,6 +43,24 @@ export default function MapImpl() {
     return () => {
       mounted = false;
       clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchLive = async () => {
+      try {
+        const list = await api.listActiveMomentClubs();
+        if (mounted) setLiveClubIds(new Set((list || []).map((x) => x.club_id)));
+      } catch {
+        if (mounted) setLiveClubIds(new Set());
+      }
+    };
+    fetchLive();
+    const it = setInterval(fetchLive, 45_000);
+    return () => {
+      mounted = false;
+      clearInterval(it);
     };
   }, []);
 
@@ -83,6 +102,11 @@ export default function MapImpl() {
           >
             <View style={styles.marker}>
               <View style={styles.markerInner} />
+              {liveClubIds.has(c.club_id) && (
+                <View style={styles.liveBadge}>
+                  <Text style={styles.liveBadgeText}>✨</Text>
+                </View>
+              )}
             </View>
             <Callout tooltip onPress={() => router.push(`/club/${c.club_id}` as any)}>
               <View style={styles.callout}>
@@ -90,6 +114,9 @@ export default function MapImpl() {
                 <Text style={styles.calloutMeta}>
                   ⭐ {c.rating.toFixed(1)} · {c.avg_price.toFixed(0)}€
                 </Text>
+                {liveClubIds.has(c.club_id) && (
+                  <Text style={styles.calloutLive}>✨ Moments live</Text>
+                )}
                 <Text style={styles.calloutLink}>Voir le club ›</Text>
               </View>
             </Callout>
@@ -201,6 +228,19 @@ const styles = StyleSheet.create({
   calloutTitle: { color: colors.textPrimary, fontWeight: '800', fontSize: 14 },
   calloutMeta: { color: colors.textSecondary, marginTop: 2, fontSize: 12 },
   calloutLink: { color: colors.tertiary, fontWeight: '700', marginTop: 6, fontSize: 12 },
+  calloutLive: { color: '#F472B6', fontWeight: '800', marginTop: 4, fontSize: 11 },
+  liveBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#F472B6',
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderColor: '#fff',
+  },
+  liveBadgeText: { fontSize: 9 },
   topBar: {
     position: 'absolute',
     left: spacing.md,

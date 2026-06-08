@@ -1392,7 +1392,10 @@ async def moment_window_state(user: dict = Depends(get_current_user)):
     if not ci:
         return {"in_window": False}
     already = await db.club_moments.find_one({"checkin_id": ci.get("checkin_id")})
-    expires_at = ci["created_at"] + timedelta(minutes=MOMENT_WINDOW_MIN)
+    ci_created = ci["created_at"]
+    if ci_created.tzinfo is None:
+        ci_created = ci_created.replace(tzinfo=timezone.utc)
+    expires_at = ci_created + timedelta(minutes=MOMENT_WINDOW_MIN)
     return {
         "in_window": not already,
         "club_id": ci["club_id"],
@@ -2412,6 +2415,17 @@ async def startup():
         pass
     await db.clubs.create_index("club_id", unique=True)
     await db.events.create_index("event_id", unique=True)
+
+    # Club moments (BeReal) — TTL index on expires_at for auto-cleanup
+    # plus query indexes for hot paths.
+    try:
+        await db.club_moments.create_index("expires_at", expireAfterSeconds=0)
+        await db.club_moments.create_index([("club_id", 1), ("expires_at", -1)])
+        await db.club_moments.create_index([("user_id", 1), ("created_at", -1)])
+        await db.club_moments.create_index("checkin_id", unique=True, sparse=True)
+        await db.club_moments.create_index("moment_id", unique=True)
+    except Exception as e:
+        logging.warning(f"club_moments index init failed: {e}")
 
     # Seed clubs — initial Paris set
     from clubs_extra import EXTRA_CLUBS
