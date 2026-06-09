@@ -54,6 +54,19 @@ export async function configurePurchases(): Promise<void> {
   if (configured) return;
   configured = true;
   realModeAvailable = isRealRevenueCatConfigured();
+  // Debug logging — to help diagnose paywall/offering issues on TestFlight.
+  // Prints which key family is baked into the build (test_ vs appl_) without
+  // leaking the full secret.
+  const debugKey =
+    Platform.OS === 'ios'
+      ? RC_IOS_KEY
+      : Platform.OS === 'android'
+        ? RC_ANDROID_KEY
+        : '';
+  const debugKeyPrefix = debugKey ? debugKey.slice(0, 6) + '…' : '(empty)';
+  console.log(
+    `[purchases] configure platform=${Platform.OS} realMode=${realModeAvailable} keyPrefix=${debugKeyPrefix}`,
+  );
   if (!realModeAvailable) return;
   try {
     // Lazy import so web bundle never loads the native module
@@ -61,9 +74,20 @@ export async function configurePurchases(): Promise<void> {
     const mod = require('react-native-purchases');
     Purchases = mod.default || mod;
     const apiKey = Platform.OS === 'ios' ? RC_IOS_KEY : RC_ANDROID_KEY;
+    // Enable verbose RevenueCat logs in development/TestFlight so we can see
+    // exactly why Offerings come back empty.
+    try {
+      const LogLevel = mod.LOG_LEVEL || mod.LogLevel;
+      if (LogLevel && Purchases.setLogLevel) {
+        Purchases.setLogLevel(LogLevel.DEBUG || LogLevel.debug || 'DEBUG');
+      }
+    } catch {
+      // ignore
+    }
     Purchases.configure({ apiKey });
-  } catch (e) {
-    // SDK not available (e.g. Expo Go) — fall back to dev mode
+    console.log('[purchases] Purchases.configure() OK');
+  } catch (e: any) {
+    console.warn('[purchases] configure failed:', String(e?.message || e));
     realModeAvailable = false;
     Purchases = null;
   }
