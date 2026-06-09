@@ -271,20 +271,10 @@ export const api = {
             const { startLiveListening } = await import('./audioRecognition');
             startLiveListening(club);
           }
-          // BeReal-style 5min capture window — open camera screen
-          try {
-            const { router } = await import('expo-router');
-            // Best-effort navigation; if no router available, the user can
-            // also access it from the map via the "moments" badge.
-            (router as any)?.push?.({
-              pathname: '/bereal-capture',
-              params: { clubId: club_id, clubName: club?.name || '' },
-            });
-          } catch {
-            // silently ignore — bereal is optional
-          }
+          // BeReal-style capture is temporarily disabled (native plugin
+          // removed) — feature will return in a future build.
         } catch {
-          // Live listening + bereal are best-effort.
+          // Live listening is best-effort.
         }
       })();
     }
