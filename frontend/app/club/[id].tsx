@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   Linking,
   Platform,
-  Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,30 +16,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { api, Club } from '../../lib/api';
 import { useClubs } from '../../lib/clubs';
 import { colors, radius, spacing } from '../../lib/theme';
-
-type ClubMoment = {
-  moment_id: string;
-  user_id: string;
-  user_name?: string;
-  user_picture?: string | null;
-  image: string;
-  caption?: string;
-  is_premium_author?: boolean;
-  created_at: string;
-};
-
-function timeAgo(iso: string): string {
-  const t = new Date(iso).getTime();
-  if (!t) return '';
-  const diff = Math.max(0, Date.now() - t);
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "à l'instant";
-  if (m < 60) return `il y a ${m} min`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `il y a ${h}h`;
-  const d = Math.floor(h / 24);
-  return `il y a ${d}j`;
-}
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const DAY_LABELS: Record<string, string> = {
@@ -55,8 +30,6 @@ export default function ClubDetail() {
   const { favorites, toggleFavorite } = useClubs();
   const [club, setClub] = useState<Club | null>(null);
   const [loading, setLoading] = useState(true);
-  const [moments, setMoments] = useState<ClubMoment[]>([]);
-  const [openedMoment, setOpenedMoment] = useState<ClubMoment | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -65,25 +38,6 @@ export default function ClubDetail() {
       .then(setClub)
       .catch(() => setClub(null))
       .finally(() => setLoading(false));
-  }, [id]);
-
-  useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const list = await api.listClubMoments(String(id));
-        if (!cancelled) setMoments(Array.isArray(list) ? list : []);
-      } catch {
-        if (!cancelled) setMoments([]);
-      }
-    };
-    load();
-    const it = setInterval(load, 30_000);
-    return () => {
-      cancelled = true;
-      clearInterval(it);
-    };
   }, [id]);
 
   const isFav = club ? favorites.has(club.club_id) : false;
@@ -198,43 +152,6 @@ export default function ClubDetail() {
             })}
           </Section>
 
-          {moments.length > 0 && (
-            <View style={{ marginBottom: spacing.lg }}>
-              <View style={styles.momentsHeaderRow}>
-                <Text style={styles.sectionTitle}>✨ MOMENTS LIVE · {moments.length}</Text>
-                <Text style={styles.momentsHeaderHint}>Tap pour ouvrir</Text>
-              </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ gap: 10, paddingRight: 8 }}
-              >
-                {moments.map((m) => (
-                  <TouchableOpacity
-                    key={m.moment_id}
-                    onPress={() => setOpenedMoment(m)}
-                    activeOpacity={0.85}
-                    style={styles.momentCard}
-                  >
-                    <Image source={{ uri: m.image }} style={styles.momentImg} />
-                    <View style={styles.momentOverlay} />
-                    <View style={styles.momentFooter}>
-                      <Text style={styles.momentAuthor} numberOfLines={1}>
-                        {m.user_name || 'Anonyme'}
-                      </Text>
-                      <Text style={styles.momentTime}>{timeAgo(m.created_at)}</Text>
-                    </View>
-                    {m.is_premium_author && (
-                      <View style={styles.momentBadge}>
-                        <Text style={styles.momentBadgeText}>⭐</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-
           {club.features.length > 0 && (
             <Section title="Ambiance">
               <View style={styles.featRow}>
@@ -288,42 +205,6 @@ export default function ClubDetail() {
           </Text>
         </TouchableOpacity>
       </View>
-
-      <Modal
-        visible={!!openedMoment}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setOpenedMoment(null)}
-      >
-        <View style={styles.modalRoot}>
-          <TouchableOpacity
-            style={StyleSheet.absoluteFill}
-            activeOpacity={1}
-            onPress={() => setOpenedMoment(null)}
-          />
-          {openedMoment && (
-            <View style={styles.modalCard}>
-              <Image source={{ uri: openedMoment.image }} style={styles.modalImg} />
-              <View style={styles.modalMeta}>
-                <Text style={styles.modalAuthor}>
-                  {openedMoment.user_name || 'Anonyme'}
-                  {openedMoment.is_premium_author ? ' ⭐' : ''}
-                </Text>
-                <Text style={styles.modalTime}>{timeAgo(openedMoment.created_at)}</Text>
-              </View>
-              {!!openedMoment.caption && (
-                <Text style={styles.modalCaption}>{openedMoment.caption}</Text>
-              )}
-              <TouchableOpacity
-                style={styles.modalClose}
-                onPress={() => setOpenedMoment(null)}
-              >
-                <Ionicons name="close" size={20} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      </Modal>
     </View>
   );
 }
