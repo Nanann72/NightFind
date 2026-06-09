@@ -57,16 +57,20 @@ export async function configurePurchases(): Promise<void> {
   // Debug logging — to help diagnose paywall/offering issues on TestFlight.
   // Prints which key family is baked into the build (test_ vs appl_) without
   // leaking the full secret.
-  const debugKey =
-    Platform.OS === 'ios'
-      ? RC_IOS_KEY
-      : Platform.OS === 'android'
-        ? RC_ANDROID_KEY
-        : '';
-  const debugKeyPrefix = debugKey ? debugKey.slice(0, 6) + '…' : '(empty)';
-  console.log(
-    `[purchases] configure platform=${Platform.OS} realMode=${realModeAvailable} keyPrefix=${debugKeyPrefix}`,
-  );
+  try {
+    const debugKey =
+      Platform.OS === 'ios'
+        ? RC_IOS_KEY
+        : Platform.OS === 'android'
+          ? RC_ANDROID_KEY
+          : '';
+    const debugKeyPrefix = debugKey ? debugKey.slice(0, 6) + '…' : '(empty)';
+    console.log(
+      `[purchases] configure platform=${Platform.OS} realMode=${realModeAvailable} keyPrefix=${debugKeyPrefix}`,
+    );
+  } catch {
+    // ignore — never crash on logging
+  }
   if (!realModeAvailable) return;
   try {
     // Lazy import so web bundle never loads the native module
@@ -74,17 +78,21 @@ export async function configurePurchases(): Promise<void> {
     const mod = require('react-native-purchases');
     Purchases = mod.default || mod;
     const apiKey = Platform.OS === 'ios' ? RC_IOS_KEY : RC_ANDROID_KEY;
-    // Enable verbose RevenueCat logs in development/TestFlight so we can see
-    // exactly why Offerings come back empty.
+    Purchases.configure({ apiKey });
+    // Enable verbose RC logs AFTER configure (some SDK versions require this).
+    // Wrapped in try/catch so a missing/changed API never crashes the app.
     try {
       const LogLevel = mod.LOG_LEVEL || mod.LogLevel;
-      if (LogLevel && Purchases.setLogLevel) {
-        Purchases.setLogLevel(LogLevel.DEBUG || LogLevel.debug || 'DEBUG');
+      if (LogLevel && typeof Purchases.setLogLevel === 'function') {
+        const level = LogLevel.DEBUG ?? LogLevel.debug ?? 'DEBUG';
+        Purchases.setLogLevel(level);
       }
-    } catch {
-      // ignore
+    } catch (logErr: any) {
+      console.warn(
+        '[purchases] setLogLevel skipped:',
+        String(logErr?.message || logErr),
+      );
     }
-    Purchases.configure({ apiKey });
     console.log('[purchases] Purchases.configure() OK');
   } catch (e: any) {
     console.warn('[purchases] configure failed:', String(e?.message || e));
