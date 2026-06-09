@@ -3,10 +3,12 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      // react-native-reanimated/plugin MUST be listed last.
-      // Without it, worklets crash on iOS native release builds
-      // (black screen on TestFlight / App Store builds).
-      'react-native-reanimated/plugin',
+      // react-native-worklets/plugin is REQUIRED for react-native-reanimated 4.x
+      // (the legacy 'react-native-reanimated/plugin' is just a wrapper).
+      // Without it, worklets crash silently on iOS native release builds
+      // → black screen on TestFlight / App Store builds.
+      // MUST be listed last (Babel processes plugins in order).
+      'react-native-worklets/plugin',
     ],
   };
 };
