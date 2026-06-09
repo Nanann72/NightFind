@@ -1,105 +1,74 @@
 import { Tabs } from 'expo-router';
-import { Platform, StyleSheet, View } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../lib/theme';
 import { GeofenceCheckIn } from '../../components/GeofenceCheckIn';
+import { LiquidGlassTabBar } from '../../components/LiquidGlassTabBar';
 
 export default function TabsLayout() {
   return (
     <>
       <GeofenceCheckIn />
       <Tabs
+        // Use our custom iOS 26 Liquid Glass floating tab bar.
+        tabBar={(props) => <LiquidGlassTabBar {...props} />}
         screenOptions={{
           headerShown: false,
-          tabBarShowLabel: true,
-          tabBarActiveTintColor: colors.tertiary,
-          tabBarInactiveTintColor: colors.textTertiary,
-          tabBarStyle: {
-            position: 'absolute',
-            borderTopWidth: 0,
-            backgroundColor:
-              Platform.OS === 'android'
-                ? 'rgba(9,9,11,0.92)'
-                : 'transparent',
-            elevation: 0,
-            height: 78,
-            paddingTop: 8,
-            paddingBottom: 18,
-          },
-          tabBarLabelStyle: {
-            fontSize: 11,
-            fontWeight: '700',
-            letterSpacing: 0.4,
-          },
-          tabBarBackground: () =>
-            Platform.OS === 'ios' || Platform.OS === 'web' ? (
-              <BlurView
-                tint="dark"
-                intensity={60}
-                style={[
-                  StyleSheet.absoluteFill,
-                  { backgroundColor: 'rgba(9,9,11,0.6)' },
-                ]}
-              />
-            ) : (
-              <View
-                style={[
-                  StyleSheet.absoluteFill,
-                  { backgroundColor: 'rgba(9,9,11,0.92)' },
-                ]}
-              />
-            ),
         }}
       >
         <Tabs.Screen
           name="index"
           options={{
             title: 'Discover',
+            // Custom prop consumed by LiquidGlassTabBar to render Ionicons.
+            // (Cast to any to bypass strict typing on tabBarOptions.)
+            ...({ tabBarIconName: 'sparkles-outline' } as any),
+            tabBarButtonTestID: 'tab-discover',
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="sparkles-outline" color={color} size={size} />
             ),
-            tabBarButtonTestID: 'tab-discover',
           }}
         />
         <Tabs.Screen
           name="map"
           options={{
             title: 'Map',
+            ...({ tabBarIconName: 'map-outline' } as any),
+            tabBarButtonTestID: 'tab-map',
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="map-outline" color={color} size={size} />
             ),
-            tabBarButtonTestID: 'tab-map',
           }}
         />
         <Tabs.Screen
           name="swipe"
           options={{
             title: 'Swipe',
+            ...({ tabBarIconName: 'heart-outline' } as any),
+            tabBarButtonTestID: 'tab-swipe',
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="heart-outline" color={color} size={size} />
             ),
-            tabBarButtonTestID: 'tab-swipe',
           }}
         />
         <Tabs.Screen
           name="events"
           options={{
             title: 'Events',
+            ...({ tabBarIconName: 'calendar-outline' } as any),
+            tabBarButtonTestID: 'tab-events',
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="calendar-outline" color={color} size={size} />
             ),
-            tabBarButtonTestID: 'tab-events',
           }}
         />
         <Tabs.Screen
           name="profile"
           options={{
             title: 'Profile',
+            ...({ tabBarIconName: 'person-outline' } as any),
+            tabBarButtonTestID: 'tab-profile',
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="person-outline" color={color} size={size} />
             ),
-            tabBarButtonTestID: 'tab-profile',
           }}
         />
       </Tabs>
