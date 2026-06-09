@@ -2,13 +2,12 @@ module.exports = function (api) {
   api.cache(true);
   return {
     presets: ['babel-preset-expo'],
-    plugins: [
-      // react-native-worklets/plugin is REQUIRED for react-native-reanimated 4.x
-      // (the legacy 'react-native-reanimated/plugin' is just a wrapper).
-      // Without it, worklets crash silently on iOS native release builds
-      // → black screen on TestFlight / App Store builds.
-      // MUST be listed last (Babel processes plugins in order).
-      'react-native-worklets/plugin',
-    ],
+    // ⚠️ DO NOT add 'react-native-worklets/plugin' or
+    // 'react-native-reanimated/plugin' here. babel-preset-expo (SDK 54+)
+    // injects the worklets plugin AUTOMATICALLY when react-native-worklets
+    // is installed. Manually re-adding it creates a double-transformation
+    // that silently corrupts the worklet runtime on iOS release builds
+    // (TestFlight → instant black screen at startup). This was the exact
+    // cause of the black screen on builds 113-118.
   };
 };
