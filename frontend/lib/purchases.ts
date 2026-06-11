@@ -45,9 +45,17 @@ let Purchases: any = null;
 
 function isRealRevenueCatConfigured(): boolean {
   if (Platform.OS === 'web') return false;
-  if (Platform.OS === 'ios') return !!RC_IOS_KEY;
-  if (Platform.OS === 'android') return !!RC_ANDROID_KEY;
-  return false;
+  const key = Platform.OS === 'ios' ? RC_IOS_KEY : Platform.OS === 'android' ? RC_ANDROID_KEY : '';
+  if (!key) return false;
+  // CRITICAL: RevenueCat's native SDK calls fatalError() if configured with a
+  // Test Store key ("test_...") in a RELEASE build (Configuration.swift:533,
+  // checkForSimulatedStoreAPIKeyInRelease) → instant crash on TestFlight/App Store.
+  // In release builds, only accept real store keys (appl_ for iOS, goog_ for Android).
+  if (!__DEV__) {
+    const expectedPrefix = Platform.OS === 'ios' ? 'appl_' : 'goog_';
+    if (!key.startsWith(expectedPrefix)) return false;
+  }
+  return true;
 }
 
 export async function configurePurchases(): Promise<void> {

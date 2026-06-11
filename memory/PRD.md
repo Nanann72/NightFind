@@ -74,3 +74,13 @@ Each reservation schedules a **personalized local push 2h before the event**, dr
 - N+1 queries corrigées : `/api/matches` (aggregation $group/$first) et `/api/friends/list` (batch $in).
 - CORS configurable : `CORS_ORIGINS` lu depuis backend/.env (défaut "*").
 - Deployment agent : statut **PASS** final. 53/53 pytest OK.
+
+## 🎯 CAUSE RACINE CONFIRMÉE PAR LOG DE CRASH NATIF (11 juin 2026)
+Le log Xcode (build 105, fourni par le support) montre Thread 8 crashé dans :
+`Configuration.APIKeyValidationResult.checkForSimulatedStoreAPIKeyInRelease (Configuration.swift:533)` — **le SDK RevenueCat appelle fatalError() volontairement quand il est configuré avec une clé Test Store (`test_...`) dans un build RELEASE**.
+Chaîne complète : ancienne clé iOS `test_` → crash design du SDK → l'utilisateur a mis la clé `appl_` dans .env → MAIS le cache Metro périmé commité dans git servait toujours l'ancienne valeur `test_` incrustée → builds 113-121 crashaient encore.
+Correctifs (tous appliqués) :
+1. Cache Metro purgé de git/disque (la clé `appl_` sera désormais incrustée) — fait le 11 juin.
+2. Garde-fou dans `lib/purchases.ts` : en build release (!__DEV__), le SDK n'est configuré QUE si la clé a le bon préfixe (`appl_` iOS / `goog_` Android) → sinon mode mock gracieux. Protège aussi Android (toujours sur clé `test_`).
+3. yarn.lock déterministe + react-navigation dédupliqué (hygiène, fait le 11 juin).
+⚠️ Avant le 1er build Android Play Store : remplacer EXPO_PUBLIC_RC_ANDROID_KEY par la vraie clé `goog_...`.
