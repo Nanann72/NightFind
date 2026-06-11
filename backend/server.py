@@ -1895,10 +1895,15 @@ async def list_friends(user: dict = Depends(get_current_user)):
             out.append({**_public_friend(u), "friendship_id": f.get("friendship_id")})
         return out
 
+    friend_peer_ids = [
+        f["to_user_id"] if f["from_user_id"] == uid else f["from_user_id"] for f in accepted
+    ]
+    friend_users = await db.users.find({"user_id": {"$in": friend_peer_ids}}, {"_id": 0}).to_list(500)
+    fmap = {u["user_id"]: u for u in friend_users}
     friends_list = []
     for f in accepted:
         peer_id = f["to_user_id"] if f["from_user_id"] == uid else f["from_user_id"]
-        peer = await db.users.find_one({"user_id": peer_id}, {"_id": 0})
+        peer = fmap.get(peer_id)
         if peer:
             friends_list.append({**_public_friend(peer), "friendship_id": f.get("friendship_id")})
 
@@ -3197,7 +3202,7 @@ app.include_router(legal_pages.router)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
     allow_methods=["*"],
     allow_headers=["*"],
 )
