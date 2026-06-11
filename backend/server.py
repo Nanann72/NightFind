@@ -1189,14 +1189,19 @@ async def list_matches(user: dict = Depends(get_current_user)):
     peer_ids = list({_other_user_id(m, uid) for m in items})
     users = await db.users.find({"user_id": {"$in": peer_ids}}, {"_id": 0}).to_list(200)
     umap = {u["user_id"]: u for u in users}
+    match_ids = [m["match_id"] for m in items]
+    last_msgs = await db.messages.aggregate([
+        {"$match": {"match_id": {"$in": match_ids}}},
+        {"$sort": {"created_at": -1}},
+        {"$group": {"_id": "$match_id", "text": {"$first": "$text"}, "created_at": {"$first": "$created_at"}}},
+    ]).to_list(len(match_ids))
+    lmap = {lm["_id"]: lm for lm in last_msgs}
     out = []
     for m in items:
         peer = umap.get(_other_user_id(m, uid))
         if not peer:
             continue
-        last = await db.messages.find_one(
-            {"match_id": m["match_id"]}, {"_id": 0}, sort=[("created_at", -1)],
-        )
+        last = lmap.get(m["match_id"])
         out.append({
             "match_id": m["match_id"],
             "with_user_id": peer["user_id"],
