@@ -92,3 +92,12 @@ Correctifs (tous appliqués) :
    - Champ "Privacy Policy URL" : https://fan-culture-app.emergent.host/api/legal/privacy
    - CGU (EULA standard Apple) : ajouter dans la description App Store le lien https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
    - (Alias backend ajoutés le 11 juin : /api/legal/privacy, /api/legal/terms, /api/legal/support — testés 200 OK)
+
+## 🩺 SYSTÈME DE DIAGNOSTIC ÉCRAN NOIR (11 juin 2026, soir — pour build 129+)
+Build 128 : plus de crash (fix RevenueCat OK) mais écran 100% noir PERSISTANT, app reste ouverte = échec de rendu JS silencieux. Cause exacte inconnue → diagnostic embarqué :
+1. **`frontend/index.js`** (nouveau point d'entrée, `main` changé dans package.json) : try/catch autour de `require('expo-router/entry')` → si échec au chargement du module, affiche "NIGHT FINDER — BOOT ERROR" + stack trace sur fond rouge au lieu du noir.
+2. **`RootErrorBoundary`** dans `app/_layout.tsx` : affiche "NIGHT FINDER — RENDER ERROR" + stack si erreur de rendu React.
+3. **Splash réparé** : app.json référençait `splash-icon.png` (INEXISTANT depuis le 8 mai) → remplacé par `splash-image.png` (existant). Le splash n'est plus un écran noir vide.
+4. **METRO_CACHE_ROOT déplacé vers /tmp/metro-cache** (.env) : le cache (160 Mo régénéré !) ne sera plus JAMAIS embarqué dans les zips de déploiement.
+Vérifié : export bundle iOS prod OK (contient les 2 filets), app OK en preview.
+👉 Au prochain build : si écran ROUGE avec texte = envoyer photo du texte (cause exacte) ; si app démarre = résolu ; si encore noir pur = le JS ne démarre pas du tout (problème natif profond → support Emergent avec cette info).
