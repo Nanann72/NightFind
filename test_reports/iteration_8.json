@@ -1,0 +1,34 @@
+{
+  "summary": "Frontend-only smoke regression test after dependency dedup (@react-navigation pinning + expo-asset lock). All critical navigation/rendering paths verified on web preview at 390x844. App loads cleanly (no black/white screen), login with apple.reviewer@nightfinder.app / Reviewer2026! succeeds, all 5 bottom tabs (Discover, Map, Swipe, Events, Profile) switch correctly with distinct content rendered per tab, paywall modal opens from /profile premium-card and back-navigation returns to /profile, and a stack screen (favorites) opens and pops cleanly. No react-navigation / expo-router console errors detected. Only console errors observed are 2 expected 401s on initial token-check (unauthenticated /auth/me before login). PASS — no regression from the dependency pinning.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/tmp/10_login.png",
+    "/tmp/11_after_login.png",
+    "/tmp/12_tab-discover.png",
+    "/tmp/12_tab-map.png",
+    "/tmp/12_tab-swipe.png",
+    "/tmp/12_tab-events.png",
+    "/tmp/12_tab-profile.png",
+    "/tmp/13_paywall.png",
+    "/tmp/14_back.png",
+    "/tmp/15_favorites.png"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Onboarding screen is shown before login on every cold web reload (no AsyncStorage on web persisting completion). Not a regression — pre-existing behavior — but worth noting for App Store reviewer who may need to tap 'Passer' before reaching login.",
+    "Console still emits the long-standing RN-Web deprecation warnings (shadow*, textShadow*, props.pointerEvents) and an expo-notifications web-not-supported warning. These are pre-existing, non-blocking, and unrelated to the dependency pin."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (per request)", "frontend": "100% (6/6 regression checks)"},
+  "seed_data_creation": "None. Used existing seeded reviewer account.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Dependency-pin regression smoke test only (iteration_8). Reviewer login OK, 5 tabs navigate OK, stack push/pop OK, paywall modal OK. If a future change touches @react-navigation versions or expo-router, rerun this exact smoke flow: goto root → Passer → login apple.reviewer@nightfinder.app/Reviewer2026! → click tabs [tab-discover, tab-map, tab-swipe, tab-events, tab-profile] → click premium-card (paywall) → go_back → click row-favorites → go_back. Detect navigation errors with regex /navigation|expo-router|@react-navigation/i on console.error stream.",
+  "rca_of_issue": "N/A — regression test, no bug found."
+}

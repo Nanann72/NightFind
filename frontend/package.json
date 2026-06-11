@@ -17,10 +17,10 @@
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
-    "@react-navigation/bottom-tabs": "^7.3.10",
-    "@react-navigation/elements": "^2.3.8",
-    "@react-navigation/native": "^7.1.6",
-    "@react-navigation/native-stack": "^7.3.10",
+    "@react-navigation/bottom-tabs": "7.4.2",
+    "@react-navigation/elements": "2.5.2",
+    "@react-navigation/native": "7.1.14",
+    "@react-navigation/native-stack": "7.3.21",
     "babel-preset-expo": "~54.0.10",
     "expo": "~54.0.35",
     "expo-apple-authentication": "~8.0.8",
@@ -74,5 +74,15 @@
     "typescript": "~5.9.3"
   },
   "private": true,
+  "resolutions": {
+    "@react-navigation/bottom-tabs": "7.4.2",
+    "@react-navigation/core": "7.12.1",
+    "@react-navigation/elements": "2.5.2",
+    "@react-navigation/native": "7.1.14",
+    "@react-navigation/native-stack": "7.3.21",
+    "@react-navigation/routers": "7.4.1",
+    "expo-asset": "12.0.13",
+    "expo-constants": "18.0.13"
+  },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }
