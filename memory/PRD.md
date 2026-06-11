@@ -68,3 +68,9 @@ Each reservation schedules a **personalized local push 2h before the event**, dr
 - L'utilisateur n'a PLUS de crédits EAS ce mois-ci. NE PAS déclencher de build avant retour des crédits ou validation du support.
 - Au prochain build : vérifier le démarrage, puis le paywall RevenueCat (prix 4,99€/79,99€ avec compte Sandbox).
 - Si le support Emergent envoie les logs de crash natifs : on s'attend à des symboles react-navigation/expo-asset confirmant le diagnostic.
+
+## 🛠 FIX DÉPLOIEMENT (11 juin 2026 — build 125)
+- **Bloqueur EAS tarball** : fichier parasite au nom binaire corrompu (`\001\220\370@@\320\3039@8`) dans /app/frontend → supprimé du disque + de git. Erreur était : "ENOENT lstat" pendant l'upload du tarball EAS.
+- N+1 queries corrigées : `/api/matches` (aggregation $group/$first) et `/api/friends/list` (batch $in).
+- CORS configurable : `CORS_ORIGINS` lu depuis backend/.env (défaut "*").
+- Deployment agent : statut **PASS** final. 53/53 pytest OK.
