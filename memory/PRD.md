@@ -84,3 +84,11 @@ Correctifs (tous appliqués) :
 2. Garde-fou dans `lib/purchases.ts` : en build release (!__DEV__), le SDK n'est configuré QUE si la clé a le bon préfixe (`appl_` iOS / `goog_` Android) → sinon mode mock gracieux. Protège aussi Android (toujours sur clé `test_`).
 3. yarn.lock déterministe + react-navigation dédupliqué (hygiène, fait le 11 juin).
 ⚠️ Avant le 1er build Android Play Store : remplacer EXPO_PUBLIC_RC_ANDROID_KEY par la vraie clé `goog_...`.
+
+## 🍎 REJET APP REVIEW (11 juin 2026, build 118) — Plan de correction
+1. **Guideline 2.1(a) "blank screen"** = écran noir RevenueCat → DÉJÀ CORRIGÉ dans le code (garde-fou purchases.ts + cache Metro purgé). Nouveau build requis.
+2. **Guideline 2.3.6 Age Rating** → ACTION USER dans ASC : App Information > Age Rating > "Mature or Suggestive Themes" = "Frequent" (classement 17+/18+).
+3. **Guideline 3.1.2(c) Abonnements** → Paywall in-app DÉJÀ conforme (titre, durée, prix, liens CGU/privacy). ACTIONS USER dans ASC :
+   - Champ "Privacy Policy URL" : https://fan-culture-app.emergent.host/api/legal/privacy
+   - CGU (EULA standard Apple) : ajouter dans la description App Store le lien https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
+   - (Alias backend ajoutés le 11 juin : /api/legal/privacy, /api/legal/terms, /api/legal/support — testés 200 OK)

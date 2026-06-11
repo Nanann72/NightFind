@@ -342,15 +342,18 @@ SUPPORT_HTML = f"""<!DOCTYPE html>
 
 
 @router.get("/privacy", response_class=HTMLResponse)
+@router.get("/api/legal/privacy", response_class=HTMLResponse)
 async def privacy_page() -> str:
     return PRIVACY_HTML
 
 
 @router.get("/terms", response_class=HTMLResponse)
+@router.get("/api/legal/terms", response_class=HTMLResponse)
 async def terms_page() -> str:
     return TERMS_HTML
 
 
 @router.get("/support", response_class=HTMLResponse)
+@router.get("/api/legal/support", response_class=HTMLResponse)
 async def support_page() -> str:
     return SUPPORT_HTML
