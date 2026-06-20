@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { ScrollView, Text } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../lib/auth';
@@ -9,6 +10,14 @@ import { ClubsProvider } from '../lib/clubs';
 import { PremiumProvider } from '../lib/premium';
 import { attachNotificationActionListeners } from '../lib/notificationsSetup';
 import { colors } from '../lib/theme';
+
+// Defensive splash handling for iOS Release builds:
+// if the native splash never hides (e.g. due to a silent error during root
+// mount), the user is stuck on a black screen. We force-hide it on first
+// effect and again on a safety timeout.
+try {
+  SplashScreen.preventAutoHideAsync().catch(() => {});
+} catch {}
 
 class RootErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -40,8 +49,17 @@ class RootErrorBoundary extends React.Component<
 
 export default function RootLayout() {
   useEffect(() => {
+    // Force-hide the native splash as soon as JS root mounts so we never
+    // get stuck on a black splash screen if a downstream provider stalls.
+    SplashScreen.hideAsync().catch(() => {});
+    // Safety net: in case hideAsync silently rejects, kill the splash hard.
+    const t = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {});
+    }, 2000);
+
     const detach = attachNotificationActionListeners();
     return () => {
+      clearTimeout(t);
       try {
         detach?.();
       } catch {}
