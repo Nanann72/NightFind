@@ -181,6 +181,7 @@ export async function getOfferings(): Promise<PremiumPackage[]> {
 
 export async function purchasePackage(pkg: PremiumPackage): Promise<CustomerInfoLite> {
   if (realModeAvailable && Purchases && pkg.rawPackage) {
+    // ✅ Real RevenueCat purchase — triggers the native Apple/Google payment sheet.
     const { customerInfo } = await Purchases.purchasePackage(pkg.rawPackage);
     const ent = customerInfo?.entitlements?.active?.[PREMIUM_ENTITLEMENT_ID];
     return {
@@ -200,7 +201,21 @@ export async function purchasePackage(pkg: PremiumPackage): Promise<CustomerInfo
         "Veuillez réessayer dans quelques instants.",
     );
   }
-  // DEV mode (Expo Go / web preview) — simulate immediate success and persist
+  // 🚨 CRITICAL: In any RELEASE / PRODUCTION build (TestFlight, App Store, Play
+  // Store), NEVER fall back to a silent "DEV grant". This was the root cause of
+  // the "pay automatically without payment sheet" bug: when the native
+  // RevenueCat SDK failed to load (or returned no offerings), the code below
+  // would mark the user as Premium for free without ever showing the Apple/Play
+  // payment sheet. We now refuse the purchase loudly so the user knows
+  // something is wrong and we never give Premium away for free.
+  if (!__DEV__) {
+    throw new Error(
+      "Le paiement n'est pas disponible. " +
+        "Vérifie ta connexion ou réessaie dans quelques instants.",
+    );
+  }
+  // DEV mode (Expo Go / web preview / __DEV__ builds only) — simulate immediate
+  // success and persist locally so we can test the UX without StoreKit.
   await storage.set(DEV_PREMIUM_KEY, '1');
   return {
     isPremium: true,
