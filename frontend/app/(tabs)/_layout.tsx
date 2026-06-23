@@ -1,8 +1,14 @@
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { GeofenceCheckIn } from '../../components/GeofenceCheckIn';
-import { colors } from '../../lib/theme';
+import { LiquidGlassTabBar } from '../../components/LiquidGlassTabBar';
 
+/**
+ * Tabs layout — iOS 26 "Liquid Glass" floating tab bar.
+ * The bar itself is rendered by `LiquidGlassTabBar` (custom tabBar component),
+ * which renders icons only (no labels) inside a frosted capsule.
+ * We pass the icon name via the `tabBarIconName` option (custom field consumed
+ * by the LiquidGlassTabBar component).
+ */
 export default function TabsLayout() {
   return (
     <>
@@ -10,64 +16,50 @@ export default function TabsLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: colors.tertiary,
-          tabBarInactiveTintColor: colors.textTertiary,
-          tabBarStyle: {
-            backgroundColor: colors.surface,
-            borderTopColor: 'rgba(255,255,255,0.06)',
-            borderTopWidth: 0.5,
-          },
+          // Hide the default label-rendering since we display icon-only.
+          tabBarShowLabel: false,
         }}
+        tabBar={(props) => <LiquidGlassTabBar {...props} />}
       >
         <Tabs.Screen
           name="index"
           options={{
             title: 'Discover',
             tabBarButtonTestID: 'tab-discover',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="sparkles-outline" color={color} size={size} />
-            ),
-          }}
+            tabBarIconName: 'sparkles-outline',
+          } as any}
         />
         <Tabs.Screen
           name="map"
           options={{
             title: 'Map',
             tabBarButtonTestID: 'tab-map',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="map-outline" color={color} size={size} />
-            ),
-          }}
+            tabBarIconName: 'map-outline',
+          } as any}
         />
         <Tabs.Screen
           name="swipe"
           options={{
             title: 'Swipe',
             tabBarButtonTestID: 'tab-swipe',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="heart-outline" color={color} size={size} />
-            ),
-          }}
+            tabBarIconName: 'heart-outline',
+          } as any}
         />
         <Tabs.Screen
           name="events"
           options={{
             title: 'Events',
             tabBarButtonTestID: 'tab-events',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="calendar-outline" color={color} size={size} />
-            ),
-          }}
+            tabBarIconName: 'calendar-outline',
+          } as any}
         />
         <Tabs.Screen
           name="profile"
           options={{
             title: 'Profile',
             tabBarButtonTestID: 'tab-profile',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="person-outline" color={color} size={size} />
-            ),
-          }}
+            tabBarIconName: 'person-outline',
+          } as any}
         />
       </Tabs>
     </>

@@ -8,6 +8,7 @@ import {
   Image,
   Platform,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import Animated, {
@@ -45,6 +46,7 @@ function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: numb
 }
 
 export function GeofenceCheckIn() {
+  const router = useRouter();
   const { user } = useAuth();
   const { clubs } = useClubs();
   const [candidate, setCandidate] = useState<Club | null>(null);
@@ -131,8 +133,17 @@ export function GeofenceCheckIn() {
       }
     } catch {}
     dismissed.current[candidate.club_id] = Date.now();
+    const wasConfirmed = confirmed;
+    const clubId = candidate.club_id;
     setSubmitting(false);
     setCandidate(null);
+    // After a confirmed check-in, propose the BeReal capture screen.
+    if (wasConfirmed) {
+      // Small delay so the modal-close animation completes first.
+      setTimeout(() => {
+        router.push({ pathname: '/bereal-capture', params: { club_id: clubId } });
+      }, 250);
+    }
   };
 
   const close = () => {

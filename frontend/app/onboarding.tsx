@@ -7,13 +7,16 @@ import {
   Dimensions,
   Platform,
   ImageBackground,
+  Image,
   TextInput,
   ScrollView,
   KeyboardAvoidingView,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -62,6 +65,7 @@ type Screen =
   | { kind: 'location'; lines: Line[]; cta: string }
   | { kind: 'notifications'; lines: Line[]; cta: string }
   | { kind: 'swipe-profile'; cta: string; ctaSkip: string }
+  | { kind: 'photos'; cta: string; ctaSkip: string }
   | Feature;
 
 const SCREENS: Screen[] = [
@@ -283,6 +287,11 @@ const SCREENS: Screen[] = [
     cta: 'Activer les notifications',
   },
   {
+    kind: 'photos',
+    cta: 'Continuer',
+    ctaSkip: 'Plus tard',
+  },
+  {
     kind: 'swipe-profile',
     cta: 'Continuer',
     ctaSkip: 'Plus tard',
@@ -406,11 +415,14 @@ export default function Onboarding() {
   const [spBio, setSpBio] = useState('');
   const [spCity, setSpCity] = useState('');
   const [spInsta, setSpInsta] = useState('');
+  // Photo picker (collected during onboarding, persisted to account on signup)
+  const [photos, setPhotos] = useState<string[]>([]);
   const screen = SCREENS[screenIdx];
   const isFeature = screen.kind === 'feature';
   const isSwipeProfile = screen.kind === 'swipe-profile';
-  const lines = (isFeature || isSwipeProfile) ? [] : (screen as any).lines;
-  const ready = (isFeature || isSwipeProfile) ? true : lineIdx >= lines.length - 1;
+  const isPhotos = screen.kind === 'photos';
+  const lines = (isFeature || isSwipeProfile || isPhotos) ? [] : (screen as any).lines;
+  const ready = (isFeature || isSwipeProfile || isPhotos) ? true : lineIdx >= lines.length - 1;
 
   // Reset line index when entering a screen
   useEffect(() => {
@@ -427,9 +439,10 @@ export default function Onboarding() {
   const next = async () => {
     vibrate('medium');
     if (screenIdx === SCREENS.length - 1) {
-      // Going to register, save selections + swipe-profile fields
+      // Going to register, save selections + swipe-profile fields + photos
       await saveOnboarding({
         music: musicSel,
+        photos: photos.length > 0 ? photos : undefined,
         bio: spBio.trim() || undefined,
         city: spCity.trim() || undefined,
         instagram: spInsta.trim() || undefined,
@@ -444,6 +457,43 @@ export default function Onboarding() {
   const skipSwipeProfile = async () => {
     vibrate('light');
     setScreenIdx((s) => s + 1);
+  };
+
+  // Pick a photo from the gallery (handles permission + base64 conversion).
+  const pickPhoto = async () => {
+    if (photos.length >= 3) return;
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        if (!perm.canAskAgain) {
+          Alert.alert(
+            'Accès aux photos refusé',
+            "Va dans les Réglages pour autoriser Night Finder à accéder à ta galerie photo.",
+          );
+        }
+        return;
+      }
+      vibrate('light');
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.6,
+        base64: true,
+        allowsEditing: true,
+        aspect: [3, 4],
+      });
+      if (result.canceled) return;
+      const asset = result.assets?.[0];
+      if (!asset?.base64) return;
+      const mime = asset.mimeType || 'image/jpeg';
+      setPhotos((prev) => [...prev, `data:${mime};base64,${asset.base64}`]);
+    } catch {
+      // ignore
+    }
+  };
+
+  const removePhoto = (idx: number) => {
+    vibrate('light');
+    setPhotos((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const skip = async () => {
@@ -608,6 +658,80 @@ export default function Onboarding() {
         </Animated.View>
       )}
 
+      {/* Photo picker — 3 slots */}
+      {screen.kind === 'photos' && (
+        <ScrollView
+          contentContainerStyle={styles.photosScroll}
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View entering={FadeInDown.duration(450)} style={styles.spHeaderBlock}>
+            <View
+              style={[
+                styles.featureIcon,
+                { backgroundColor: 'rgba(0,240,255,0.18)', borderColor: 'rgba(0,240,255,0.6)' },
+              ]}
+            >
+              <Ionicons name="images" size={32} color={colors.tertiary} />
+            </View>
+            <Text style={[styles.spEyebrow, { color: colors.tertiary }]}>
+              {"07 · Tes photos swipe"}
+            </Text>
+            <Text style={styles.spTitle}>{"Ajoute jusqu'à\n3 photos."}</Text>
+            <Text style={styles.spSubtitle}>
+              {"Elles s'afficheront sur ton profil quand on swipe sur toi. Choisis tes meilleures photos en soirée."}
+            </Text>
+          </Animated.View>
+          <View style={styles.photoGrid}>
+            {[0, 1, 2].map((slot) => {
+              const uri = photos[slot];
+              if (uri) {
+                return (
+                  <Animated.View
+                    key={slot}
+                    entering={FadeInDown.delay(80 + slot * 60).duration(380)}
+                    style={styles.photoTile}
+                  >
+                    <Image source={{ uri }} style={styles.photoImg} />
+                    <TouchableOpacity
+                      style={styles.photoRemove}
+                      onPress={() => removePhoto(slot)}
+                      testID={`onboarding-photo-remove-${slot}`}
+                      hitSlop={8}
+                    >
+                      <Ionicons name="close" size={14} color={colors.bg} />
+                    </TouchableOpacity>
+                    {slot === 0 && (
+                      <View style={styles.photoBadge}>
+                        <Text style={styles.photoBadgeText}>Principale</Text>
+                      </View>
+                    )}
+                  </Animated.View>
+                );
+              }
+              return (
+                <Animated.View
+                  key={slot}
+                  entering={FadeInDown.delay(80 + slot * 60).duration(380)}
+                >
+                  <TouchableOpacity
+                    style={styles.photoSlot}
+                    onPress={pickPhoto}
+                    testID={`onboarding-photo-add-${slot}`}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="add" size={28} color={colors.textSecondary} />
+                    <Text style={styles.photoSlotText}>Ajouter</Text>
+                  </TouchableOpacity>
+                </Animated.View>
+              );
+            })}
+          </View>
+          <Text style={styles.spHint}>
+            💡 Ta première photo sera ta photo principale. Tu pourras les modifier plus tard depuis ton profil.
+          </Text>
+        </ScrollView>
+      )}
+
       {/* Swipe-profile mini config — collected during onboarding, persisted at signup */}
       {screen.kind === 'swipe-profile' && (
         <KeyboardAvoidingView
@@ -741,13 +865,17 @@ export default function Onboarding() {
       {Content}
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
-        {isSwipeProfile && (
+        {(isSwipeProfile || isPhotos) && (
           <TouchableOpacity
             style={styles.spSkipBtn}
             onPress={skipSwipeProfile}
-            testID="onboarding-sp-skip"
+            testID={isPhotos ? 'onboarding-photos-skip' : 'onboarding-sp-skip'}
           >
-            <Text style={styles.spSkipText}>Plus tard, je le ferai depuis mon profil</Text>
+            <Text style={styles.spSkipText}>
+              {isPhotos
+                ? 'Plus tard, je les ajouterai depuis mon profil'
+                : 'Plus tard, je le ferai depuis mon profil'}
+            </Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
@@ -1062,4 +1190,56 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   spSkipText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13, textDecorationLine: 'underline' },
+
+  // Photo picker
+  photosScroll: { paddingHorizontal: 4, paddingTop: 4, paddingBottom: 20 },
+  photoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 10,
+  },
+  photoSlot: {
+    width: (width - spacing.xl * 2 - 20) / 3,
+    aspectRatio: 3 / 4,
+    borderRadius: radius.lg,
+    backgroundColor: 'rgba(24,24,27,0.85)',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  photoSlotText: { color: colors.textTertiary, fontWeight: '700', fontSize: 11 },
+  photoTile: {
+    width: (width - spacing.xl * 2 - 20) / 3,
+    aspectRatio: 3 / 4,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: colors.surface,
+  },
+  photoImg: { width: '100%', height: '100%' },
+  photoRemove: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(9,9,11,0.75)',
+  },
+  photoBadgeText: { color: colors.textPrimary, fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
 });
