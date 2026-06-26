@@ -8,6 +8,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '../lib/auth';
 import { ClubsProvider } from '../lib/clubs';
 import { PremiumProvider } from '../lib/premium';
+import { ThemeProvider, useTheme } from '../lib/themeContext';
+import { TabBarScrollProvider } from '../lib/tabBarScroll';
 import { attachNotificationActionListeners } from '../lib/notificationsSetup';
 import { colors } from '../lib/theme';
 
@@ -47,6 +49,27 @@ class RootErrorBoundary extends React.Component<
   }
 }
 
+function ThemedRootContent() {
+  const { resolvedScheme, colors: themeColors } = useTheme();
+  return (
+    <>
+      <StatusBar style={resolvedScheme === 'dark' ? 'light' : 'dark'} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: themeColors.bg },
+          animation: 'fade',
+        }}
+      >
+        <Stack.Screen
+          name="paywall"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+      </Stack>
+    </>
+  );
+}
+
 export default function RootLayout() {
   useEffect(() => {
     // Force-hide the native splash as soon as JS root mounts so we never
@@ -69,27 +92,19 @@ export default function RootLayout() {
   return (
     <RootErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <SafeAreaProvider>
-        <AuthProvider>
-          <PremiumProvider>
-            <ClubsProvider>
-              <StatusBar style="light" />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: colors.bg },
-                  animation: 'fade',
-                }}
-              >
-                <Stack.Screen
-                  name="paywall"
-                  options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-                />
-              </Stack>
-            </ClubsProvider>
-          </PremiumProvider>
-        </AuthProvider>
-      </SafeAreaProvider>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <PremiumProvider>
+                <ClubsProvider>
+                  <TabBarScrollProvider>
+                    <ThemedRootContent />
+                  </TabBarScrollProvider>
+                </ClubsProvider>
+              </PremiumProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
       </GestureHandlerRootView>
     </RootErrorBoundary>
   );

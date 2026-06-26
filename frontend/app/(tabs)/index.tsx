@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   Image,
   TouchableOpacity,
   RefreshControl,
@@ -11,12 +10,14 @@ import {
   TextInput,
   ScrollView,
 } from 'react-native';
+import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Club } from '../../lib/api';
 import { useClubs } from '../../lib/clubs';
 import { useLocation } from '../../lib/useLocation';
+import { useTabBarScroll } from '../../lib/tabBarScroll';
 import { SafeImage } from '../../components/SafeImage';
 import { colors, radius, spacing } from '../../lib/theme';
 
@@ -32,6 +33,7 @@ export default function Discover() {
   const insets = useSafeAreaInsets();
   const { clubs, loading, favorites, refresh, toggleFavorite, filters, setFilters, setCoords } = useClubs();
   const loc = useLocation();
+  const { onScroll: onScrollHide } = useTabBarScroll();
   const [search, setSearch] = useState('');
   const [active, setActive] = useState('all');
 
@@ -130,11 +132,13 @@ export default function Discover() {
         </ScrollView>
       </View>
 
-      <FlatList
+      <Animated.FlatList
         data={filtered}
         keyExtractor={(c) => c.club_id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140 }}
+        scrollEventThrottle={16}
+        onScroll={(e) => onScrollHide(e.nativeEvent.contentOffset.y)}
         refreshControl={
           <RefreshControl
             refreshing={loading}
@@ -149,13 +153,15 @@ export default function Discover() {
             <Text style={styles.empty}>Aucun club ne correspond pour le moment.</Text>
           )
         }
-        renderItem={({ item }) => (
-          <ClubCard
-            club={item}
-            isFav={favorites.has(item.club_id)}
-            onToggleFav={() => toggleFavorite(item.club_id)}
-            onPress={() => router.push(`/club/${item.club_id}` as any)}
-          />
+        renderItem={({ item, index }) => (
+          <Animated.View entering={FadeInDown.delay(index * 40).springify().damping(18)}>
+            <ClubCard
+              club={item}
+              isFav={favorites.has(item.club_id)}
+              onToggleFav={() => toggleFavorite(item.club_id)}
+              onPress={() => router.push(`/club/${item.club_id}` as any)}
+            />
+          </Animated.View>
         )}
       />
     </View>

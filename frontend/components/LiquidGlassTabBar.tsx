@@ -1,183 +1,226 @@
-import React from 'react';
-import {
-  View,
-  StyleSheet,
-  Platform,
-  Pressable,
-} from 'react-native';
+/**
+ * LiquidGlassTabBar v2 — iOS 26 inspired floating tab bar
+ * -------------------------------------------------------
+ *  • Floating capsule with native BlurView (iOS) / fallback (Android/Web)
+ *  • Auto-hide on scroll down, reveal on scroll up
+ *  • Active-tab pill with spring slide
+ *  • Icon morph (outline → filled) on selection + scale bounce
+ *  • Haptic feedback on tab change
+ *  • Edge-to-edge respect of safe area
+ */
+import React, { useEffect } from 'react';
+import { View, Pressable, StyleSheet, Platform, Dimensions } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  Easing,
+  interpolate,
+  Extrapolation,
+} from 'react-native-reanimated';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { useThemeColors } from '../lib/themeContext';
+import { useTabBarScroll } from '../lib/tabBarScroll';
+import { motion, radius, shadows, typography } from '../lib/theme';
 
-/**
- * iOS 26 "Liquid Glass" floating tab bar.
- *
- * - Frosted glass capsule, detached from the bottom edge
- * - Active tab gets a soft pill highlight behind its icon
- * - No text labels (icon-only, native iOS 26 look)
- * - Works on iOS (BlurView), Android (translucent solid fallback)
- */
-export function LiquidGlassTabBar({
-  state,
-  descriptors,
-  navigation,
-}: BottomTabBarProps) {
+const { width: SCREEN_W } = Dimensions.get('window');
+const BAR_HEIGHT = 60;
+const BAR_HORIZONTAL_MARGIN = 16;
+const BAR_VERTICAL_OFFSET = 8;
+
+// Map route → icon pair (outline / filled)
+const ICON_MAP: Record<string, { outline: keyof typeof Ionicons.glyphMap; filled: keyof typeof Ionicons.glyphMap }> = {
+  index: { outline: 'sparkles-outline', filled: 'sparkles' },
+  map: { outline: 'map-outline', filled: 'map' },
+  swipe: { outline: 'heart-outline', filled: 'heart' },
+  events: { outline: 'calendar-outline', filled: 'calendar' },
+  profile: { outline: 'person-outline', filled: 'person' },
+};
+
+function TabIcon({
+  name,
+  focused,
+  color,
+}: {
+  name: string;
+  focused: boolean;
+  color: string;
+}) {
+  const pair = ICON_MAP[name] || { outline: 'square-outline' as any, filled: 'square' as any };
+  const scale = useSharedValue(focused ? 1 : 0.9);
+  useEffect(() => {
+    scale.value = withSpring(focused ? 1.08 : 0.9, motion.spring.bouncy);
+  }, [focused, scale]);
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+  return (
+    <Animated.View style={animStyle}>
+      <Ionicons
+        name={focused ? pair.filled : pair.outline}
+        size={focused ? 26 : 24}
+        color={color}
+      />
+    </Animated.View>
+  );
+}
+
+export function LiquidGlassTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const bottomGap = Math.max(insets.bottom - 4, 14);
+  const colors = useThemeColors();
+  const { tabBarVisible } = useTabBarScroll();
+
+  const barWidth = SCREEN_W - BAR_HORIZONTAL_MARGIN * 2;
+  const tabWidth = barWidth / state.routes.length;
+  const pillTranslateX = useSharedValue(state.index * tabWidth);
+
+  useEffect(() => {
+    pillTranslateX.value = withSpring(state.index * tabWidth, motion.spring.smooth);
+  }, [state.index, tabWidth, pillTranslateX]);
+
+  // Animated style for show/hide on scroll
+  const containerStyle = useAnimatedStyle(() => {
+    const ty = interpolate(
+      tabBarVisible.value,
+      [0, 1],
+      [BAR_HEIGHT + insets.bottom + BAR_VERTICAL_OFFSET + 20, 0],
+      Extrapolation.CLAMP,
+    );
+    const opacity = interpolate(tabBarVisible.value, [0, 0.5, 1], [0, 0.6, 1], Extrapolation.CLAMP);
+    return { transform: [{ translateY: ty }], opacity };
+  });
+
+  // Pill style
+  const pillStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: pillTranslateX.value }],
+  }));
+
+  const tint = colors.statusBarStyle === 'light' ? 'dark' : 'light';
 
   return (
-    <View
-      style={[styles.outer, { paddingBottom: bottomGap }]}
+    <Animated.View
       pointerEvents="box-none"
+      style={[
+        styles.container,
+        {
+          paddingBottom: Math.max(insets.bottom, 8) + BAR_VERTICAL_OFFSET,
+          paddingHorizontal: BAR_HORIZONTAL_MARGIN,
+        },
+        containerStyle,
+      ]}
     >
-      <View style={styles.capsuleShadow} pointerEvents="box-none">
-        <View style={styles.capsuleWrap}>
-          {Platform.OS === 'ios' ? (
-            <BlurView
-              tint="dark"
-              intensity={70}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: 'rgba(20,20,22,0.88)' },
-              ]}
-            />
-          )}
-          <View style={styles.capsuleTint} />
-          <View style={styles.capsuleBorder} pointerEvents="none" />
-          <View style={styles.row}>
-            {state.routes.map((route, index) => {
-              const { options } = descriptors[route.key];
-              const isFocused = state.index === index;
+      <View
+        style={[
+          styles.bar,
+          {
+            backgroundColor: Platform.OS === 'web' ? colors.tabBarBg : 'transparent',
+            borderColor: colors.tabBarBorder,
+          },
+          shadows.lg,
+        ]}
+      >
+        {Platform.OS !== 'web' && (
+          <BlurView
+            intensity={Platform.OS === 'ios' ? 70 : 50}
+            tint={tint}
+            experimentalBlurMethod="dimezisBlurView"
+            style={StyleSheet.absoluteFillObject}
+          />
+        )}
 
-              const onPress = () => {
-                const event = navigation.emit({
-                  type: 'tabPress',
-                  target: route.key,
-                  canPreventDefault: true,
-                });
-                if (!isFocused && !event.defaultPrevented) {
-                  navigation.navigate(route.name as never);
-                }
-              };
+        {/* Sliding active pill */}
+        <Animated.View
+          style={[
+            styles.pill,
+            {
+              width: tabWidth - 12,
+              left: 6,
+              backgroundColor: colors.fillStrong,
+            },
+            pillStyle,
+          ]}
+        />
 
-              const onLongPress = () => {
-                navigation.emit({
-                  type: 'tabLongPress',
-                  target: route.key,
-                });
-              };
+        {state.routes.map((route, i) => {
+          const focused = state.index === i;
+          const { options } = descriptors[route.key];
 
-              const iconName = (options as any).tabBarIconName as
-                | keyof typeof Ionicons.glyphMap
-                | undefined;
-              const label = (options.title as string) || route.name;
+          const onPress = () => {
+            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+            if (!focused && !event.defaultPrevented) {
+              if (Platform.OS !== 'web') {
+                try { Haptics.selectionAsync(); } catch {}
+              }
+              navigation.navigate(route.name as never);
+            }
+          };
 
-              return (
-                <Pressable
-                  key={route.key}
-                  accessibilityRole="button"
-                  accessibilityState={isFocused ? { selected: true } : {}}
-                  accessibilityLabel={label}
-                  testID={(options as any).tabBarButtonTestID}
-                  onPress={onPress}
-                  onLongPress={onLongPress}
-                  style={styles.itemPressable}
-                  hitSlop={6}
-                >
-                  <View
-                    style={[
-                      styles.itemInner,
-                      isFocused && styles.itemInnerActive,
-                    ]}
-                  >
-                    <Ionicons
-                      name={
-                        (isFocused
-                          ? iconName?.replace(/-outline$/, '')
-                          : iconName) || 'ellipse-outline'
-                      }
-                      size={24}
-                      color={isFocused ? '#fff' : 'rgba(255,255,255,0.55)'}
-                    />
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
+          const onLongPress = () => {
+            navigation.emit({ type: 'tabLongPress', target: route.key });
+            if (Platform.OS !== 'web') {
+              try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+            }
+          };
+
+          const color = focused ? colors.textPrimary : colors.textTertiary;
+          const testID = (options as any).tabBarButtonTestID || `tab-${route.name}`;
+
+          return (
+            <Pressable
+              key={route.key}
+              onPress={onPress}
+              onLongPress={onLongPress}
+              style={styles.tab}
+              testID={testID}
+              accessibilityRole="button"
+              accessibilityState={focused ? { selected: true } : {}}
+              accessibilityLabel={(options as any).tabBarAccessibilityLabel || route.name}
+              hitSlop={8}
+            >
+              <TabIcon name={route.name} focused={focused} color={color} />
+            </Pressable>
+          );
+        })}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  outer: {
+  container: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    alignItems: 'center',
-    paddingHorizontal: 20,
+    zIndex: 100,
+    elevation: 100,
   },
-  capsuleShadow: {
-    // Soft drop shadow to lift the capsule off content (iOS only).
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOpacity: 0.35,
-        shadowRadius: 24,
-        shadowOffset: { width: 0, height: 12 },
-      },
-      android: {
-        elevation: 14,
-      },
-    }),
-    borderRadius: 36,
-  },
-  capsuleWrap: {
-    borderRadius: 36,
-    overflow: 'hidden',
-    // Slight inner tint baked into the wrapper for cross-platform parity.
-    backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(20,20,22,0.92)',
-  },
-  capsuleTint: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(12,12,14,0.55)',
-  },
-  capsuleBorder: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 36,
-    borderWidth: 0.6,
-    borderColor: 'rgba(255,255,255,0.10)',
-  },
-  row: {
+  bar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 6,
-    paddingVertical: 8,
+    justifyContent: 'space-between',
+    height: BAR_HEIGHT,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    position: 'relative',
   },
-  itemPressable: {
+  pill: {
+    position: 'absolute',
+    top: 6,
+    bottom: 6,
+    borderRadius: radius.pill,
+  },
+  tab: {
     flex: 1,
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  itemInner: {
-    width: 54,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  itemInnerActive: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    // Subtle highlight border on the active pill.
-    borderWidth: 0.6,
-    borderColor: 'rgba(255,255,255,0.18)',
+    zIndex: 2,
   },
 });
