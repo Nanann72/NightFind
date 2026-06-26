@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   Image,
   TouchableOpacity,
   ActivityIndicator,
@@ -15,12 +14,14 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { api, NFEvent } from '../../lib/api';
 import { useClubs } from '../../lib/clubs';
 import { usePremium } from '../../lib/premium';
+import { useTabBarScroll } from '../../lib/tabBarScroll';
 import { addToCalendar } from '../../lib/calendar';
 import { colors, radius, spacing } from '../../lib/theme';
 
@@ -29,6 +30,7 @@ export default function Events() {
   const router = useRouter();
   const { clubs } = useClubs();
   const { isPremium } = usePremium();
+  const { onScroll: onScrollHide } = useTabBarScroll();
   const [events, setEvents] = useState<NFEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState<string | null>(null);
@@ -189,10 +191,12 @@ export default function Events() {
         </Text>
       </View>
 
-      <FlatList
+      <Animated.FlatList
         data={events}
-        keyExtractor={(e) => e.event_id}
+        keyExtractor={(e: NFEvent) => e.event_id}
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: 160 }}
+        scrollEventThrottle={16}
+        onScroll={(e) => onScrollHide(e.nativeEvent.contentOffset.y)}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.primary} />}
         ListEmptyComponent={
           loading ? (
@@ -201,7 +205,8 @@ export default function Events() {
             <Text style={styles.empty}>Aucune soirée à venir. Crée la première via le bouton +.</Text>
           )
         }
-        renderItem={({ item }) => (
+        renderItem={({ item, index }: { item: NFEvent; index: number }) => (
+          <Animated.View entering={FadeInDown.delay(index * 40).springify().damping(18)}>
           <View style={styles.card} testID={`event-card-${item.event_id}`}>
             <Image source={{ uri: item.photo || '' }} style={styles.image} />
             <View style={styles.gradient} />
@@ -249,6 +254,7 @@ export default function Events() {
               </View>
             </View>
           </View>
+          </Animated.View>
         )}
       />
 
