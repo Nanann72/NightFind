@@ -1,6 +1,5 @@
-import { Platform } from 'react-native';
+import { Platform, Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import {
   BG_LOCATION_TASK,

@@ -8,7 +8,7 @@ import React, {
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
-import * as Linking from 'expo-linking';
+// expo-linking import removed — was unused and could fail autolinking on EAS builds.
 import { api, User } from './api';
 import { clearToken, getToken, saveToken } from './storage';
 
