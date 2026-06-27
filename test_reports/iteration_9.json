@@ -1,0 +1,53 @@
+{
+  "summary": "Frontend-only smoke test of the iOS 26 design system refonte (Night Finder). App boots cleanly on web preview (HTTP 200, no JS pageerror, no red error screen). Onboarding renders with new typography/branding. Login with apple.reviewer@nightfinder.app succeeds. The floating capsule LiquidGlassTabBar with 5 icons (discover/map/swipe/events/profile) is visible at the bottom on all tab screens (BlurView falls back to colors.tabBarBg solid on web — expected). Discover renders 18+ club cards with FadeInDown animation, search bar, and quick filter chips. Events tab shows empty-state correctly with locked FAB. Profile tab renders avatar, stats, Premium card, all sections and scrolls without issue. No regression detected from the design system refonte. NOTE: backend was explicitly out-of-scope per request, only verified /api/clubs returns 200.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "events",
+        "issues": [
+          "FAB is shown locked (lock-closed icon) for the Apple Reviewer account even though test_credentials.md states reviewer should be Premium. This is the existing RevenueCat-on-web fallback (PremiumProvider returns isPremium=false on web). NOT a regression of this design refonte — pre-existing. Flagging for awareness only."
+        ]
+      },
+      {
+        "screen": "tab-bar",
+        "issues": [
+          "On web preview the BlurView correctly falls back to solid colors.tabBarBg (rgba(16,16,18,0.78)). The 'frosted' look therefore won't be perceptible on web QA — only on native iOS build. Capsule shape, sliding pill, and icon-only layout do render correctly."
+        ]
+      }
+    ],
+    "react_native_issues": [
+      {
+        "component": "app/(tabs)/index.tsx",
+        "issue": "Unused import `FadeIn` from 'react-native-reanimated' (line 13). Minor — should be removed to avoid lint warnings. Reference: /app/frontend/app/(tabs)/index.tsx:13"
+      },
+      {
+        "component": "lib/tabBarScroll.tsx",
+        "issue": "useTabBarScroll() fallback path calls useSharedValue conditionally only when ctx is null (line 73). This violates the Rules of Hooks if a consumer ever toggles between provider/no-provider mounting. Currently safe because TabBarScrollProvider is always mounted in app/_layout.tsx, but the fallback hook should not be invoking hooks. Reference: /app/frontend/lib/tabBarScroll.tsx:69-82"
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional cleanup: remove unused `FadeIn` import in app/(tabs)/index.tsx:13.",
+    "Optional refactor: in lib/tabBarScroll.tsx the fallback branch of useTabBarScroll() shouldn't call useSharedValue (rules-of-hooks). Replace with a module-level constant or move the SharedValue creation outside the conditional.",
+    "If you want the floating-capsule frosted look visible on web QA too, consider giving the LiquidGlassTabBar bar a slight backdrop-filter blur via Platform.OS==='web' style (e.g. `backdropFilter: 'blur(20px)'` via View style) — currently web users see only a solid translucent bar.",
+    "Pre-existing (not part of refonte): Apple Reviewer account shows Premium FAB locked on web because RevenueCat is unavailable on web — verify on native iOS build before App Store submission."
+  ],
+  "critical_code_review_comments": [
+    "ThemeProvider correctly wraps the tree at app/_layout.tsx (line 96) BEFORE TabBarScrollProvider — good.",
+    "LiquidGlassTabBar zIndex/elevation 100 + pointerEvents='box-none' on outer Animated.View ensures content scrolls behind it without intercepting clicks — correct.",
+    "Discover, Events and Profile correctly wire onScroll to useTabBarScroll().onScroll for auto-hide behavior.",
+    "Multiple screens still import legacy `colors` from '../../lib/theme' (the dark-only static palette) instead of using useThemeColors() from themeContext. Light-mode toggling will therefore NOT update Discover/Events/Profile colors — they will stay dark even if the user picks light mode. This is acceptable as a transitional refonte step but should be tracked in a follow-up.",
+    "The LiquidGlassTabBar pillStyle width = tabWidth - 12 with left:6; pill slides via translateX = state.index * tabWidth — correct geometry."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (out of scope)", "frontend": "100% (8/8 target features verified)" },
+  "seed_data_creation": "None. Used existing apple.reviewer@nightfinder.app account and seeded clubs.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Public URL: https://fan-culture-app.preview.emergentagent.com. Login: apple.reviewer@nightfinder.app / Reviewer2026!. Onboarding has skip-btn testID=onboarding-skip-btn. Login has testIDs login-email-input, login-password-input, login-submit-btn. Tab bar exposes testIDs tab-discover, tab-map, tab-swipe, tab-events, tab-profile. Screens expose testIDs discover-screen, events-screen, profile-screen. BlurView on web falls back to solid colors.tabBarBg (expected, do not flag as bug).",
+  "rca_of_issue": "n/a — no bug to RCA. Design refonte boots and renders cleanly across the three modified tabs."
+}
