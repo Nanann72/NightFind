@@ -10,7 +10,7 @@ import {
   TextInput,
   ScrollView,
 } from 'react-native';
-import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
