@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  ScrollView,
   Alert,
   TextInput,
   Modal,
@@ -15,6 +14,7 @@ import {
   Switch,
   Linking,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +22,7 @@ import { useAuth } from '../../lib/auth';
 import { useClubs } from '../../lib/clubs';
 import { api } from '../../lib/api';
 import { usePremium } from '../../lib/premium';
+import { useTabBarScroll } from '../../lib/tabBarScroll';
 import {
   startBackgroundLocation,
   stopBackgroundLocation,
@@ -47,6 +48,7 @@ const MUSIC_OPTIONS: { id: string; label: string; emoji: string }[] = [
 export default function Profile() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { onScroll: onScrollHide } = useTabBarScroll();
   const { user, signOut, refresh } = useAuth();
   const { favorites, clubs } = useClubs();
   const { isPremium, devMode, devReset, customerInfo } = usePremium();
@@ -302,9 +304,11 @@ export default function Profile() {
 
   return (
     <>
-      <ScrollView
+      <Animated.ScrollView
         style={[styles.container, { paddingTop: insets.top }]}
         contentContainerStyle={{ paddingBottom: 140 }}
+        scrollEventThrottle={16}
+        onScroll={(e) => onScrollHide(e.nativeEvent.contentOffset.y)}
         testID="profile-screen"
       >
         <View style={styles.headerWrap}>
@@ -689,7 +693,7 @@ export default function Profile() {
         </View>
 
         <Text style={styles.version}>Night Finder · v1.0.0</Text>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* DEPRECATED PLACEHOLDER (kept for state references) */}
       <View style={{ display: 'none' }}>{null}</View>
