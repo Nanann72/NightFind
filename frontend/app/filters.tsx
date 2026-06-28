@@ -13,7 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useClubs } from '../lib/clubs';
 import { usePremium } from '../lib/premium';
-import { colors, radius, spacing } from '../lib/theme';
+import { HapticButton } from '../components/ui/HapticButton';
+import { colors, radius, spacing, shadows } from '../lib/theme';
 
 const MUSIC_GENRES = [
   'techno', 'house', 'electronic', 'hip-hop', 'rnb', 'disco',
@@ -165,9 +166,15 @@ export default function Filters() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: 16 + insets.bottom / 2 }]}>
-        <TouchableOpacity style={styles.apply} onPress={apply} testID="filters-apply-btn">
+        <HapticButton
+          haptic="medium"
+          scale={0.97}
+          style={[styles.apply, shadows.primaryGlow]}
+          onPress={apply}
+          testID="filters-apply-btn"
+        >
           <Text style={styles.applyText}>Appliquer</Text>
-        </TouchableOpacity>
+        </HapticButton>
       </View>
     </View>
   );
