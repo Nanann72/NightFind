@@ -15,7 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { usePremium } from '../lib/premium';
-import { colors, radius, spacing } from '../lib/theme';
+import { HapticButton } from '../components/ui/HapticButton';
+import { colors, radius, spacing, shadows } from '../lib/theme';
 
 const BENEFITS = [
   { icon: 'infinite' as const, title: 'Swipes illimités', desc: 'Plus de limite quotidienne' },
@@ -224,8 +225,10 @@ export default function Paywall() {
       </ScrollView>
 
       <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
-        <TouchableOpacity
-          style={[styles.cta, busy && { opacity: 0.6 }]}
+        <HapticButton
+          haptic="medium"
+          scale={0.97}
+          style={[styles.cta, busy && { opacity: 0.6 }, shadows.primaryGlow]}
           disabled={busy || !selectedPkg}
           onPress={onPurchase}
           testID="paywall-buy-btn"
@@ -237,7 +240,7 @@ export default function Paywall() {
               Continuer pour {selectedPkg?.priceString || ''}
             </Text>
           )}
-        </TouchableOpacity>
+        </HapticButton>
       </View>
     </View>
   );
