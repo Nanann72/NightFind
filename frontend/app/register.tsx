@@ -17,7 +17,8 @@ import { api } from '../lib/api';
 import { loadOnboarding, clearOnboarding } from '../lib/onboardingStore';
 import { SocialAuthButtons } from '../components/SocialAuthButtons';
 import { MaskedDOBInput } from '../components/MaskedDOBInput';
-import { colors, radius, spacing } from '../lib/theme';
+import { HapticButton } from '../components/ui/HapticButton';
+import { colors, radius, spacing, shadows } from '../lib/theme';
 
 export default function Register() {
   const router = useRouter();
@@ -208,19 +209,20 @@ export default function Register() {
           </Text>
         )}
 
-        <TouchableOpacity
-          style={[styles.primaryBtn, (!acceptTerms || loading) && { opacity: 0.5 }]}
+        <HapticButton
+          haptic="medium"
+          scale={0.97}
+          style={[styles.primaryBtn, shadows.primaryGlow, (!acceptTerms || loading) && { opacity: 0.5 }]}
           onPress={onSubmit}
           disabled={loading || !acceptTerms}
           testID="register-submit-btn"
-          activeOpacity={0.85}
         >
           {loading ? (
             <ActivityIndicator color={colors.bg} />
           ) : (
-            <Text style={styles.primaryBtnText}>S'inscrire</Text>
+            <Text style={styles.primaryBtnText}>S&apos;inscrire</Text>
           )}
-        </TouchableOpacity>
+        </HapticButton>
 
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
