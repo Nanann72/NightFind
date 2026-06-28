@@ -15,7 +15,8 @@ import { useRouter, Link } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../lib/auth';
 import { SocialAuthButtons } from '../components/SocialAuthButtons';
-import { colors, radius, spacing } from '../lib/theme';
+import { HapticButton } from '../components/ui/HapticButton';
+import { colors, radius, spacing, shadows } from '../lib/theme';
 
 export default function Login() {
   const router = useRouter();
@@ -123,14 +124,14 @@ export default function Login() {
           </Text>
         )}
 
-        <TouchableOpacity
-          style={styles.primaryBtn}
+        <HapticButton
+          haptic="medium"
+          scale={0.97}
+          style={[styles.primaryBtn, shadows.primaryGlow]}
           onPress={onSubmit}
           disabled={loading}
           testID="login-submit-btn"
-          activeOpacity={0.85}
           accessibilityLabel="Se connecter"
-          accessibilityRole="button"
           accessibilityState={{ disabled: loading, busy: loading }}
         >
           {loading ? (
@@ -138,7 +139,7 @@ export default function Login() {
           ) : (
             <Text style={styles.primaryBtnText}>Se connecter</Text>
           )}
-        </TouchableOpacity>
+        </HapticButton>
 
         <View style={styles.divider}>
           <View style={styles.line} />
