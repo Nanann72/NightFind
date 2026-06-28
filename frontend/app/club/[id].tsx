@@ -4,18 +4,30 @@ import {
   Text,
   StyleSheet,
   Image,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   Linking,
   Platform,
+  Dimensions,
 } from 'react-native';
+import Animated, {
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  interpolate,
+  Extrapolation,
+} from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api, Club } from '../../lib/api';
 import { useClubs } from '../../lib/clubs';
-import { colors, radius, spacing } from '../../lib/theme';
+import { HapticButton } from '../../components/ui/HapticButton';
+import { colors, radius, spacing, typography } from '../../lib/theme';
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const HERO_HEIGHT = 360;
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const DAY_LABELS: Record<string, string> = {
@@ -41,6 +53,33 @@ export default function ClubDetail() {
   }, [id]);
 
   const isFav = club ? favorites.has(club.club_id) : false;
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((e) => {
+    scrollY.value = e.contentOffset.y;
+  });
+
+  // Stretchy hero — scales up when overscroll down, parallax when scroll up
+  const heroAnimStyle = useAnimatedStyle(() => {
+    const ty = interpolate(
+      scrollY.value,
+      [-HERO_HEIGHT, 0, HERO_HEIGHT],
+      [-HERO_HEIGHT / 2, 0, HERO_HEIGHT * 0.55],
+      Extrapolation.CLAMP,
+    );
+    const scale = interpolate(scrollY.value, [-HERO_HEIGHT, 0], [2.4, 1], Extrapolation.CLAMP);
+    return { transform: [{ translateY: ty }, { scale }] };
+  });
+
+  // Sticky compact header — fades in once user scrolls past 60% of hero
+  const stickyHeaderStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      scrollY.value,
+      [HERO_HEIGHT * 0.5, HERO_HEIGHT * 0.85],
+      [0, 1],
+      Extrapolation.CLAMP,
+    );
+    return { opacity };
+  });
 
   const openDirections = () => {
     if (!club) return;
@@ -70,18 +109,42 @@ export default function ClubDetail() {
 
   return (
     <View style={styles.container} testID="club-detail-screen">
-      <ScrollView contentContainerStyle={{ paddingBottom: 140 }}>
+      {/* Sticky compact header — fades in on scroll */}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.stickyHeader, { paddingTop: insets.top }, stickyHeaderStyle]}
+      >
+        {Platform.OS !== 'web' ? (
+          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFillObject} />
+        ) : (
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(12,12,15,0.92)' }]} />
+        )}
+        <View style={styles.stickyContent}>
+          <Text style={styles.stickyTitle} numberOfLines={1}>{club.name}</Text>
+        </View>
+      </Animated.View>
+
+      <Animated.ScrollView
+        contentContainerStyle={{ paddingBottom: 140 }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.heroWrap}>
-          <Image source={{ uri: club.photos[0] }} style={styles.hero} />
+          <Animated.View style={[styles.heroImgWrap, heroAnimStyle]}>
+            <Image source={{ uri: club.photos[0] }} style={styles.hero} />
+          </Animated.View>
           <View style={styles.heroOverlay} />
-          <TouchableOpacity
+          <HapticButton
+            haptic="light"
             style={[styles.headerBtn, { top: insets.top + 12, left: 16 }]}
             onPress={() => router.back()}
             testID="back-btn"
           >
             <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
-          </TouchableOpacity>
-          <TouchableOpacity
+          </HapticButton>
+          <HapticButton
+            haptic={isFav ? 'success' : 'light'}
             style={[styles.headerBtn, { top: insets.top + 12, right: 16 }]}
             onPress={() => toggleFavorite(club.club_id)}
             testID="detail-fav-btn"
@@ -91,7 +154,7 @@ export default function ClubDetail() {
               size={20}
               color={isFav ? colors.primary : colors.textPrimary}
             />
-          </TouchableOpacity>
+          </HapticButton>
 
           <View style={styles.heroBottom}>
             <View style={styles.chipsRow}>
@@ -183,7 +246,7 @@ export default function ClubDetail() {
             </Section>
           )}
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       <View style={[styles.footer, { paddingBottom: 24 + insets.bottom / 2 }]}>
         <TouchableOpacity
@@ -221,8 +284,29 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
-  heroWrap: { height: 380, position: 'relative' },
+  heroWrap: { height: HERO_HEIGHT, position: 'relative', overflow: 'hidden' },
+  heroImgWrap: { width: SCREEN_W, height: HERO_HEIGHT },
   hero: { width: '100%', height: '100%' },
+  stickyHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 50,
+    overflow: 'hidden',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255,255,255,0.08)',
+  },
+  stickyContent: {
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 64,
+  },
+  stickyTitle: {
+    ...typography.headline,
+    color: colors.textPrimary,
+  },
   heroOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(9,9,11,0.4)',
