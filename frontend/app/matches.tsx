@@ -13,6 +13,7 @@ import { useRouter, Stack, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../lib/api';
+import { HapticButton } from '../components/ui/HapticButton';
 import { colors, radius, spacing } from '../lib/theme';
 
 export default function Matches() {
@@ -61,10 +62,11 @@ export default function Matches() {
           )
         }
         renderItem={({ item }) => (
-          <TouchableOpacity
+          <HapticButton
+            haptic="light"
+            scale={0.98}
             style={styles.row}
             onPress={() => router.push(`/chat/${item.match_id}`)}
-            activeOpacity={0.85}
             testID={`match-row-${item.match_id}`}
           >
             {item.photo ? (
@@ -81,7 +83,7 @@ export default function Matches() {
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-          </TouchableOpacity>
+          </HapticButton>
         )}
       />
     </View>
