@@ -80,6 +80,12 @@ export async function initI18n(): Promise<LangCode> {
   try {
     i18n.locale = chosen;
   } catch {}
+  // Notify any hooks that have already mounted (e.g. Settings rendered
+  // before initI18n finished its async storage read) so their `lang`
+  // state syncs to the real saved/detected locale.
+  listeners.forEach((cb) => {
+    try { cb(chosen); } catch {}
+  });
   return chosen;
 }
 

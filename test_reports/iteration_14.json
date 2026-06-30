@@ -1,0 +1,39 @@
+{
+  "summary": "Frontend retest of the 1-line i18n listener fix in /app/frontend/lib/i18n.ts (initI18n now calls `listeners.forEach((cb) => { try { cb(chosen); } catch {} });` after `i18n.locale = chosen;`). VERDICT: FIX CONFIRMED WORKING — the iteration-13 regression is resolved. All 4 requested scenarios pass on web: (1) Pre-set lang to 'en', force-reload → Settings header renders 'Settings and activity' AND Language picker shows the red checkmark-circle on lang-en (NOT on Français), confirmed by reading the icon color rgb(224, 26, 79) on the English row only; (2) Picking Français from the picker correctly routes back to /settings, header switches to 'Paramètres et activité', and row-language subtext reads 'Français'; (3) Picking Arabic → storage='ar', after force-reload Settings header shows 'الإعدادات والنشاط' and re-opening the picker shows the red checkmark on lang-ar; reverting to FR works and persists storage='fr'; (4) All three legal docs (cgu / privacy / legal) open with their localized titles ('Conditions Générales d'Utilisation', 'Politique de Confidentialité', 'Mentions Légales') and NO red screen — RootErrorBoundary not triggered. Listener notification pump is back in initI18n and useTranslation hooks now sync their `lang` state on first launch regardless of mount order. Native TestFlight crash remains out of scope as previously documented.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/settings (AR/EN render)",
+        "issues": [
+          "Pre-existing (not a regression of this fix): Premium row label/subtext still hardcoded FR — visible in Arabic settings screenshot: 'Passer en Premium' and 'Swipes illimités • Rayon 200km • Sans pub'. Reference: /app/frontend/app/settings.tsx lines 411-417.",
+          "Pre-existing: 'My swipe profile' row subtext 'Photos, bio, ville, Insta' is hardcoded FR. Reference: /app/frontend/app/settings.tsx line 390.",
+          "Pre-existing: Account row default subtext fallback 'Username, profil, sécurité' is hardcoded FR. Reference: /app/frontend/app/settings.tsx line 382.",
+          "Pre-existing: Modal titles 'Ton prénom', 'Ton @username', 'Tes styles préférés' and CTA 'Enregistrer' are hardcoded FR.",
+          "Pre-existing: Sign-out confirmation Alert text ('Déconnexion', 'Êtes-vous sûr…') is hardcoded FR."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_14.json"],
+  "action_items": [
+    "No retest needed for the listener fix — verified working end-to-end. Safe to hand off to user.",
+    "Optional follow-up (low priority, NOT a regression): localize the remaining hardcoded-FR strings in settings.tsx flagged above using existing t() keys (or add new dictionary keys for the modal titles).",
+    "Optional hardening on /language onPick: replace the `if (code === lang) router.back();` early-return with a comparison against `i18n.locale` (source of truth) instead of the React state, to protect against any future stale-state regression. Currently not blocking since the listener fix keeps `lang` in sync, but defense-in-depth would help."
+  ],
+  "critical_code_review_comments": [
+    "i18n.ts fix is correctly placed BEFORE `return chosen;` (lines 86-88) and wrapped in try/catch per callback — clean implementation matching iteration 13's recommendation verbatim.",
+    "The fix preserves the defensive refactor's original intent: still does NOT call I18nManager.forceRTL on first init (which was the root cause of the iOS first-mount crash). Only the listener pump was restored.",
+    "language.tsx still uses React-state `lang` for the active-row comparison and the onPick early-return. Now safe because the listener fix syncs state, but consider using i18n.locale as belt-and-suspenders."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100% (4/4 requested scenarios pass)"},
+  "seed_data_creation": "None — reused existing Apple reviewer account (apple.reviewer@nightfinder.app).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login: apple.reviewer@nightfinder.app / Reviewer2026! at https://fan-culture-app.preview.emergentagent.com/login. Mobile viewport 390x844. Storage key for language is 'nf_lang'. To detect the active language in the picker reliably, read the icon span color — active row has rgb(224, 26, 79) (primary red), inactive rows have rgb(86, 86, 94). DO NOT rely on the Ionicons glyph name in HTML (it's rendered as a Unicode char from the ionicons font). The 1-line listener fix in /app/frontend/lib/i18n.ts is verified holding. Legal screens (cgu/privacy/legal) all render cleanly. Cloudflare 401s on background expo-notifications resources are harmless. The hardcoded-FR strings in settings.tsx (Premium row, swipe-profile subtext, modal titles, sign-out alert) are pre-existing from iteration 12 and were NOT introduced by the current fix.",
+  "rca_of_issue": "Not applicable — this iteration confirms the iteration-13-recommended fix works. The previous regression (initI18n setting i18n.locale without notifying listeners) is fully resolved by the 1-line addition at /app/frontend/lib/i18n.ts:86-88."
+}
