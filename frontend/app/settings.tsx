@@ -469,8 +469,8 @@ export default function Settings() {
           {renderRow(visibility === 'clubs_only' ? 'eye-outline' : 'eye-off-outline', t('settings.visibility'), undefined, {
             subtext:
               visibility === 'clubs_only'
-                ? 'Tes amis te voient sur la carte (uniquement en boîte)'
-                : 'Personne ne voit où tu sors',
+                ? t('settings.visibilityOn')
+                : t('settings.visibilityOff'),
             right: savingVis ? (
               <ActivityIndicator color={colors.primary} />
             ) : (
@@ -485,7 +485,7 @@ export default function Settings() {
             testID: 'row-visibility',
           })}
           {renderRow('radio-outline', t('settings.bgDetection'), undefined, {
-            subtext: 'On te propose de confirmer ta soirée en arrivant au club',
+            subtext: t('settings.bgDetectionSub'),
             right: togglingBg ? (
               <ActivityIndicator color={colors.primary} />
             ) : (
@@ -503,7 +503,7 @@ export default function Settings() {
             testID: 'row-blocked',
           })}
           {renderRow('key-outline', t('settings.changePassword'), () => router.push('/forgot-password' as any), {
-            subtext: 'On t\'enverra un lien de réinitialisation par email',
+            subtext: t('settings.changePasswordSub'),
             testID: 'row-change-password',
           })}
           {renderRow('language-outline', t('settings.language'), () => router.push('/language' as any),
