@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useClubs } from '../lib/clubs';
 import { api, ActiveFriend } from '../lib/api';
-import { colors, radius, spacing } from '../lib/theme';
+import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
+import { useThemeColors } from '../lib/themeContext';
 
 export default function MapImpl() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { clubs } = useClubs();
@@ -119,7 +122,7 @@ export default function MapImpl() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   webTitle: {
     color: colors.textPrimary,
@@ -197,3 +200,10 @@ const styles = StyleSheet.create({
   webName: { color: colors.textPrimary, fontWeight: '700' },
   webMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

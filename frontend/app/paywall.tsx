@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { usePremium } from '../lib/premium';
 import { HapticButton } from '../components/ui/HapticButton';
-import { colors, radius, spacing, shadows } from '../lib/theme';
+import { radius, spacing, shadows, type ThemeColors, darkColors } from '../lib/theme';
+import { useThemeColors } from '../lib/themeContext';
 
 const BENEFITS = [
   { icon: 'infinite' as const, title: 'Swipes illimités', desc: 'Plus de limite quotidienne' },
@@ -30,6 +31,8 @@ const BENEFITS = [
 ];
 
 export default function Paywall() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const params = useLocalSearchParams<{ reason?: string }>();
   const insets = useSafeAreaInsets();
@@ -246,7 +249,7 @@ export default function Paywall() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   headerRow: {
     flexDirection: 'row',
@@ -429,3 +432,10 @@ const styles = StyleSheet.create({
   },
   ctaText: { color: colors.bg, fontWeight: '900', fontSize: 16, letterSpacing: 0.3 },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

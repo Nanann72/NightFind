@@ -19,7 +19,8 @@ import { useClubs } from '../../lib/clubs';
 import { useLocation } from '../../lib/useLocation';
 import { useTabBarScroll } from '../../lib/tabBarScroll';
 import { SafeImage } from '../../components/SafeImage';
-import { colors, radius, spacing } from '../../lib/theme';
+import { radius, spacing, type ThemeColors, darkColors } from '../../lib/theme';
+import { useThemeColors } from '../../lib/themeContext';
 
 const QUICK_FILTERS: { key: string; label: string; emoji: string }[] = [
   { key: 'all', label: 'Tous', emoji: '✨' },
@@ -29,6 +30,8 @@ const QUICK_FILTERS: { key: string; label: string; emoji: string }[] = [
 ];
 
 export default function Discover() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { clubs, loading, favorites, refresh, toggleFavorite, filters, setFilters, setCoords } = useClubs();
@@ -225,7 +228,7 @@ function ClubCard({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     paddingHorizontal: spacing.lg,
@@ -376,3 +379,10 @@ const styles = StyleSheet.create({
     marginTop: 60,
   },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,8 @@ import Animated, {
   FadeIn,
 } from 'react-native-reanimated';
 import { storage } from '../lib/storage';
-import { colors, radius, spacing } from '../lib/theme';
+import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
+import { useThemeColors } from '../lib/themeContext';
 
 const TUTORIAL_KEY = 'nf_swipe_tutorial_seen';
 const { width } = Dimensions.get('window');
@@ -138,7 +139,7 @@ export function SwipeTutorial() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   root: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 99,
@@ -190,3 +191,10 @@ const styles = StyleSheet.create({
   nextBtn: { flex: 2, paddingVertical: 14, borderRadius: radius.lg, alignItems: 'center', backgroundColor: colors.primary },
   nextText: { color: colors.bg, fontWeight: '900' },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

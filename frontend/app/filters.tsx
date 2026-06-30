@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useClubs } from '../lib/clubs';
 import { usePremium } from '../lib/premium';
 import { HapticButton } from '../components/ui/HapticButton';
-import { colors, radius, spacing, shadows } from '../lib/theme';
+import { radius, spacing, shadows, type ThemeColors, darkColors } from '../lib/theme';
+import { useThemeColors } from '../lib/themeContext';
 
 const MUSIC_GENRES = [
   'techno', 'house', 'electronic', 'hip-hop', 'rnb', 'disco',
@@ -24,6 +25,8 @@ const RADIUS_OPTIONS = [5, 10, 25, 50];
 const RADIUS_PREMIUM = 200;
 
 export default function Filters() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { filters, setFilters } = useClubs();
@@ -214,7 +217,7 @@ function SwitchRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
@@ -314,3 +317,10 @@ const styles = StyleSheet.create({
   },
   applyText: { color: colors.bg, fontWeight: '800', fontSize: 16 },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

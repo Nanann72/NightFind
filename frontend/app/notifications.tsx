@@ -13,7 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
 import { api } from '../lib/api';
-import { colors, radius, spacing } from '../lib/theme';
+import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
+import { useThemeColors } from '../lib/themeContext';
 
 const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   event: 'calendar',
@@ -39,6 +40,8 @@ const LABELS: Record<string, string> = {
 type Group = { type: string; items: any[]; expanded: boolean };
 
 export default function Notifications() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<any[]>([]);
@@ -302,7 +305,7 @@ function formatWhen(iso: string) {
   }
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
@@ -392,3 +395,10 @@ const styles = StyleSheet.create({
   emptyTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '900', marginTop: 14 },
   emptyText: { color: colors.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 20 },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

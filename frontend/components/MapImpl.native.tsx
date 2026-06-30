@@ -7,7 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useClubs } from '../lib/clubs';
 import { useLocation } from '../lib/useLocation';
 import { api, ActiveFriend } from '../lib/api';
-import { colors, radius, spacing } from '../lib/theme';
+import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
+import { useThemeColors } from '../lib/themeContext';
 
 const DARK_MAP_STYLE = [
   { elementType: 'geometry', stylers: [{ color: '#0f0f12' }] },
@@ -19,6 +20,8 @@ const DARK_MAP_STYLE = [
 ];
 
 export default function MapImpl() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { clubs } = useClubs();
@@ -172,7 +175,7 @@ export default function MapImpl() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   marker: {
     width: 24,
@@ -300,3 +303,10 @@ const styles = StyleSheet.create({
   bottomCta: { color: colors.tertiary, marginTop: 6, fontWeight: '700', fontSize: 12 },
   bottomClose: { padding: 12, alignSelf: 'flex-start' },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -23,9 +23,12 @@ import { useClubs } from '../../lib/clubs';
 import { usePremium } from '../../lib/premium';
 import { useTabBarScroll } from '../../lib/tabBarScroll';
 import { addToCalendar } from '../../lib/calendar';
-import { colors, radius, spacing } from '../../lib/theme';
+import { radius, spacing, type ThemeColors, darkColors } from '../../lib/theme';
+import { useThemeColors } from '../../lib/themeContext';
 
 export default function Events() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { clubs } = useClubs();
@@ -453,7 +456,7 @@ function parseInputDate(s: string): string | null {
   return Number.isNaN(t) ? null : new Date(t).toISOString();
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
   brand: {
@@ -627,3 +630,10 @@ const styles = StyleSheet.create({
   selectedClubName: { color: colors.textPrimary, fontWeight: '800' },
   selectedClubAddr: { color: colors.textTertiary, fontSize: 12, marginTop: 2 },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

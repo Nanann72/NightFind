@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { api, Club } from '../../lib/api';
 import { useClubs } from '../../lib/clubs';
 import { HapticButton } from '../../components/ui/HapticButton';
-import { colors, radius, spacing, typography } from '../../lib/theme';
+import { radius, spacing, typography, type ThemeColors, darkColors } from '../../lib/theme';
+import { useThemeColors } from '../../lib/themeContext';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const HERO_HEIGHT = 360;
@@ -36,6 +37,8 @@ const DAY_LABELS: Record<string, string> = {
 };
 
 export default function ClubDetail() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -281,7 +284,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
   heroWrap: { height: HERO_HEIGHT, position: 'relative', overflow: 'hidden' },
@@ -514,3 +517,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

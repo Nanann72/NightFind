@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import {
   Modal,
   View,
@@ -26,7 +26,8 @@ import { useAuth } from '../lib/auth';
 import { useClubs } from '../lib/clubs';
 import { startLiveListeningMock } from '../lib/liveListening';
 import { startLiveListening } from '../lib/audioRecognition';
-import { colors, radius, spacing } from '../lib/theme';
+import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
+import { useThemeColors } from '../lib/themeContext';
 
 const GEOFENCE_RADIUS_KM = 0.05; // 50m
 const POLL_INTERVAL_MS = 60 * 1000;
@@ -224,7 +225,7 @@ export function GeofenceCheckIn() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   root: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.lg },
   backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.75)' },
   card: {
@@ -288,3 +289,10 @@ const styles = StyleSheet.create({
   btnYes: { backgroundColor: colors.primary },
   btnYesText: { color: colors.bg, fontWeight: '900', fontSize: 15 },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

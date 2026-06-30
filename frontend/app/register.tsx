@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,9 +18,12 @@ import { loadOnboarding, clearOnboarding } from '../lib/onboardingStore';
 import { SocialAuthButtons } from '../components/SocialAuthButtons';
 import { MaskedDOBInput } from '../components/MaskedDOBInput';
 import { HapticButton } from '../components/ui/HapticButton';
-import { colors, radius, spacing, shadows } from '../lib/theme';
+import { radius, spacing, shadows, type ThemeColors, darkColors } from '../lib/theme';
+import { useThemeColors } from '../lib/themeContext';
 
 export default function Register() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { signUp } = useAuth();
   const [name, setName] = useState('');
@@ -245,7 +248,7 @@ export default function Register() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { padding: spacing.xl, paddingTop: 64, paddingBottom: 40 },
   back: { marginBottom: spacing.lg },
@@ -328,3 +331,10 @@ const styles = StyleSheet.create({
   bottomText: { color: colors.textSecondary },
   bottomLink: { color: colors.primary, fontWeight: '700' },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

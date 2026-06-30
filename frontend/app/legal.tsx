@@ -2,7 +2,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius, spacing } from '../lib/theme';
+import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
+import { useThemeColors } from '../lib/themeContext';
 
 const APP_NAME = 'Night Finder';
 const COMPANY = '[Nom de la société — à compléter]';
@@ -152,6 +153,8 @@ const DOCS: Record<string, { title: string; body: string }> = {
 };
 
 export default function LegalDoc() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const params = useLocalSearchParams<{ doc?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -175,7 +178,7 @@ export default function LegalDoc() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: 'row',
@@ -191,3 +194,10 @@ const styles = StyleSheet.create({
   scroll: { padding: spacing.lg, paddingBottom: 80 },
   body: { color: colors.textSecondary, fontSize: 14, lineHeight: 22, whiteSpace: 'pre-wrap' as any },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   TextInput,
@@ -6,7 +6,8 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius } from '../lib/theme';
+import { radius, type ThemeColors, darkColors } from '../lib/theme';
+import { useThemeColors } from '../lib/themeContext';
 
 type Props = {
   /** Canonical value YYYY-MM-DD (empty string if not set) */
@@ -116,7 +117,7 @@ export function MaskedDOBInput({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   field: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -135,3 +136,10 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

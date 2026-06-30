@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { TouchableOpacity, Text, View, ActivityIndicator, StyleSheet, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../lib/auth';
-import { colors, radius } from '../lib/theme';
+import { radius, type ThemeColors, darkColors } from '../lib/theme';
+import { useThemeColors } from '../lib/themeContext';
 
 export function SocialAuthButtons({ onSuccess }: { onSuccess?: () => void }) {
   const router = useRouter();
@@ -82,7 +83,7 @@ export function SocialAuthButtons({ onSuccess }: { onSuccess?: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   wrap: { gap: 10 },
   googleBtn: {
     flexDirection: 'row',
@@ -107,3 +108,10 @@ const styles = StyleSheet.create({
   },
   appleText: { color: colors.bg, fontWeight: '700', fontSize: 15 },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

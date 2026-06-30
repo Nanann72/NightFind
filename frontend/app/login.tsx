@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -16,9 +16,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../lib/auth';
 import { SocialAuthButtons } from '../components/SocialAuthButtons';
 import { HapticButton } from '../components/ui/HapticButton';
-import { colors, radius, spacing, shadows } from '../lib/theme';
+import { radius, spacing, shadows, type ThemeColors, darkColors } from '../lib/theme';
+import { useThemeColors } from '../lib/themeContext';
 
 export default function Login() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
@@ -162,7 +165,7 @@ export default function Login() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   scroll: { padding: spacing.xl, paddingTop: 80, paddingBottom: 40 },
   header: { marginBottom: spacing.xl },
@@ -244,3 +247,10 @@ const styles = StyleSheet.create({
   bottomText: { color: colors.textSecondary },
   bottomLink: { color: colors.primary, fontWeight: '700' },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

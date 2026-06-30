@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -25,7 +25,8 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { UserActionsMenu } from '../../components/UserActionsMenu';
-import { colors, radius, spacing } from '../../lib/theme';
+import { radius, spacing, type ThemeColors, darkColors } from '../../lib/theme';
+import { useThemeColors } from '../../lib/themeContext';
 
 const { width } = Dimensions.get('window');
 const CARD_W = width - 32;
@@ -46,6 +47,8 @@ type SwipeProfile = {
 };
 
 export default function SwipePeople() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -403,7 +406,7 @@ export default function SwipePeople() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', backgroundColor: colors.bg, padding: 24 },
   header: { width: '100%', paddingHorizontal: spacing.lg, marginBottom: 12, alignSelf: 'flex-start' },
@@ -616,3 +619,10 @@ const styles = StyleSheet.create({
   },
   ctaText: { color: colors.bg, fontWeight: '900' },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

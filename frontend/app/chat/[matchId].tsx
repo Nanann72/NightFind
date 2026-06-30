@@ -20,7 +20,8 @@ import * as Clipboard from 'expo-clipboard';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { UserActionsMenu } from '../../components/UserActionsMenu';
-import { colors, radius, spacing } from '../../lib/theme';
+import { radius, spacing, type ThemeColors, darkColors } from '../../lib/theme';
+import { useThemeColors } from '../../lib/themeContext';
 
 const POLL_MS = 3000;
 const TYPING_POLL_MS = 2500;
@@ -46,6 +47,8 @@ function formatTime(iso: string) {
 }
 
 export default function Chat() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { matchId } = useLocalSearchParams<{ matchId: string }>();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -416,7 +419,7 @@ export default function Chat() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -484,3 +487,10 @@ const styles = StyleSheet.create({
   sheetCancel: { borderBottomWidth: 0, justifyContent: 'center', marginTop: 6 },
   sheetCancelText: { color: colors.textSecondary, fontWeight: '700', fontSize: 14 },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);

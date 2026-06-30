@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -31,7 +31,8 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { saveOnboarding } from '../lib/onboardingStore';
-import { colors, radius, spacing } from '../lib/theme';
+import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
+import { useThemeColors } from '../lib/themeContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -406,6 +407,8 @@ function WordLine({
 // ============== Main screen ============== //
 
 export default function Onboarding() {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [screenIdx, setScreenIdx] = useState(0);
@@ -959,7 +962,7 @@ function PulsingIcon({
 
 // ============== STYLES ============== //
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   bgGradient: { backgroundColor: colors.bg },
   bgGlowA: {
@@ -1243,3 +1246,10 @@ const styles = StyleSheet.create({
   },
   photoBadgeText: { color: colors.textPrimary, fontSize: 9, fontWeight: '900', letterSpacing: 0.5 },
 });
+
+
+// Module-level fallback: sub-components that aren't theme-aware
+// keep rendering in dark mode until they're individually refactored to
+// use `useThemeColors()`.
+const colors = darkColors;
+const styles = makeStyles(darkColors);
