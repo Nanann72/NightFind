@@ -1,0 +1,63 @@
+{
+  "summary": "Frontend-only regression test of the i18n defensive refactor (initI18n no longer calls applyLocale). Good news: NO red screen anywhere — login, Profile, Settings, Language picker, and all 3 legal docs (cgu/privacy/legal) render cleanly on web. Arabic switching also works on web without crashing (forceRTL is correctly skipped on web). Settings header renders correctly in EN ('Settings and activity') and AR ('الإعدادات والنشاط'). Profile labels translate end-to-end (Edit profile / Share profile / تعديل الملف الشخصي / مشاركة الملف). Premium card subtitle on Profile shows the EN copy 'Unlimited swipes • 200km radius • Ad-free' as expected. BAD news: the defensive refactor introduced a real REGRESSION in `initI18n()` — it now sets `i18n.locale = chosen` but no longer notifies React listeners. Result: every screen mounted before/during initI18n (= virtually all screens, because RootLayout fires initI18n in a useEffect *after* the first render) keeps the stale module-default `lang='fr'` in its React state. The most user-visible symptom is on the LANGUAGE PICKER itself: when the saved language is e.g. 'en' or 'ar', the picker UI still shows Français with the red checkmark. Because of the `if (code === lang) router.back();` early return in language.tsx onPick, the user CANNOT reset to French by tapping it (the tap is treated as a no-op and storage stays unchanged). Confirmed live: storage was 'en', picker showed FR active, tapping lang-fr left storage = 'en'. Same pattern after switching to AR: storage was 'ar' but picker showed FR active and tapping lang-fr left storage = 'ar'. Settings → Language row subtext also shows the wrong native name (it reads from useTranslation's `lang` state which is stale). One-line fix detailed in action_items.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "lib/i18n.ts → initI18n()",
+        "issue": "After the defensive refactor, initI18n() sets i18n.locale but never notifies subscribed components (no listeners.forEach call). Every screen that mounted prior to initI18n completion keeps lang='fr' (module default) in its useState, while the actual i18n.locale is the saved value. Affects ALL screens using useTranslation but is most visible on /language.",
+        "testID": "lang-fr / lang-en / lang-ar",
+        "priority": "HIGH"
+      },
+      {
+        "component": "app/language.tsx (Language picker)",
+        "issue": "When saved locale is 'en' or 'ar', the picker shows Français with the active checkmark (stale render — see root cause above). Combined with the onPick early-return `if (code === lang) router.back();`, tapping the actually-saved language is a no-op AND tapping Français when picker thinks lang='fr' (but storage='en') is ALSO a no-op, so the user is effectively locked out of switching back to FR via the UI until they pick some other language first. Reproduced live: storage=ar, tapped lang-fr, storage still =ar.",
+        "testID": "lang-fr",
+        "priority": "HIGH"
+      },
+      {
+        "component": "app/settings.tsx → row-language subtext",
+        "issue": "The Language row reads `SUPPORTED_LANGS.find((s) => s.code === lang)?.native` where `lang` comes from useTranslation(). Same stale-state bug: displays 'Français' as the current language even when UI is rendering in English/Arabic.",
+        "testID": "row-language",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/settings",
+        "issues": [
+          "Premium row label/subtext still hardcoded FR ('Passer en Premium', 'Swipes illimités • Rayon 200km • Sans pub') even when locale is EN/AR — carried over from iteration 12.",
+          "Swipe-profile row subtext 'Photos, bio, ville, Insta' is hardcoded FR — carried over from iteration 12.",
+          "Modal titles 'Ton prénom', 'Ton @username', 'Tes styles préférés', and CTA 'Enregistrer' are hardcoded FR.",
+          "Sign-out confirmation Alert text is hardcoded FR ('Déconnexion', 'Êtes-vous sûr…')."
+        ]
+      },
+      {
+        "screen": "/(tabs)/profile",
+        "issues": [
+          "Likes count label shows 'Likes reçus' (FR) in EN render — see screenshot 09_profile_en.png (the 'Likes reçus' / 'Matches' labels under the stat counters appear to be hardcoded FR). Confirm by searching profile.tsx for 'Likes reçus'."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "FIX THE REGRESSION (1-line change). In /app/frontend/lib/i18n.ts at the bottom of `initI18n()` (just before `return chosen;` on line 83), add a listener notification so React subscribers update from the module-default to the actually-loaded locale: \n\n  try {\n    i18n.locale = chosen;\n    listeners.forEach((cb) => { try { cb(chosen); } catch {} });\n  } catch {}\n  return chosen;\n\nThis preserves the defensive refactor (still does NOT call I18nManager.forceRTL on first mount, which was the actual reason for the refactor) while restoring listener notification. Verified locally that without this, picker is stuck showing FR-active when storage is non-FR.",
+    "Optional hardening on language.tsx onPick: drop the `if (code === lang) router.back(); return;` early-return, OR replace it with a comparison against `i18n.locale` rather than the (potentially stale) React state. This protects users from getting locked out if the listener fix ever regresses again.",
+    "Hardcoded-FR strings flagged in iteration 12 are still present (settings.tsx Premium row, swipe-profile subtext, modal titles, sign-out alert, plus profile stat labels). Wire them to t() against the existing dictionary keys."
+  ],
+  "critical_code_review_comments": [
+    "i18n.ts listener pattern: the module-level `listeners` array is currently mutated by both `push` (subscribe) and reassignment via filter (unsubscribe). Works but is brittle — consider a Set. Not blocking.",
+    "language.tsx onPick guard `if (code === lang) router.back()` should compare against `i18n.locale` (source of truth) instead of the React state to defend against stale-state issues.",
+    "RootLayout already wraps children in a RootErrorBoundary that catches render errors and shows a red diagnostics screen with the stack trace — good. On the actual native TestFlight crash (out of scope for this env), if the crash is in JS-render path, this boundary would surface it. If the crash is at native module load (e.g. RNSVG / expo-localization not in the binary), the boundary won't catch it and the JS bundle won't even start — confirming that regenerating the iOS build is the only fix path, exactly as the request says."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "82%"},
+  "seed_data_creation": "None",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login works at /login with apple.reviewer@nightfinder.app / Reviewer2026!. Mobile viewport 390x844. testIDs verified: root-error-screen, settings-back, row-language, language-back, lang-fr, lang-en, lang-es, lang-de, lang-it, lang-pt, lang-ar, premium-card. localStorage key for language is 'nf_lang'. ALWAYS read localStorage.getItem('nf_lang') to know the real persisted locale because the UI may lie due to the stale-state bug described above until the 1-line fix lands. To force-reset locale during testing: `await page.evaluate(\"localStorage.setItem('nf_lang','fr')\")` then full-page reload — that's a more reliable reset than tapping the picker. Cloudflare 401s on background expo-notifications resources are harmless. Legal pages /legal?doc=cgu|privacy|legal still render correctly (iteration 11 useMemo fix holds). NO red screen on web for any flow tested. Native TestFlight crash is OUT OF SCOPE — caused by missing native modules (react-native-svg, expo-localization) in the current binary; user must regenerate the iOS build via Emergent's Deploy → Generate iOS Build flow.",
+  "rca_of_issue": "Regression introduced by the i18n defensive refactor. Original code: `initI18n()` ended with `applyLocale(chosen)`, which (a) set i18n.locale AND (b) fired `listeners.forEach`. The refactor split these — initI18n now only sets `i18n.locale = chosen` directly (to avoid forceRTL crashes on iOS first-mount), but it forgot to keep the listener notification. Consequence: every useTranslation hook still reads `(i18n.locale as LangCode) || 'fr'` as its useState initial value, but because initI18n runs async in RootLayout's useEffect, components render BEFORE i18n.locale is updated and never get the notify-callback. Reproduction steps: 1) Clear nf_lang from storage, set it to 'en'. 2) Reload the app. 3) Navigate to /language. 4) Observe: Français is shown as active (wrong) despite storage being 'en' and ALL OTHER UI rendering in English. 5) Tap lang-fr → no-op because picker's React state has lang='fr'. 6) Inspect storage → still 'en'. Mitigation: append `listeners.forEach((cb) => { try { cb(chosen); } catch {} });` after the `i18n.locale = chosen;` line inside initI18n (this is safe because applyLocale's RTL toggle is NOT involved — only the listener pump). Optionally also fix language.tsx onPick to compare against i18n.locale instead of React state."
+}

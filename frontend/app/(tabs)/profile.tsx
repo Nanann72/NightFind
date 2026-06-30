@@ -25,6 +25,7 @@ import { api } from '../../lib/api';
 import { usePremium } from '../../lib/premium';
 import { useTabBarScroll } from '../../lib/tabBarScroll';
 import { useThemeColors } from '../../lib/themeContext';
+import { useTranslation } from '../../lib/i18n';
 import { radius, spacing, type ThemeColors } from '../../lib/theme';
 
 export default function Profile() {
@@ -36,6 +37,7 @@ export default function Profile() {
   const { isPremium, devMode } = usePremium();
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { t } = useTranslation();
 
   // Instagram-style stats — fetched from backend
   const [matchesCount, setMatchesCount] = useState(0);
@@ -133,7 +135,7 @@ export default function Profile() {
             )}
             <View style={styles.avatarRing} />
           </View>
-          <Text style={styles.name}>{user?.name || 'Invité'}</Text>
+          <Text style={styles.name}>{user?.name || t('common.guest')}</Text>
           <Text style={styles.email}>{user?.email || ''}</Text>
         </View>
 
@@ -152,7 +154,7 @@ export default function Profile() {
             onPress={() => router.push('/swipe-profile' as any)}
             testID="action-edit-profile"
           >
-            <Text style={styles.actionText}>Modifier le profil</Text>
+            <Text style={styles.actionText}>{t('profile.edit')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.actionBtn}
@@ -160,7 +162,7 @@ export default function Profile() {
             onPress={() => setShareOpen(true)}
             testID="action-share-profile"
           >
-            <Text style={styles.actionText}>Partager le profil</Text>
+            <Text style={styles.actionText}>{t('profile.share')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -203,7 +205,7 @@ export default function Profile() {
                       </View>
                     </LinearGradient>
                     <Text style={styles.highlightLabel} numberOfLines={1}>
-                      {m.club_name || 'Moment'}
+                      {m.club_name || t('profile.momentFallback')}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -268,9 +270,9 @@ export default function Profile() {
               <View style={styles.gridEmptyIcon}>
                 <Ionicons name="aperture-outline" size={32} color={colors.textTertiary} />
               </View>
-              <Text style={styles.gridEmptyTitle}>{"Aucun Moment pour l'instant"}</Text>
+              <Text style={styles.gridEmptyTitle}>{t('profile.emptyMomentsTitle')}</Text>
               <Text style={styles.gridEmptySub}>
-                Check-in dans un club puis capture ton premier BeReal dans les 5 min.
+                {t('profile.emptyMomentsSub')}
               </Text>
             </View>
           ) : (
@@ -311,9 +313,9 @@ export default function Profile() {
             <View style={styles.gridEmptyIcon}>
               <Ionicons name="heart-outline" size={32} color={colors.textTertiary} />
             </View>
-            <Text style={styles.gridEmptyTitle}>Aucun club favori</Text>
+            <Text style={styles.gridEmptyTitle}>{t('profile.emptyFavoritesTitle')}</Text>
             <Text style={styles.gridEmptySub}>
-              Ajoute des clubs à tes favoris depuis la carte ou la découverte.
+              {t('profile.emptyFavoritesSub')}
             </Text>
           </View>
         ) : (
@@ -366,17 +368,17 @@ export default function Profile() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.premiumTitle}>
-              {isPremium ? 'Night Finder Premium' : 'Passer en Premium'}
+              {isPremium ? t('profile.premiumActive') : t('profile.premiumGoTo')}
             </Text>
             <Text style={styles.premiumSub}>
               {isPremium
-                ? `Actif${devMode ? ' (DEV)' : ''} • Swipes illimités, rayon 200km`
-                : 'Swipes illimités • Rayon 200km • Sans pub'}
+                ? `${t('profile.premiumActiveSub')}${devMode ? ' (DEV)' : ''}`
+                : t('profile.premiumGoToSub')}
             </Text>
           </View>
           {isPremium ? (
             <View style={styles.premiumBadge}>
-              <Text style={styles.premiumBadgeText}>ACTIF</Text>
+              <Text style={styles.premiumBadgeText}>{t('profile.badgeActive')}</Text>
             </View>
           ) : (
             <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
@@ -399,9 +401,9 @@ export default function Profile() {
           />
           <View style={styles.shareCard} testID="share-profile-modal">
             <View style={styles.shareHandle} />
-            <Text style={styles.shareTitle}>Partager ton profil</Text>
+            <Text style={styles.shareTitle}>{t('share.title')}</Text>
             <Text style={styles.shareSub}>
-              Scanne le QR code ou partage le lien
+              {t('share.sub')}
             </Text>
 
             <View style={styles.qrWrap}>
@@ -416,7 +418,7 @@ export default function Profile() {
               <Text style={styles.qrHandle}>
                 {(user as any)?.username
                   ? `@${(user as any).username}`
-                  : user?.name || 'Night Finder'}
+                  : (user?.name || 'Night Finder')}
               </Text>
               <Text style={styles.qrUrl} numberOfLines={1}>{shareUrl}</Text>
             </View>
@@ -429,13 +431,13 @@ export default function Profile() {
                     if (Platform.OS === 'web') {
                       const navAny = (typeof navigator !== 'undefined' ? (navigator as any) : null);
                       if (navAny?.share) {
-                        await navAny.share({ url: shareUrl, title: 'Night Finder', text: 'Rejoins-moi sur Night Finder' });
+                        await navAny.share({ url: shareUrl, title: 'Night Finder', text: t('profile.shareMessage') });
                       } else {
                         await Clipboard.setStringAsync(shareUrl);
                       }
                     } else {
                       await Share.share({
-                        message: `Rejoins-moi sur Night Finder : ${shareUrl}`,
+                        message: `${t('profile.shareMessage')} : ${shareUrl}`,
                         url: shareUrl,
                       });
                     }
@@ -445,7 +447,7 @@ export default function Profile() {
                 activeOpacity={0.8}
               >
                 <Ionicons name="share-outline" size={18} color={colors.bg} />
-                <Text style={styles.shareBtnPrimaryText}>Partager le lien</Text>
+                <Text style={styles.shareBtnPrimaryText}>{t('share.shareLink')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.shareBtnSecondary}
@@ -457,7 +459,7 @@ export default function Profile() {
                 activeOpacity={0.8}
               >
                 <Ionicons name="copy-outline" size={18} color={colors.textPrimary} />
-                <Text style={styles.shareBtnSecondaryText}>Copier</Text>
+                <Text style={styles.shareBtnSecondaryText}>{t('common.copy')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -510,7 +512,7 @@ export default function Profile() {
                 {!previewMoment.active && (
                   <View style={styles.previewExpired}>
                     <Ionicons name="time-outline" size={12} color={colors.textTertiary} />
-                    <Text style={styles.previewExpiredText}>Expiré</Text>
+                    <Text style={styles.previewExpiredText}>{t('profile.expired')}</Text>
                   </View>
                 )}
               </View>

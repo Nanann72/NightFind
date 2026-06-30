@@ -1,5 +1,5 @@
 export default {
-  common: {
+  common: { guest: 'Invité',
     save: 'Enregistrer',
     cancel: 'Annuler',
     delete: 'Supprimer',
@@ -32,7 +32,7 @@ export default {
     forgotPassword: 'Mot de passe oublié ?',
     welcome: 'Bienvenue sur Night Finder',
   },
-  profile: {
+  profile: { momentFallback: 'Moment', shareMessage: 'Rejoins-moi sur Night Finder', badgeActive: 'ACTIF', expired: 'Expiré',
     edit: 'Modifier le profil',
     share: 'Partager le profil',
     photos: 'Photos',

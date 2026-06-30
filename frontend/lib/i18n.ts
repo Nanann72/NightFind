@@ -68,18 +68,28 @@ export async function initI18n(): Promise<LangCode> {
       chosen = saved as LangCode;
     } else {
       chosen = detectFromDevice();
-      await storage.set(STORAGE_KEY, chosen);
+      try { await storage.set(STORAGE_KEY, chosen); } catch {}
     }
   } catch {
     chosen = detectFromDevice();
   }
-  applyLocale(chosen);
+  // On first init we ONLY set the locale and (carefully) the RTL state
+  // without ever calling forceRTL — that API requires a full app reload
+  // and crashes if called during the initial mount cycle. RTL toggling
+  // only happens when the user explicitly changes language afterwards.
+  try {
+    i18n.locale = chosen;
+  } catch {}
   return chosen;
 }
 
 function applyLocale(code: LangCode) {
-  i18n.locale = code;
-  // Toggle RTL only on native; web is fine without forcing.
+  try {
+    i18n.locale = code;
+  } catch {}
+  // Toggle RTL only on native AND only when called from a user-driven
+  // language change (not init). Wrapped in try/catch since forceRTL can
+  // throw if called from an unsafe context.
   if (Platform.OS !== 'web') {
     const wantsRTL = RTL_LANGS.includes(code);
     try {

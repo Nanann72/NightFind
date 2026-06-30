@@ -1,12 +1,12 @@
 export default {
-  common: {
+  common: { guest: 'Invitado',
     save: 'Guardar', cancel: 'Cancelar', delete: 'Eliminar', confirm: 'Confirmar', close: 'Cerrar', continue: 'Continuar', loading: 'Cargando…', error: 'Error', retry: 'Reintentar', back: 'Atrás', next: 'Siguiente', done: 'Hecho', ok: 'OK', yes: 'Sí', no: 'No', search: 'Buscar', edit: 'Editar', copy: 'Copiar', share: 'Compartir', open: 'Abrir', settings: 'Configuración',
   },
   nav: { home: 'Descubrir', map: 'Mapa', events: 'Fiestas', profile: 'Perfil', matches: 'Matches', swipe: 'Swipe' },
   auth: {
     signIn: 'Iniciar sesión', signUp: 'Registrarse', signOut: 'Cerrar sesión', email: 'Correo', password: 'Contraseña', forgotPassword: '¿Olvidaste tu contraseña?', welcome: 'Bienvenido a Night Finder',
   },
-  profile: {
+  profile: { momentFallback: 'Momento', shareMessage: 'Únete a mí en Night Finder', badgeActive: 'ACTIVO', expired: 'Expirado',
     edit: 'Editar perfil', share: 'Compartir perfil', photos: 'Fotos', likes: 'Likes', matches: 'Matches', tabMoments: 'Mis Momentos', tabFavorites: 'Clubes favoritos',
     emptyMomentsTitle: 'Aún no tienes Momentos',
     emptyMomentsSub: 'Haz check-in en un club y captura tu primer BeReal en los próximos 5 min.',
