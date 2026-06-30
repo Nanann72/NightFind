@@ -17,7 +17,8 @@ import { api, Club } from './api';
 
 const DETECT_INTERVAL_MS = 90 * 1000; // 90s between detections
 const SESSION_DURATION_MS = 10 * 60 * 1000; // stop after 10 min
-const SAMPLE_DURATION_MS = 8000; // 8 seconds of audio (Audd.io recommends 6-12s)
+const SAMPLE_DURATION_MS = 12000; // 12 seconds — Audd recommends 10-12s for noisy environments (clubs)
+const RETRY_SAMPLE_DURATION_MS = 15000; // Auto-retry uses a longer sample for better hit rate
 
 const sessions = new Map<string, ReturnType<typeof setInterval>>();
 
@@ -39,6 +40,7 @@ export type ScanResult = {
 async function recordAndRecognise(
   club: Club,
   returnResult = false,
+  sampleDurationMs: number = SAMPLE_DURATION_MS,
 ): Promise<ScanResult> {
   if (Platform.OS === 'web') {
     return {
@@ -85,7 +87,7 @@ async function recordAndRecognise(
     const recorder = new RecorderClass(ExpoAudio.RecordingPresets.HIGH_QUALITY);
     await recorder.prepareToRecordAsync();
     recorder.record();
-    await new Promise((r) => setTimeout(r, SAMPLE_DURATION_MS));
+    await new Promise((r) => setTimeout(r, sampleDurationMs));
     await recorder.stop();
     const uri: string | null = recorder.uri;
     if (!uri) {
@@ -122,16 +124,16 @@ async function recordAndRecognise(
         errorMessage: 'Fichier audio vide.',
       };
     }
-    // Heuristic silence/short-buffer detection. 8s of m4a@128kbps is ~120-160 KB.
-    // base64 inflates by 33%, so a real sample should be > ~80KB encoded.
+    // Heuristic silence/short-buffer detection. 12s of m4a@128kbps is ~180-240 KB.
+    // base64 inflates by 33%, so a real sample should be > ~120KB encoded.
     // If we got significantly less, the mic was muted or the recording was
     // truncated by the OS → skip the API call to save quota and inform the user.
-    if (base64.length < 12_000) {
+    if (base64.length < 60_000) {
       return {
         ok: false,
         reason: 'no-audio-recorded',
         errorMessage:
-          "Le micro n'a presque rien capté. Rapproche-toi des enceintes et réessaie.",
+          "Le micro n'a presque rien capté. Rapproche-toi des enceintes (~1m), augmente le volume et réessaie.",
       };
     }
 
@@ -170,9 +172,21 @@ async function recordAndRecognise(
   }
 }
 
-/** One-shot Shazam-like scan; returns the result so the UI can show feedback. */
+/** One-shot Shazam-like scan with auto-retry on no-match.
+ *  Strategy: 1st pass = 12s sample. If not recognised, retry once with a 15s
+ *  sample for better hit rate in noisy environments (clubs). */
 export async function scanOnce(club: Club): Promise<ScanResult> {
-  return recordAndRecognise(club, true);
+  const first = await recordAndRecognise(club, true, SAMPLE_DURATION_MS);
+  // Only retry on a clean "no-match" — not on permission denials, silent mic,
+  // network errors, or Audd quota issues (those will fail the retry too and
+  // burn user time).
+  if (first.ok && first.recognised === false && first.reason === 'audd-not-recognised') {
+    const second = await recordAndRecognise(club, true, RETRY_SAMPLE_DURATION_MS);
+    return second.ok && second.recognised
+      ? second
+      : { ...second, errorMessage: second.errorMessage || first.errorMessage };
+  }
+  return first;
 }
 
 export function startLiveListening(club: Club): void {

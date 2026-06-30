@@ -2056,6 +2056,7 @@ async def recognize_audio(
         data = {
             "api_token": audd_token,
             "return": "spotify,apple_music,deezer,musicbrainz",
+            "accurate_offsets": "true",  # Better match precision for noisy club samples
         }
         r = await http_client.post(
             "https://api.audd.io/", data=data, files=files, timeout=25.0
