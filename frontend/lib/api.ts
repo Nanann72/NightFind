@@ -366,6 +366,8 @@ export const api = {
     }),
   listClubMoments: (clubId: string) =>
     request<any[]>(`/clubs/${clubId}/moments`),
+  listMyMoments: () =>
+    request<any[]>('/me/moments'),
   listActiveMomentClubs: () =>
     request<{ club_id: string; count: number; preview?: string | null }[]>(
       '/moments/active-clubs',

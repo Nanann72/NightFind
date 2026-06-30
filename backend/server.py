@@ -1382,6 +1382,45 @@ async def list_clubs_with_active_moments(user: dict = Depends(get_current_user))
     ]
 
 
+@api_router.get("/me/moments")
+async def list_my_moments(user: dict = Depends(get_current_user)):
+    """Return the current user's own BeReal-style moments (most recent first).
+    Used by the Instagram-style profile grid and story highlights."""
+    now = datetime.now(timezone.utc)
+    # Include both active and recently expired (last 7 days) so the profile
+    # grid still shows a history. Story highlights filter to active only.
+    cursor = db.club_moments.find(
+        {"user_id": user["user_id"]},
+        {"_id": 0},
+    ).sort("created_at", -1).limit(60)
+    moments = await cursor.to_list(60)
+    # Enrich with club name (best-effort)
+    club_ids = list({m.get("club_id") for m in moments if m.get("club_id")})
+    name_map: dict = {}
+    if club_ids:
+        try:
+            async for c in db.clubs.find({"club_id": {"$in": club_ids}}, {"_id": 0, "club_id": 1, "name": 1}):
+                name_map[c["club_id"]] = c.get("name")
+        except Exception:
+            pass
+    for m in moments:
+        m["club_name"] = name_map.get(m.get("club_id"))
+        exp = m.get("expires_at")
+        if exp is not None:
+            if getattr(exp, "tzinfo", None) is None:
+                try:
+                    exp = exp.replace(tzinfo=timezone.utc)
+                except Exception:
+                    pass
+            try:
+                m["active"] = exp > now
+            except Exception:
+                m["active"] = False
+        else:
+            m["active"] = False
+    return moments
+
+
 @api_router.get("/moments/window-state")
 async def moment_window_state(user: dict = Depends(get_current_user)):
     """Tells the frontend if the user is currently inside their 5-min capture

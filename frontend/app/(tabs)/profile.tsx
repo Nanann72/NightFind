@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,13 @@ import {
   ActivityIndicator,
   Switch,
   Linking,
+  ScrollView,
 } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../lib/auth';
 import { useClubs } from '../../lib/clubs';
 import { api } from '../../lib/api';
@@ -71,6 +73,38 @@ export default function Profile() {
   const [matchesCount, setMatchesCount] = useState(0);
   const [likesReceived, setLikesReceived] = useState(0);
   const photosCount = (user?.photos?.length || 0) as number;
+
+  // Instagram-style Highlights + Tabs
+  const [myMoments, setMyMoments] = useState<any[]>([]);
+  const [loadingMoments, setLoadingMoments] = useState(true);
+  const [activeTab, setActiveTab] = useState<'moments' | 'favorites'>('moments');
+  const [previewMoment, setPreviewMoment] = useState<any | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const m = await api.listMyMoments();
+        if (!cancelled) setMyMoments(Array.isArray(m) ? m : []);
+      } catch {
+        if (!cancelled) setMyMoments([]);
+      } finally {
+        if (!cancelled) setLoadingMoments(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const favoriteClubs = useMemo(
+    () => clubs.filter((c: any) => favorites.has(c.club_id)).slice(0, 24),
+    [clubs, favorites],
+  );
+  const activeHighlights = useMemo(
+    () => myMoments.filter((m) => m.active).slice(0, 10),
+    [myMoments],
+  );
 
   // Fetch Instagram-style stats (matches count from existing /api/matches)
   useEffect(() => {
@@ -400,6 +434,196 @@ export default function Profile() {
             <Text style={styles.actionText}>Partager le profil</Text>
           </TouchableOpacity>
         </View>
+
+        {/* INSTAGRAM-STYLE STORY HIGHLIGHTS — BeReal moments actifs (24h) */}
+        {(loadingMoments || activeHighlights.length > 0) && (
+          <View style={styles.highlightsWrap}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.highlightsContent}
+            >
+              {activeHighlights.map((m) => {
+                const img = m.image
+                  ? (typeof m.image === 'string' && m.image.startsWith('data:')
+                      ? m.image
+                      : `data:image/jpeg;base64,${m.image}`)
+                  : null;
+                return (
+                  <TouchableOpacity
+                    key={m.moment_id}
+                    style={styles.highlightItem}
+                    activeOpacity={0.85}
+                    onPress={() => setPreviewMoment(m)}
+                    testID={`highlight-${m.moment_id}`}
+                  >
+                    <LinearGradient
+                      colors={['#F2C94C', '#E01A4F', '#9B23E6'] as any}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.highlightRing}
+                    >
+                      <View style={styles.highlightInner}>
+                        {img ? (
+                          <Image source={{ uri: img }} style={styles.highlightImg} />
+                        ) : (
+                          <View style={[styles.highlightImg, styles.highlightImgFallback]}>
+                            <Ionicons name="image" size={20} color={colors.textTertiary} />
+                          </View>
+                        )}
+                      </View>
+                    </LinearGradient>
+                    <Text style={styles.highlightLabel} numberOfLines={1}>
+                      {m.club_name || 'Moment'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+              {loadingMoments && activeHighlights.length === 0 && (
+                <View style={{ paddingVertical: 18, paddingHorizontal: 4 }}>
+                  <ActivityIndicator color={colors.textTertiary} />
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* INSTAGRAM-STYLE TAB BAR — Mes Moments / Clubs Favoris */}
+        <View style={styles.tabsBar}>
+          <TouchableOpacity
+            style={styles.tabItem}
+            activeOpacity={0.7}
+            onPress={() => setActiveTab('moments')}
+            testID="tab-moments"
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === 'moments' }}
+          >
+            <Ionicons
+              name="grid"
+              size={22}
+              color={activeTab === 'moments' ? colors.textPrimary : colors.textTertiary}
+            />
+            <View
+              style={[
+                styles.tabIndicator,
+                activeTab === 'moments' && styles.tabIndicatorActive,
+              ]}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.tabItem}
+            activeOpacity={0.7}
+            onPress={() => setActiveTab('favorites')}
+            testID="tab-favorites"
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === 'favorites' }}
+          >
+            <Ionicons
+              name="heart"
+              size={22}
+              color={activeTab === 'favorites' ? colors.textPrimary : colors.textTertiary}
+            />
+            <View
+              style={[
+                styles.tabIndicator,
+                activeTab === 'favorites' && styles.tabIndicatorActive,
+              ]}
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* GRID — content depends on selected tab */}
+        {activeTab === 'moments' ? (
+          loadingMoments ? (
+            <View style={styles.gridEmpty}>
+              <ActivityIndicator color={colors.textTertiary} />
+            </View>
+          ) : myMoments.length === 0 ? (
+            <View style={styles.gridEmpty}>
+              <View style={styles.gridEmptyIcon}>
+                <Ionicons name="aperture-outline" size={32} color={colors.textTertiary} />
+              </View>
+              <Text style={styles.gridEmptyTitle}>{"Aucun Moment pour l'instant"}</Text>
+              <Text style={styles.gridEmptySub}>
+                Check-in dans un club puis capture ton premier BeReal dans les 5 min.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.grid}>
+              {myMoments.map((m, idx) => {
+                const img = m.image
+                  ? (typeof m.image === 'string' && m.image.startsWith('data:')
+                      ? m.image
+                      : `data:image/jpeg;base64,${m.image}`)
+                  : null;
+                return (
+                  <TouchableOpacity
+                    key={m.moment_id || idx}
+                    style={styles.gridCell}
+                    activeOpacity={0.8}
+                    onPress={() => setPreviewMoment(m)}
+                    testID={`grid-moment-${idx}`}
+                  >
+                    {img ? (
+                      <Image source={{ uri: img }} style={styles.gridImage} />
+                    ) : (
+                      <View style={[styles.gridImage, styles.highlightImgFallback]}>
+                        <Ionicons name="image" size={20} color={colors.textTertiary} />
+                      </View>
+                    )}
+                    {!m.active && (
+                      <View style={styles.gridExpiredOverlay}>
+                        <Ionicons name="time-outline" size={14} color="#fff" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )
+        ) : favoriteClubs.length === 0 ? (
+          <View style={styles.gridEmpty}>
+            <View style={styles.gridEmptyIcon}>
+              <Ionicons name="heart-outline" size={32} color={colors.textTertiary} />
+            </View>
+            <Text style={styles.gridEmptyTitle}>Aucun club favori</Text>
+            <Text style={styles.gridEmptySub}>
+              Ajoute des clubs à tes favoris depuis la carte ou la découverte.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.grid}>
+            {favoriteClubs.map((c: any, idx: number) => {
+              const photo =
+                c.photo || (Array.isArray(c.photos) && c.photos[0]) || c.cover_photo || null;
+              return (
+                <TouchableOpacity
+                  key={c.club_id || idx}
+                  style={styles.gridCell}
+                  activeOpacity={0.8}
+                  onPress={() => router.push(`/club/${c.club_id}` as any)}
+                  testID={`grid-fav-${idx}`}
+                >
+                  {photo ? (
+                    <Image source={{ uri: photo }} style={styles.gridImage} />
+                  ) : (
+                    <View style={[styles.gridImage, styles.highlightImgFallback]}>
+                      <Ionicons name="business" size={20} color={colors.textTertiary} />
+                    </View>
+                  )}
+                  <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.75)']}
+                    style={styles.gridLabelOverlay}
+                  >
+                    <Text style={styles.gridLabel} numberOfLines={1}>
+                      {c.name}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
 
         {/* PREMIUM CARD — top placement to highlight upsell */}
         <View style={styles.section}>
@@ -912,6 +1136,62 @@ export default function Profile() {
           </View>
         </View>
       </Modal>
+      {/* Moment Preview Modal — fullscreen image preview */}
+      <Modal
+        visible={!!previewMoment}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setPreviewMoment(null)}
+      >
+        <View style={styles.previewRoot}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setPreviewMoment(null)}
+          />
+          {previewMoment && (
+            <View style={styles.previewCard} testID="moment-preview-modal">
+              {(() => {
+                const raw = previewMoment.image;
+                const img = raw
+                  ? (typeof raw === 'string' && raw.startsWith('data:')
+                      ? raw
+                      : `data:image/jpeg;base64,${raw}`)
+                  : null;
+                return img ? (
+                  <Image source={{ uri: img }} style={styles.previewImage} resizeMode="contain" />
+                ) : (
+                  <View style={[styles.previewImage, { alignItems: 'center', justifyContent: 'center' }]}>
+                    <Ionicons name="image" size={48} color={colors.textTertiary} />
+                  </View>
+                );
+              })()}
+              <View style={styles.previewMeta}>
+                <Ionicons name="location" size={14} color={colors.textSecondary} />
+                <Text style={styles.previewClubName} numberOfLines={1}>
+                  {previewMoment.club_name || 'Club'}
+                </Text>
+                {!previewMoment.active && (
+                  <View style={styles.previewExpired}>
+                    <Ionicons name="time-outline" size={12} color={colors.textTertiary} />
+                    <Text style={styles.previewExpiredText}>Expiré</Text>
+                  </View>
+                )}
+              </View>
+              {previewMoment.caption ? (
+                <Text style={styles.previewCaption}>{previewMoment.caption}</Text>
+              ) : null}
+              <TouchableOpacity
+                style={styles.previewClose}
+                onPress={() => setPreviewMoment(null)}
+                testID="moment-preview-close"
+              >
+                <Ionicons name="close" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </Modal>
     </>
   );
 }
@@ -1021,6 +1301,216 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
     letterSpacing: -0.2,
+  },
+
+  // Story Highlights (BeReal moments actifs)
+  highlightsWrap: {
+    marginTop: spacing.lg,
+  },
+  highlightsContent: {
+    paddingHorizontal: spacing.lg,
+    gap: 14,
+    alignItems: 'flex-start',
+  },
+  highlightItem: {
+    alignItems: 'center',
+    width: 72,
+  },
+  highlightRing: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    padding: 2.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  highlightInner: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 32,
+    backgroundColor: colors.bg,
+    padding: 2,
+  },
+  highlightImg: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,
+  },
+  highlightImgFallback: {
+    backgroundColor: colors.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  highlightLabel: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    marginTop: 6,
+    maxWidth: 72,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+
+  // Tab bar (Instagram style)
+  tabsBar: {
+    flexDirection: 'row',
+    marginTop: spacing.lg,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingTop: 12,
+  },
+  tabIndicator: {
+    height: 2,
+    width: '100%',
+    backgroundColor: 'transparent',
+    marginTop: 10,
+  },
+  tabIndicatorActive: {
+    backgroundColor: colors.textPrimary,
+  },
+
+  // Grid (3 columns)
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 0,
+  },
+  gridCell: {
+    width: `${100 / 3}%`,
+    aspectRatio: 1,
+    padding: 1,
+    position: 'relative',
+  },
+  gridImage: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.surfaceElevated,
+  },
+  gridLabelOverlay: {
+    position: 'absolute',
+    left: 1,
+    right: 1,
+    bottom: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    paddingTop: 24,
+  },
+  gridLabel: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: -0.1,
+  },
+  gridExpiredOverlay: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gridEmpty: {
+    alignItems: 'center',
+    paddingVertical: 36,
+    paddingHorizontal: spacing.xl,
+  },
+  gridEmptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 1.5,
+    borderColor: colors.borderStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  gridEmptyTitle: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 6,
+    letterSpacing: -0.2,
+  },
+  gridEmptySub: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+
+  // Moment Preview Modal
+  previewRoot: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.lg,
+  },
+  previewCard: {
+    width: '100%',
+    maxWidth: 480,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  previewImage: {
+    width: '100%',
+    aspectRatio: 1,
+    backgroundColor: '#000',
+  },
+  previewMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+  },
+  previewClubName: {
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
+    flex: 1,
+  },
+  previewExpired: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: colors.fill,
+  },
+  previewExpiredText: {
+    color: colors.textTertiary,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  previewCaption: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
+    lineHeight: 19,
+  },
+  previewClose: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   stat: {
     flex: 1,
