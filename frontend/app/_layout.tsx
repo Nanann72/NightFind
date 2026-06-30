@@ -65,6 +65,34 @@ function ThemedRootContent() {
           name="paywall"
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
+        {/* Detail screens use native iOS slide-from-right with edge swipe back */}
+        <Stack.Screen
+          name="chat/[matchId]"
+          options={{
+            animation: 'slide_from_right',
+            animationDuration: 280,
+            gestureEnabled: true,
+            gestureDirection: 'horizontal',
+          }}
+        />
+        <Stack.Screen
+          name="club/[id]"
+          options={{
+            animation: 'slide_from_right',
+            animationDuration: 280,
+            gestureEnabled: true,
+            gestureDirection: 'horizontal',
+          }}
+        />
+        <Stack.Screen
+          name="settings"
+          options={{
+            animation: 'slide_from_right',
+            animationDuration: 260,
+            gestureEnabled: true,
+            gestureDirection: 'horizontal',
+          }}
+        />
       </Stack>
     </>
   );

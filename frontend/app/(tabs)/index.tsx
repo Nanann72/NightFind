@@ -182,6 +182,8 @@ function ClubCard({
   onToggleFav: () => void;
   onPress: () => void;
 }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <TouchableOpacity
       style={styles.card}

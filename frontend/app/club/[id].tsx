@@ -276,6 +276,8 @@ export default function ClubDetail() {
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={{ marginBottom: spacing.lg }}>
       <Text style={styles.sectionTitle}>{title}</Text>

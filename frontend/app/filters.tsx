@@ -184,6 +184,8 @@ export default function Filters() {
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={{ marginBottom: spacing.xl }}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -203,6 +205,8 @@ function SwitchRow({
   onChange: (v: boolean) => void;
   testID?: string;
 }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View style={styles.switchRow}>
       <Text style={styles.switchLabel}>{label}</Text>
