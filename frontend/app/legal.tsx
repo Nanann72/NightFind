@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
