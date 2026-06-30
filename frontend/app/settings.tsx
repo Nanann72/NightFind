@@ -500,6 +500,37 @@ export default function Settings() {
           {renderRow('ban-outline', 'Utilisateurs bloqués', () => router.push('/blocked-users' as any), {
             testID: 'row-blocked',
           })}
+          {renderRow('key-outline', 'Changer le mot de passe', () => router.push('/forgot-password' as any), {
+            subtext: 'On t\'enverra un lien de réinitialisation par email',
+            testID: 'row-change-password',
+          })}
+          {renderRow('language-outline', 'Langue', () =>
+            Alert.alert('Langue', 'Pour l\'instant, Night Finder est disponible uniquement en français. D\'autres langues arriveront prochainement.'),
+          {
+            subtext: 'Français',
+            testID: 'row-language',
+          })}
+          {renderRow('trash-bin-outline', 'Effacer le cache', () => {
+            Alert.alert(
+              'Effacer le cache local ?',
+              'Cela libère de l\'espace mais nécessite de recharger les clubs et photos. Tes données restent intactes.',
+              [
+                { text: 'Annuler', style: 'cancel' },
+                {
+                  text: 'Effacer',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await storage.set('nf_clubs_cache', '');
+                      Alert.alert('Cache effacé', 'Recharge l\'écran Découvrir pour récupérer les clubs.');
+                    } catch {
+                      Alert.alert('Erreur', 'Impossible d\'effacer le cache.');
+                    }
+                  },
+                },
+              ],
+            );
+          }, { testID: 'row-clear-cache' })}
         </View>
 
         {/* SECTION — Aide */}

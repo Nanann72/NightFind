@@ -81,7 +81,9 @@ def _round_geo(value: float, ndigits: int = 2) -> float:
 
 
 def _bucket_key(lat: float, lng: float, radius_km: float) -> str:
-    return f"nl:{_round_geo(lat)}:{_round_geo(lng)}:{round(radius_km, 1)}"
+    # Bump the version suffix whenever the search algorithm changes (e.g. the
+    # grid fan-out for Premium 200km), so old cached payloads are ignored.
+    return f"nl:v2:{_round_geo(lat)}:{_round_geo(lng)}:{round(radius_km, 1)}"
 
 
 async def _search_nearby_raw(
@@ -261,9 +263,28 @@ async def search_places_nearby(
                     if docs:
                         return docs
 
-    raw_places = await _search_nearby_raw(
-        client, lat, lng, radius_km, max_results=max_results
-    )
+    raw_places: List[Dict[str, Any]] = []
+    # For Premium 200km searches, Google caps each call at 50km — fan out
+    # multiple searches across the grid to cover the full disc.
+    offsets = _grid_offsets_km(radius_km)
+    # Each individual call should request the per-call max (Google cap 50km).
+    per_call_radius = min(radius_km, 50.0)
+    seen_ids: set[str] = set()
+    for dlat_km, dlng_km in offsets:
+        s_lat, s_lng = _offset_geo(lat, lng, dlat_km, dlng_km)
+        try:
+            sub = await _search_nearby_raw(
+                client, s_lat, s_lng, per_call_radius, max_results=max_results
+            )
+        except Exception as exc:  # noqa: BLE001
+            LOG.warning("Grid sub-search failed at (%s,%s): %s", s_lat, s_lng, exc)
+            continue
+        for p in sub:
+            pid = p.get("id")
+            if not pid or pid in seen_ids:
+                continue
+            seen_ids.add(pid)
+            raw_places.append(p)
     clubs: List[Dict[str, Any]] = []
     place_ids: List[str] = []
     for p in raw_places:

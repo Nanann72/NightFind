@@ -10,7 +10,10 @@ import {
   Linking,
   ScrollView,
   Modal,
+  Share,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import QRCode from 'react-native-qrcode-svg';
 import Animated from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,6 +47,12 @@ export default function Profile() {
   const [loadingMoments, setLoadingMoments] = useState(true);
   const [activeTab, setActiveTab] = useState<'moments' | 'favorites'>('moments');
   const [previewMoment, setPreviewMoment] = useState<any | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+
+  const shareUrl = useMemo(() => {
+    const handle = (user as any)?.username || user?.name || 'me';
+    return `https://nightfinder.app/u/${encodeURIComponent(handle)}`;
+  }, [user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,15 +157,7 @@ export default function Profile() {
           <TouchableOpacity
             style={styles.actionBtn}
             activeOpacity={0.7}
-            onPress={() => {
-              const username = (user as any)?.username || user?.name || '';
-              const url = `https://nightfinder.app/u/${encodeURIComponent(username)}`;
-              if (Platform.OS === 'web') {
-                try { (navigator as any).share?.({ url, title: 'Night Finder' }); } catch {}
-              } else {
-                Linking.openURL(url).catch(() => {});
-              }
-            }}
+            onPress={() => setShareOpen(true)}
             testID="action-share-profile"
           >
             <Text style={styles.actionText}>Partager le profil</Text>
@@ -382,6 +383,94 @@ export default function Profile() {
           )}
         </TouchableOpacity>
       </Animated.ScrollView>
+
+      {/* Share Profile Modal — QR code + native share + copy link */}
+      <Modal
+        visible={shareOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShareOpen(false)}
+      >
+        <View style={styles.shareRoot}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setShareOpen(false)}
+          />
+          <View style={styles.shareCard} testID="share-profile-modal">
+            <View style={styles.shareHandle} />
+            <Text style={styles.shareTitle}>Partager ton profil</Text>
+            <Text style={styles.shareSub}>
+              Scanne le QR code ou partage le lien
+            </Text>
+
+            <View style={styles.qrWrap}>
+              <View style={styles.qrInner}>
+                <QRCode
+                  value={shareUrl}
+                  size={196}
+                  color="#0a0a0a"
+                  backgroundColor="#ffffff"
+                />
+              </View>
+              <Text style={styles.qrHandle}>
+                {(user as any)?.username
+                  ? `@${(user as any).username}`
+                  : user?.name || 'Night Finder'}
+              </Text>
+              <Text style={styles.qrUrl} numberOfLines={1}>{shareUrl}</Text>
+            </View>
+
+            <View style={styles.shareActions}>
+              <TouchableOpacity
+                style={styles.shareBtnPrimary}
+                onPress={async () => {
+                  try {
+                    if (Platform.OS === 'web') {
+                      const navAny = (typeof navigator !== 'undefined' ? (navigator as any) : null);
+                      if (navAny?.share) {
+                        await navAny.share({ url: shareUrl, title: 'Night Finder', text: 'Rejoins-moi sur Night Finder' });
+                      } else {
+                        await Clipboard.setStringAsync(shareUrl);
+                      }
+                    } else {
+                      await Share.share({
+                        message: `Rejoins-moi sur Night Finder : ${shareUrl}`,
+                        url: shareUrl,
+                      });
+                    }
+                  } catch {}
+                }}
+                testID="share-btn-share"
+                activeOpacity={0.8}
+              >
+                <Ionicons name="share-outline" size={18} color={colors.bg} />
+                <Text style={styles.shareBtnPrimaryText}>Partager le lien</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.shareBtnSecondary}
+                onPress={async () => {
+                  await Clipboard.setStringAsync(shareUrl);
+                  // Subtle feedback: open the native share or just close
+                }}
+                testID="share-btn-copy"
+                activeOpacity={0.8}
+              >
+                <Ionicons name="copy-outline" size={18} color={colors.textPrimary} />
+                <Text style={styles.shareBtnSecondaryText}>Copier</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.shareClose}
+              onPress={() => setShareOpen(false)}
+              testID="share-close"
+            >
+              <Ionicons name="close" size={22} color={colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Moment Preview Modal */}
       <Modal
@@ -737,6 +826,104 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     height: 36,
     borderRadius: 18,
     backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Share Profile Modal
+  shareRoot: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  shareCard: {
+    backgroundColor: colors.bg,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl + 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderStrong,
+  },
+  shareHandle: {
+    alignSelf: 'center',
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.borderStrong,
+    marginBottom: 16,
+  },
+  shareTitle: {
+    color: colors.textPrimary,
+    fontSize: 22,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: -0.4,
+  },
+  shareSub: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: spacing.lg,
+  },
+  qrWrap: { alignItems: 'center', marginVertical: spacing.md },
+  qrInner: {
+    backgroundColor: '#ffffff',
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  qrHandle: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 14,
+    letterSpacing: -0.3,
+  },
+  qrUrl: {
+    color: colors.textTertiary,
+    fontSize: 12,
+    marginTop: 4,
+    maxWidth: 280,
+  },
+  shareActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: spacing.lg,
+  },
+  shareBtnPrimary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: radius.full,
+  },
+  shareBtnPrimaryText: { color: colors.bg, fontWeight: '800', fontSize: 15 },
+  shareBtnSecondary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.fill,
+    paddingVertical: 14,
+    borderRadius: radius.full,
+  },
+  shareBtnSecondaryText: { color: colors.textPrimary, fontWeight: '700', fontSize: 15 },
+  shareClose: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.fill,
     alignItems: 'center',
     justifyContent: 'center',
   },
