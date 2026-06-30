@@ -373,6 +373,34 @@ export default function Profile() {
           <Stat label="Matches" value={matchesCount} testID="stat-matches" />
         </View>
 
+        {/* Instagram-style action buttons row */}
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            activeOpacity={0.7}
+            onPress={() => router.push('/swipe-profile' as any)}
+            testID="action-edit-profile"
+          >
+            <Text style={styles.actionText}>Modifier le profil</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            activeOpacity={0.7}
+            onPress={() => {
+              const username = (user as any)?.username || user?.name || '';
+              const url = `https://nightfinder.app/u/${encodeURIComponent(username)}`;
+              if (Platform.OS === 'web') {
+                try { (navigator as any).share?.({ url, title: 'Night Finder' }); } catch {}
+              } else {
+                Linking.openURL(url).catch(() => {});
+              }
+            }}
+            testID="action-share-profile"
+          >
+            <Text style={styles.actionText}>Partager le profil</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* PREMIUM CARD — top placement to highlight upsell */}
         <View style={styles.section}>
           <TouchableOpacity
@@ -974,6 +1002,26 @@ const styles = StyleSheet.create({
   name: { color: colors.textPrimary, fontSize: 22, fontWeight: '900', letterSpacing: -0.3 },
   email: { color: colors.textSecondary, fontSize: 13, marginTop: 4 },
   statsRow: { flexDirection: 'row', marginHorizontal: spacing.lg, marginTop: spacing.xl, gap: 12 },
+  actionRow: {
+    flexDirection: 'row',
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    gap: 8,
+  },
+  actionBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    backgroundColor: colors.fill,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionText: {
+    color: colors.textPrimary,
+    fontWeight: '600',
+    fontSize: 14,
+    letterSpacing: -0.2,
+  },
   stat: {
     flex: 1,
     paddingVertical: 18,
