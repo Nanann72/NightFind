@@ -220,7 +220,8 @@
       "expo-web-browser",
       "expo-audio",
       "@react-native-community/datetimepicker",
-      "expo-asset"
+      "expo-asset",
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true,

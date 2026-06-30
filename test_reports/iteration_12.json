@@ -1,0 +1,27 @@
+{
+  "summary": "Frontend-only testing of (1) legal red-screen regression and (2) new multi-language feature. Both validated successfully. /language picker renders with 7 testID rows (lang-fr/en/es/de/it/pt/ar). Tapping each language updates the active locale immediately, persists via SecureStore, and Settings labels switch correctly. Verified header translations for all 6 non-default languages: EN='Settings and activity', ES='Configuración y actividad', DE='Einstellungen und Aktivität', IT='Impostazioni e attività', PT='Definições e atividade', AR='الإعدادات والنشاط'. AR did NOT crash on web (RTL forceRTL is skipped on web as expected). row-language in Settings navigates to /language; after picking a language the picker auto-returns via router.back() and Settings reflects the new locale (e.g. Language row subtext shows 'English'). Regression: all 3 legal docs (cgu, privacy, legal) still render with full content, no ReferenceError, no red screen — iteration 11's useMemo import fix holds.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Minor i18n completeness: in /app/frontend/app/settings.tsx, 4 row subtitles are still hardcoded French strings even though the EN/ES/DE/IT/PT/AR dictionary keys already exist. Replace these literals with t() calls:\n  • line 472: 'Tes amis te voient sur la carte (uniquement en boîte)' → t('settings.visibilityOn')\n  • line 473: 'Personne ne voit où tu sors' → t('settings.visibilityOff')\n  • line 488: 'On te propose de confirmer ta soirée en arrivant au club' → t('settings.bgDetectionSub')\n  • line 506: 'On t\\'enverra un lien de réinitialisation par email' → t('settings.changePasswordSub')\nVisible to the user: when switching to EN/ES/DE/etc, the Visible-at-clubs, Background-detection and Change-password subtitles still appear in French.",
+    "Optional polish: Premium card row in Settings (and Profile premium block) still uses hardcoded French strings (e.g. 'Passer en Premium', 'Swipes illimités • Rayon 200km • Sans pub'). Translation keys (profile.premiumGoTo, profile.premiumGoToSub, profile.premiumActive, profile.premiumActiveSub) already exist in the dictionaries — just need to be wired up. This was noted as 'incremental' in the request, so flagging as low priority."
+  ],
+  "critical_code_review_comments": [
+    "i18n.ts uses a module-level mutable `listeners` array reassigned on cleanup — works but a Set + .add/.delete would be more idiomatic and avoid the ESLint complaint about re-assignment.",
+    "/language picker only persists language; if the user is on Arabic and on a native build, the Alert tells them a relance might be needed but does NOT call I18nManager.forceRTL + Updates.reloadAsync(). On a real device the layout flip will require manual app restart. Not testable on web, but worth a follow-up.",
+    "Legal docs still contain placeholder values like '[Nom de la société — à compléter]' and '[Numéro SIRET — à compléter]'. Carried over from iteration 11; must be filled in before App Store submission."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Routes /language and /settings and /legal?doc=... are publicly reachable (no auth gate) in this preview. Auto-detect ran on first visit and may set the saved locale to non-FR; always reset to FR by goto /language then click lang-fr at start of each test. Picker uses router.back() so when invoked via direct goto (no history), it stays on /settings via deep link (works fine because picker is reached only from Settings). Mobile viewport 390x844. testIDs verified: row-language, language-back, lang-fr, lang-en, lang-es, lang-de, lang-it, lang-pt, lang-ar, legal-screen, legal-back. Cloudflare 401s on resources are background expo-notifications and are harmless.",
+  "rca_of_issue": "No new bugs. Iteration 11 fix (added `import { useMemo } from 'react';` to /app/frontend/app/legal.tsx) holds — all 3 legal docs render content without ReferenceError. New i18n feature works end-to-end on web: i18n-js + expo-localization + SecureStore 'nf_lang' key + module-level listener pattern in /app/frontend/lib/i18n.ts. Only gap: a handful of hardcoded FR subtitles in settings.tsx (lines 472, 473, 488, 506) bypass t() — dictionary keys for them already exist; mechanical fix."
+}

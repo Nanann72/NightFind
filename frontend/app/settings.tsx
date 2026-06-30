@@ -22,6 +22,7 @@ import { usePremium } from '../lib/premium';
 import { api } from '../lib/api';
 import { storage } from '../lib/storage';
 import { useTheme } from '../lib/themeContext';
+import { useTranslation, SUPPORTED_LANGS } from '../lib/i18n';
 import {
   startBackgroundLocation,
   stopBackgroundLocation,
@@ -51,6 +52,7 @@ export default function Settings() {
   const { user, signOut, refresh } = useAuth();
   const { isPremium, devMode, devReset } = usePremium();
   const { mode, setMode, colors } = useTheme();
+  const { t, lang } = useTranslation();
 
   const [search, setSearch] = useState('');
 
@@ -286,7 +288,7 @@ export default function Settings() {
   const musicSummary = userPrefs.length === 0
     ? 'Ajoute tes styles préférés'
     : userPrefs.map((m) => MUSIC_OPTIONS.find((o) => o.id === m)?.label || m).join(' · ');
-  const appearanceLabel = mode === 'system' ? 'Système' : mode === 'light' ? 'Clair' : 'Sombre';
+  const appearanceLabel = mode === 'system' ? t('settings.appearanceSystem') : mode === 'light' ? t('settings.appearanceLight') : t('settings.appearanceDark');
 
   // ===== Row builder =====
   const renderRow = (
@@ -344,7 +346,7 @@ export default function Settings() {
         >
           <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Paramètres et activité</Text>
+        <Text style={styles.headerTitle}>{t('settings.title')}</Text>
         <View style={{ width: 32 }} />
       </View>
 
@@ -358,7 +360,7 @@ export default function Settings() {
           <Ionicons name="search" size={18} color={colors.textTertiary} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Rechercher"
+            placeholder={t('common.search')}
             placeholderTextColor={colors.textTertiary}
             value={search}
             onChangeText={setSearch}
@@ -374,35 +376,35 @@ export default function Settings() {
         </View>
 
         {/* SECTION — Votre compte */}
-        <SectionHeader title="Votre compte" />
+        <SectionHeader title={t('settings.sectionAccount')} />
         <View style={styles.group}>
-          {renderRow('person-circle-outline', 'Espace Comptes', () => setEditingUsername(true), {
+          {renderRow('person-circle-outline', t('settings.accountSpace'), () => setEditingUsername(true), {
             subtext: (user as any)?.username ? `@${(user as any).username} · ${user?.email || ''}` : (user?.email || 'Username, profil, sécurité'),
             testID: 'row-account-space',
           })}
-          {renderRow('pencil-outline', 'Modifier le nom', () => setEditingName(true), {
+          {renderRow('pencil-outline', t('settings.editName'), () => setEditingName(true), {
             subtext: user?.name || '—',
             testID: 'row-edit-name',
           })}
-          {renderRow('flame-outline', 'Mon profil swipe', () => router.push('/swipe-profile' as any), {
+          {renderRow('flame-outline', t('settings.swipeProfile'), () => router.push('/swipe-profile' as any), {
             subtext: 'Photos, bio, ville, Insta',
             testID: 'row-swipe-profile',
           })}
         </View>
 
         {/* SECTION — Utilisation personnelle de Night Finder */}
-        <SectionHeader title="Utilisation personnelle de Night Finder" />
+        <SectionHeader title={t('settings.sectionUsage')} />
         <View style={styles.group}>
-          {renderRow('heart-outline', 'Mes favoris', () => router.push('/favorites' as any), { testID: 'row-favorites' })}
-          {renderRow('people-outline', 'Mes amis', () => router.push('/friends' as any), { testID: 'row-friends' })}
-          {renderRow('heart-circle-outline', 'Matches & demandes', () => router.push('/matches' as any), { testID: 'row-matches' })}
-          {renderRow('musical-notes-outline', 'Mes musiques par club', () => router.push('/my-songs' as any), { testID: 'row-songs' })}
-          {renderRow('calendar-outline', 'Soirées à venir', () => router.push('/(tabs)/events' as any), { testID: 'row-events' })}
-          {renderRow('notifications-outline', 'Notifications', () => router.push('/notifications' as any), { testID: 'row-notifications' })}
+          {renderRow('heart-outline', t('settings.favorites'), () => router.push('/favorites' as any), { testID: 'row-favorites' })}
+          {renderRow('people-outline', t('settings.friends'), () => router.push('/friends' as any), { testID: 'row-friends' })}
+          {renderRow('heart-circle-outline', t('settings.matchesAndRequests'), () => router.push('/matches' as any), { testID: 'row-matches' })}
+          {renderRow('musical-notes-outline', t('settings.songsByClub'), () => router.push('/my-songs' as any), { testID: 'row-songs' })}
+          {renderRow('calendar-outline', t('settings.upcomingEvents'), () => router.push('/(tabs)/events' as any), { testID: 'row-events' })}
+          {renderRow('notifications-outline', t('settings.notifications'), () => router.push('/notifications' as any), { testID: 'row-notifications' })}
         </View>
 
         {/* SECTION — Premium */}
-        <SectionHeader title="Premium" />
+        <SectionHeader title={t('settings.sectionPremium')} />
         <View style={styles.group}>
           {renderRow(
             isPremium ? 'diamond' : 'diamond-outline',
@@ -426,14 +428,14 @@ export default function Settings() {
         </View>
 
         {/* SECTION — Préférences */}
-        <SectionHeader title="Préférences" />
+        <SectionHeader title={t('settings.sectionPreferences')} />
         <View style={styles.group}>
-          {renderRow('musical-note-outline', 'Préférences musicales', () => setEditingMusic(true), {
+          {renderRow('musical-note-outline', t('settings.musicPrefs'), () => setEditingMusic(true), {
             subtext: musicSummary,
             testID: 'row-music',
           })}
-          {renderRow('options-outline', 'Filtres de découverte', () => router.push('/filters' as any), { testID: 'row-filters' })}
-          {renderRow('contrast-outline', 'Apparence', () => {
+          {renderRow('options-outline', t('settings.discoveryFilters'), () => router.push('/filters' as any), { testID: 'row-filters' })}
+          {renderRow('contrast-outline', t('settings.appearance'), () => {
             const next = mode === 'dark' ? 'light' : mode === 'light' ? 'system' : 'dark';
             setMode(next);
           }, {
@@ -462,9 +464,9 @@ export default function Settings() {
         </View>
 
         {/* SECTION — Confidentialité */}
-        <SectionHeader title="Confidentialité et sécurité" />
+        <SectionHeader title={t('settings.sectionPrivacy')} />
         <View style={styles.group}>
-          {renderRow(visibility === 'clubs_only' ? 'eye-outline' : 'eye-off-outline', 'Visible en club', undefined, {
+          {renderRow(visibility === 'clubs_only' ? 'eye-outline' : 'eye-off-outline', t('settings.visibility'), undefined, {
             subtext:
               visibility === 'clubs_only'
                 ? 'Tes amis te voient sur la carte (uniquement en boîte)'
@@ -482,7 +484,7 @@ export default function Settings() {
             ),
             testID: 'row-visibility',
           })}
-          {renderRow('radio-outline', 'Détection arrière-plan', undefined, {
+          {renderRow('radio-outline', t('settings.bgDetection'), undefined, {
             subtext: 'On te propose de confirmer ta soirée en arrivant au club',
             right: togglingBg ? (
               <ActivityIndicator color={colors.primary} />
@@ -497,20 +499,19 @@ export default function Settings() {
             ),
             testID: 'row-bg-location',
           })}
-          {renderRow('ban-outline', 'Utilisateurs bloqués', () => router.push('/blocked-users' as any), {
+          {renderRow('ban-outline', t('settings.blockedUsers'), () => router.push('/blocked-users' as any), {
             testID: 'row-blocked',
           })}
-          {renderRow('key-outline', 'Changer le mot de passe', () => router.push('/forgot-password' as any), {
+          {renderRow('key-outline', t('settings.changePassword'), () => router.push('/forgot-password' as any), {
             subtext: 'On t\'enverra un lien de réinitialisation par email',
             testID: 'row-change-password',
           })}
-          {renderRow('language-outline', 'Langue', () =>
-            Alert.alert('Langue', 'Pour l\'instant, Night Finder est disponible uniquement en français. D\'autres langues arriveront prochainement.'),
+          {renderRow('language-outline', t('settings.language'), () => router.push('/language' as any),
           {
-            subtext: 'Français',
+            subtext: SUPPORTED_LANGS.find((s) => s.code === lang)?.native || 'Français',
             testID: 'row-language',
           })}
-          {renderRow('trash-bin-outline', 'Effacer le cache', () => {
+          {renderRow('trash-bin-outline', t('settings.clearCache'), () => {
             Alert.alert(
               'Effacer le cache local ?',
               'Cela libère de l\'espace mais nécessite de recharger les clubs et photos. Tes données restent intactes.',
@@ -534,15 +535,15 @@ export default function Settings() {
         </View>
 
         {/* SECTION — Aide */}
-        <SectionHeader title="Aide" />
+        <SectionHeader title={t('settings.sectionHelp')} />
         <View style={styles.group}>
-          {renderRow('information-circle-outline', 'Comment ça marche', () =>
+          {renderRow('information-circle-outline', t('settings.howItWorks'), () =>
             Alert.alert(
               'Night Finder',
               '1. Réponds à quelques questions, 2. On scanne ta ville, 3. Swipe et ajoute en favoris, 4. Reçois des rappels avant chaque soirée.',
             ),
           { testID: 'row-how' })}
-          {renderRow('shield-checkmark-outline', 'Vie privée', () =>
+          {renderRow('shield-checkmark-outline', t('settings.privacyInfo'), () =>
             Alert.alert(
               'Confidentialité',
               'Tes préférences musicales et favoris ne sont visibles que par toi. Localisation jamais partagée avec des tiers.',
@@ -551,36 +552,36 @@ export default function Settings() {
         </View>
 
         {/* SECTION — Légal */}
-        <SectionHeader title="À propos" />
+        <SectionHeader title={t('settings.sectionAbout')} />
         <View style={styles.group}>
-          {renderRow('document-text-outline', "Conditions Générales d'Utilisation", () =>
+          {renderRow('document-text-outline', t('settings.cgu'), () =>
             router.push({ pathname: '/legal', params: { doc: 'cgu' } } as any),
           { testID: 'row-cgu' })}
-          {renderRow('lock-closed-outline', 'Politique de Confidentialité', () =>
+          {renderRow('lock-closed-outline', t('settings.privacyPolicy'), () =>
             router.push({ pathname: '/legal', params: { doc: 'privacy' } } as any),
           { testID: 'row-legal-privacy' })}
-          {renderRow('library-outline', 'Mentions Légales', () =>
+          {renderRow('library-outline', t('settings.legalNotice'), () =>
             router.push({ pathname: '/legal', params: { doc: 'legal' } } as any),
           { testID: 'row-mentions' })}
         </View>
 
         {/* SECTION — Tes données */}
-        <SectionHeader title="Tes données" />
+        <SectionHeader title={t('settings.sectionData')} />
         <View style={styles.group}>
-          {renderRow('download-outline', 'Exporter mes données (JSON)', exportData, { testID: 'row-export' })}
-          {renderRow('trash-outline', 'Supprimer définitivement mon compte', confirmDelete, {
+          {renderRow('download-outline', t('settings.exportData'), exportData, { testID: 'row-export' })}
+          {renderRow('trash-outline', t('settings.deleteAccount'), confirmDelete, {
             danger: true,
             testID: 'row-delete-account',
           })}
         </View>
 
         {/* SECTION — Connexion */}
-        <SectionHeader title="Connexion" />
+        <SectionHeader title={t('settings.sectionSignout')} />
         <View style={styles.group}>
-          {renderRow('log-out-outline', 'Se déconnecter', handleSignOut, { danger: true, testID: 'row-signout' })}
+          {renderRow('log-out-outline', t('settings.signOut'), handleSignOut, { danger: true, testID: 'row-signout' })}
         </View>
 
-        <Text style={styles.version}>Night Finder · v1.0.0</Text>
+        <Text style={styles.version}>{t('settings.version')}</Text>
       </ScrollView>
 
       {/* === Modals === */}

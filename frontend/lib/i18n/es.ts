@@ -1,0 +1,33 @@
+export default {
+  common: {
+    save: 'Guardar', cancel: 'Cancelar', delete: 'Eliminar', confirm: 'Confirmar', close: 'Cerrar', continue: 'Continuar', loading: 'Cargando…', error: 'Error', retry: 'Reintentar', back: 'Atrás', next: 'Siguiente', done: 'Hecho', ok: 'OK', yes: 'Sí', no: 'No', search: 'Buscar', edit: 'Editar', copy: 'Copiar', share: 'Compartir', open: 'Abrir', settings: 'Configuración',
+  },
+  nav: { home: 'Descubrir', map: 'Mapa', events: 'Fiestas', profile: 'Perfil', matches: 'Matches', swipe: 'Swipe' },
+  auth: {
+    signIn: 'Iniciar sesión', signUp: 'Registrarse', signOut: 'Cerrar sesión', email: 'Correo', password: 'Contraseña', forgotPassword: '¿Olvidaste tu contraseña?', welcome: 'Bienvenido a Night Finder',
+  },
+  profile: {
+    edit: 'Editar perfil', share: 'Compartir perfil', photos: 'Fotos', likes: 'Likes', matches: 'Matches', tabMoments: 'Mis Momentos', tabFavorites: 'Clubes favoritos',
+    emptyMomentsTitle: 'Aún no tienes Momentos',
+    emptyMomentsSub: 'Haz check-in en un club y captura tu primer BeReal en los próximos 5 min.',
+    emptyFavoritesTitle: 'Sin clubes favoritos',
+    emptyFavoritesSub: 'Añade clubes a tus favoritos desde el mapa o la sección Descubrir.',
+    premiumActive: 'Night Finder Premium',
+    premiumGoTo: 'Pasar a Premium',
+    premiumActiveSub: 'Activo • Swipes ilimitados, radio 200 km',
+    premiumGoToSub: 'Swipes ilimitados • Radio 200 km • Sin anuncios',
+  },
+  share: { title: 'Compartir tu perfil', sub: 'Escanea el QR o comparte el enlace', shareLink: 'Compartir enlace' },
+  settings: {
+    title: 'Configuración y actividad',
+    sectionAccount: 'Tu cuenta', sectionUsage: 'Tu uso de Night Finder', sectionPremium: 'Premium', sectionPreferences: 'Preferencias', sectionPrivacy: 'Privacidad y seguridad', sectionHelp: 'Ayuda', sectionAbout: 'Acerca de', sectionData: 'Tus datos', sectionSignout: 'Sesión',
+    accountSpace: 'Centro de cuentas', editName: 'Editar nombre', swipeProfile: 'Mi perfil swipe', favorites: 'Mis favoritos', friends: 'Mis amigos', matchesAndRequests: 'Matches y solicitudes', songsByClub: 'Mis canciones por club', upcomingEvents: 'Próximas fiestas', notifications: 'Notificaciones', musicPrefs: 'Preferencias musicales', discoveryFilters: 'Filtros de descubrimiento', appearance: 'Apariencia', appearanceSystem: 'Sistema', appearanceDark: 'Oscuro', appearanceLight: 'Claro',
+    visibility: 'Visible en clubes', visibilityOn: 'Tus amigos te ven en el mapa (solo en clubes)', visibilityOff: 'Nadie ve dónde sales',
+    bgDetection: 'Detección en segundo plano', bgDetectionSub: 'Te pediremos confirmar tu noche al llegar a un club',
+    blockedUsers: 'Usuarios bloqueados', changePassword: 'Cambiar contraseña', changePasswordSub: 'Te enviaremos un enlace de restablecimiento por email', language: 'Idioma', clearCache: 'Borrar caché', howItWorks: 'Cómo funciona', privacyInfo: 'Vida privada',
+    cgu: 'Términos y condiciones', privacyPolicy: 'Política de Privacidad', legalNotice: 'Aviso Legal',
+    exportData: 'Exportar mis datos (JSON)', deleteAccount: 'Eliminar mi cuenta permanentemente', signOut: 'Cerrar sesión',
+    version: 'Night Finder · v1.0.0',
+  },
+  language: { title: 'Elige tu idioma', sub: 'La aplicación se traducirá inmediatamente.' },
+};

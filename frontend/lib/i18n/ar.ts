@@ -1,0 +1,33 @@
+export default {
+  common: {
+    save: 'حفظ', cancel: 'إلغاء', delete: 'حذف', confirm: 'تأكيد', close: 'إغلاق', continue: 'متابعة', loading: 'جاري التحميل…', error: 'خطأ', retry: 'إعادة المحاولة', back: 'رجوع', next: 'التالي', done: 'تم', ok: 'موافق', yes: 'نعم', no: 'لا', search: 'بحث', edit: 'تعديل', copy: 'نسخ', share: 'مشاركة', open: 'فتح', settings: 'الإعدادات',
+  },
+  nav: { home: 'اكتشف', map: 'خريطة', events: 'الحفلات', profile: 'الملف', matches: 'مطابقات', swipe: 'تمرير' },
+  auth: {
+    signIn: 'تسجيل الدخول', signUp: 'إنشاء حساب', signOut: 'تسجيل الخروج', email: 'البريد الإلكتروني', password: 'كلمة المرور', forgotPassword: 'نسيت كلمة المرور؟', welcome: 'مرحباً بك في Night Finder',
+  },
+  profile: {
+    edit: 'تعديل الملف الشخصي', share: 'مشاركة الملف', photos: 'صور', likes: 'إعجابات', matches: 'مطابقات', tabMoments: 'لحظاتي', tabFavorites: 'النوادي المفضلة',
+    emptyMomentsTitle: 'لا توجد لحظات بعد',
+    emptyMomentsSub: 'سجّل دخولك في نادٍ والتقط لحظتك الأولى خلال 5 دقائق.',
+    emptyFavoritesTitle: 'لا نوادي مفضلة',
+    emptyFavoritesSub: 'أضف نوادي إلى المفضلة من الخريطة أو الاكتشاف.',
+    premiumActive: 'Night Finder Premium',
+    premiumGoTo: 'الترقية إلى Premium',
+    premiumActiveSub: 'مفعّل • تمريرات غير محدودة، نطاق 200 كم',
+    premiumGoToSub: 'تمريرات غير محدودة • نطاق 200 كم • بدون إعلانات',
+  },
+  share: { title: 'شارك ملفك الشخصي', sub: 'امسح رمز الـQR أو شارك الرابط', shareLink: 'مشاركة الرابط' },
+  settings: {
+    title: 'الإعدادات والنشاط',
+    sectionAccount: 'حسابك', sectionUsage: 'استخدامك لـ Night Finder', sectionPremium: 'Premium', sectionPreferences: 'التفضيلات', sectionPrivacy: 'الخصوصية والأمان', sectionHelp: 'المساعدة', sectionAbout: 'حول', sectionData: 'بياناتك', sectionSignout: 'تسجيل الدخول',
+    accountSpace: 'مركز الحسابات', editName: 'تعديل الاسم', swipeProfile: 'ملفي للتمرير', favorites: 'مفضلاتي', friends: 'أصدقائي', matchesAndRequests: 'المطابقات والطلبات', songsByClub: 'أغانيي حسب النادي', upcomingEvents: 'الحفلات القادمة', notifications: 'الإشعارات', musicPrefs: 'التفضيلات الموسيقية', discoveryFilters: 'فلاتر الاكتشاف', appearance: 'المظهر', appearanceSystem: 'النظام', appearanceDark: 'داكن', appearanceLight: 'فاتح',
+    visibility: 'مرئي في النوادي', visibilityOn: 'يراك أصدقاؤك على الخريطة (في النوادي فقط)', visibilityOff: 'لا أحد يرى أين تخرج',
+    bgDetection: 'الكشف في الخلفية', bgDetectionSub: 'سنطلب منك تأكيد ليلتك عند وصولك إلى النادي',
+    blockedUsers: 'المستخدمون المحظورون', changePassword: 'تغيير كلمة المرور', changePasswordSub: 'سنرسل لك رابط إعادة التعيين عبر البريد الإلكتروني', language: 'اللغة', clearCache: 'مسح الذاكرة المؤقتة', howItWorks: 'كيف يعمل', privacyInfo: 'الخصوصية',
+    cgu: 'الشروط والأحكام', privacyPolicy: 'سياسة الخصوصية', legalNotice: 'الإشعار القانوني',
+    exportData: 'تصدير بياناتي (JSON)', deleteAccount: 'حذف حسابي نهائياً', signOut: 'تسجيل الخروج',
+    version: 'Night Finder · v1.0.0',
+  },
+  language: { title: 'اختر لغتك', sub: 'سيتم ترجمة التطبيق فوراً.' },
+};

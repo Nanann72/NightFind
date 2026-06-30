@@ -11,6 +11,7 @@ import { PremiumProvider } from '../lib/premium';
 import { ThemeProvider, useTheme } from '../lib/themeContext';
 import { TabBarScrollProvider } from '../lib/tabBarScroll';
 import { attachNotificationActionListeners } from '../lib/notificationsSetup';
+import { initI18n } from '../lib/i18n';
 import { colors } from '../lib/theme';
 
 // Defensive splash handling for iOS Release builds:
@@ -100,6 +101,8 @@ function ThemedRootContent() {
 
 export default function RootLayout() {
   useEffect(() => {
+    // Initialize i18n (detects device language on first launch).
+    initI18n().catch(() => {});
     // Force-hide the native splash as soon as JS root mounts so we never
     // get stuck on a black splash screen if a downstream provider stalls.
     SplashScreen.hideAsync().catch(() => {});
