@@ -67,6 +67,29 @@ export default function Profile() {
     ((user as any)?.visibility === 'hidden' ? 'hidden' : 'clubs_only') as any,
   );
   const [savingVis, setSavingVis] = useState(false);
+  // Instagram-style stats — fetched from backend
+  const [matchesCount, setMatchesCount] = useState(0);
+  const [likesReceived, setLikesReceived] = useState(0);
+  const photosCount = (user?.photos?.length || 0) as number;
+
+  // Fetch Instagram-style stats (matches count from existing /api/matches)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const matches = await api.getMatches();
+        if (!cancelled) setMatchesCount(Array.isArray(matches) ? matches.length : 0);
+      } catch {}
+      try {
+        // Likes received — uses field if backend already exposes it on /me, else 0
+        const likes = (user as any)?.likes_received_count ?? 0;
+        if (!cancelled) setLikesReceived(likes);
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     setUsernameDraft((user as any)?.username || '');
@@ -345,9 +368,9 @@ export default function Profile() {
         </View>
 
         <View style={styles.statsRow}>
-          <Stat label="Favoris" value={favCount} testID="stat-favorites" />
-          <Stat label="Clubs" value={clubs.length} testID="stat-clubs" />
-          <Stat label="Préférences" value={userPrefs.length} testID="stat-prefs" />
+          <Stat label="Photos" value={photosCount} testID="stat-photos" />
+          <Stat label="Likes reçus" value={likesReceived} testID="stat-likes" />
+          <Stat label="Matches" value={matchesCount} testID="stat-matches" />
         </View>
 
         {/* PREMIUM CARD — top placement to highlight upsell */}
