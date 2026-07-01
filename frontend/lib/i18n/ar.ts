@@ -3,7 +3,7 @@ export default {
     save: 'حفظ', cancel: 'إلغاء', delete: 'حذف', confirm: 'تأكيد', close: 'إغلاق', continue: 'متابعة', loading: 'جاري التحميل…', error: 'خطأ', retry: 'إعادة المحاولة', back: 'رجوع', next: 'التالي', done: 'تم', ok: 'موافق', yes: 'نعم', no: 'لا', search: 'بحث', edit: 'تعديل', copy: 'نسخ', share: 'مشاركة', open: 'فتح', settings: 'الإعدادات',
   },
   nav: { home: 'اكتشف', map: 'خريطة', events: 'الحفلات', profile: 'الملف', matches: 'مطابقات', swipe: 'تمرير' },
-  auth: {
+  auth: { passwordPlaceholder: 'كلمة المرور', emailPlaceholder: 'email@example.com', alreadyHaveAccount: 'لديك حساب بالفعل؟', dontHaveAccount: 'ليس لديك حساب؟', orContinueWith: 'أو تابع مع', confirmPassword: 'تأكيد كلمة المرور', name: 'اسمك الأول',
     signIn: 'تسجيل الدخول', signUp: 'إنشاء حساب', signOut: 'تسجيل الخروج', email: 'البريد الإلكتروني', password: 'كلمة المرور', forgotPassword: 'نسيت كلمة المرور؟', welcome: 'مرحباً بك في Night Finder',
   },
   profile: { momentFallback: 'لحظة', shareMessage: 'انضم إليّ على Night Finder', badgeActive: 'نشِط', expired: 'منتهي',

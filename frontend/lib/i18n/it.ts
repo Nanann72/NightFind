@@ -3,7 +3,7 @@ export default {
     save: 'Salva', cancel: 'Annulla', delete: 'Elimina', confirm: 'Conferma', close: 'Chiudi', continue: 'Continua', loading: 'Caricamento…', error: 'Errore', retry: 'Riprova', back: 'Indietro', next: 'Avanti', done: 'Fatto', ok: 'OK', yes: 'Sì', no: 'No', search: 'Cerca', edit: 'Modifica', copy: 'Copia', share: 'Condividi', open: 'Apri', settings: 'Impostazioni',
   },
   nav: { home: 'Scopri', map: 'Mappa', events: 'Serate', profile: 'Profilo', matches: 'Matches', swipe: 'Swipe' },
-  auth: {
+  auth: { passwordPlaceholder: 'La tua password', emailPlaceholder: 'email@esempio.com', alreadyHaveAccount: 'Hai già un account?', dontHaveAccount: 'Non hai un account?', orContinueWith: 'o continua con', confirmPassword: 'Conferma password', name: 'Il tuo nome',
     signIn: 'Accedi', signUp: 'Registrati', signOut: 'Esci', email: 'Email', password: 'Password', forgotPassword: 'Password dimenticata?', welcome: 'Benvenuto su Night Finder',
   },
   profile: { momentFallback: 'Momento', shareMessage: 'Unisciti a me su Night Finder', badgeActive: 'ATTIVO', expired: 'Scaduto',

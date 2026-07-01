@@ -23,7 +23,7 @@ export default {
     settings: 'Paramètres',
   },
   nav: { home: 'Découvrir', map: 'Carte', events: 'Soirées', profile: 'Profil', matches: 'Matches', swipe: 'Swipe' },
-  auth: {
+  auth: { passwordPlaceholder: 'Ton mot de passe', emailPlaceholder: 'email@exemple.com', alreadyHaveAccount: 'Déjà un compte ?', dontHaveAccount: 'Pas encore de compte ?', orContinueWith: 'ou continuer avec', confirmPassword: 'Confirmer le mot de passe', name: 'Ton prénom',
     signIn: 'Se connecter',
     signUp: "S'inscrire",
     signOut: 'Se déconnecter',

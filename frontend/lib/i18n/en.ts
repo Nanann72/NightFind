@@ -3,7 +3,7 @@ export default {
     save: 'Save', cancel: 'Cancel', delete: 'Delete', confirm: 'Confirm', close: 'Close', continue: 'Continue', loading: 'Loading…', error: 'Error', retry: 'Retry', back: 'Back', next: 'Next', done: 'Done', ok: 'OK', yes: 'Yes', no: 'No', search: 'Search', edit: 'Edit', copy: 'Copy', share: 'Share', open: 'Open', settings: 'Settings',
   },
   nav: { home: 'Discover', map: 'Map', events: 'Events', profile: 'Profile', matches: 'Matches', swipe: 'Swipe' },
-  auth: {
+  auth: { passwordPlaceholder: 'Your password', emailPlaceholder: 'email@example.com', alreadyHaveAccount: 'Already have an account?', dontHaveAccount: 'Don\'t have an account?', orContinueWith: 'or continue with', confirmPassword: 'Confirm password', name: 'Your first name',
     signIn: 'Sign in', signUp: 'Sign up', signOut: 'Sign out', email: 'Email', password: 'Password', forgotPassword: 'Forgot password?', welcome: 'Welcome to Night Finder',
   },
   profile: { momentFallback: 'Moment', shareMessage: 'Join me on Night Finder', badgeActive: 'ACTIVE', expired: 'Expired',
