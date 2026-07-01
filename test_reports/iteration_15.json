@@ -1,0 +1,27 @@
+{
+  "summary": "Frontend-only smoke + regression test of the restored /app/frontend/babel.config.js (which brings back the `babel-preset-expo` preset required by Reanimated worklets and EAS builds). VERDICT: FIX HOLDS on web preview — all 5 requested checks pass. (1) /app/frontend/babel.config.js exists and its module.exports returns { presets: ['babel-preset-expo'] }; babel-preset-expo 54.0.10 is in package.json deps and ships the reanimated worklet plugin for SDK 54. (2) App boots without red screen at https://fan-culture-app.preview.emergentagent.com/ — the FR onboarding 'Bienvenue sur Night Finder. L'application qui te connecte aux meilleures soirées. Autour de toi.' renders with 'Continuer' CTA; #root has ~5.1k of HTML; zero page errors, zero non-401 console errors. (3) Reanimated worklets still work — logged in as apple.reviewer@nightfinder.app, navigated to (tabs)/profile which mounts LiquidGlassTabBar consuming the SharedValue from /app/frontend/lib/tabBarScroll.tsx (useSharedValue + withSpring + 'worklet' directive); scrolling up/down produced NO 'Reanimated 3 failed to create a worklet' error and no other worklet-related console output. Tab bar rendered and remained interactive. (4) Language switch: Settings → Language → English → back to Settings — header correctly re-rendered as 'Settings and activity' (English). Reverted to Français afterward. (5) Legal screens: /legal?doc=cgu, /legal?doc=privacy, /legal?doc=legal all render their FR titles ('Conditions Générales d'Utilisation', 'Politique de Confidentialité', 'Mentions Légales') with full body content; no error boundary triggered. Cannot verify TestFlight iOS binary from this environment — that requires the user to regenerate the iOS build via Emergent Deploy → Generate iOS Build so EAS picks up the restored babel.config.js.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_15.json"],
+  "action_items": [
+    "USER ACTION REQUIRED (out of scope for this env): Regenerate the iOS TestFlight build via Emergent's Deploy → Generate iOS Build so EAS bundles with the restored /app/frontend/babel.config.js and the babel-preset-expo reanimated worklet plugin. Once the new IPA is uploaded to TestFlight, install it on a physical iPhone and confirm the app no longer crashes with the red/black screen on cold start.",
+    "Optional monitoring: add a small integration/e2e safeguard so future accidental deletions of babel.config.js are caught in CI. E.g., a preflight script that greps for `babel-preset-expo` in /app/frontend/babel.config.js before running `eas build`."
+  ],
+  "critical_code_review_comments": [
+    "/app/frontend/babel.config.js is minimal and correct for SDK 54 — babel-preset-expo alone is sufficient because it already includes react-native-worklets/plugin (formerly react-native-reanimated/plugin) for SDK 54. Do NOT add `react-native-reanimated/plugin` manually or you'll double-transform worklets and re-introduce crashes.",
+    "The file carries a strong warning comment about why it must not be deleted — good defensive documentation to prevent recurrence.",
+    "Pre-existing (unchanged from previous iterations, NOT a regression of this fix): several hardcoded FR strings in /app/frontend/app/settings.tsx (Premium row line 411-417, swipe-profile subtext line 390, Account fallback line 382, modal titles, sign-out Alert). These are visible when the app is in EN/AR but were flagged in iteration 12/14 and remain out-of-scope here."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100% (5/5 requested scenarios pass on web preview)"},
+  "seed_data_creation": "None — reused Apple reviewer account (apple.reviewer@nightfinder.app / Reviewer2026!).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Web preview URL: https://fan-culture-app.preview.emergentagent.com. Mobile viewport 390x844. Login testIDs: use input[type=email] + input[type=password] + get_by_text('Se connecter'). Legal routes are single-file with query params: /legal?doc=cgu | privacy | legal (NOT /legal/cgu). Language storage key = 'nf_lang'; active row detected via icon color rgb(224,26,79). babel.config.js MUST return { presets: ['babel-preset-expo'] } — do not add reanimated plugin manually for SDK 54. Any 401 responses in the console are harmless (background expo-notifications fetch to Cloudflare-fronted resources).",
+  "rca_of_issue": "Root cause (per main agent): commit eda0e31 deleted /app/frontend/babel.config.js. Metro on web/Expo Go tolerated the missing local config by falling back to node_modules-resolved defaults, but the EAS iOS production pipeline strictly requires the local babel.config.js exposing `babel-preset-expo` — without it the reanimated worklet plugin is not applied and the RN runtime throws 'Reanimated 3 failed to create a worklet' on the very first mount that instantiates a SharedValue, producing the red screen that reviewers saw on TestFlight. Fix: recreate /app/frontend/babel.config.js exporting `{ presets: ['babel-preset-expo'] }` and clear .metro-cache and node_modules/.cache. Verified from this env: file present, correct content, web preview functional, worklets loading without errors. Final validation (native binary) is only possible after the user regenerates the iOS build."
+}
