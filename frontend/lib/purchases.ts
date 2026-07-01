@@ -42,6 +42,15 @@ export type CustomerInfoLite = {
 let configured = false;
 let realModeAvailable = false;
 let Purchases: any = null;
+let lastOfferingsError: string | null = null;
+
+export function getLastOfferingsError(): string | null {
+  return lastOfferingsError;
+}
+
+export function isRealMode(): boolean {
+  return realModeAvailable;
+}
 
 function isRealRevenueCatConfigured(): boolean {
   if (Platform.OS === 'web') return false;
@@ -124,6 +133,7 @@ export async function getOfferings(): Promise<PremiumPackage[]> {
               (o: any) => o?.availablePackages?.length,
             );
       if ((candidate as any)?.availablePackages?.length) {
+        lastOfferingsError = null;
         return (candidate as any).availablePackages.map((p: any) => {
           const id = String(p?.product?.identifier || '').toLowerCase();
           const isAnnual =
@@ -143,17 +153,16 @@ export async function getOfferings(): Promise<PremiumPackage[]> {
       // Real RC is up but no offerings found → tell the caller honestly,
       // do NOT return DEV mocks here (would cause a "fake price → fail"
       // experience when the user taps Continue).
+      lastOfferingsError =
+        'Aucune offre configurée sur le tableau de bord RevenueCat. Vérifie que l\'Offering est marquée "Current" et que les produits sont liés à App Store Connect.';
       if (typeof console !== 'undefined') {
-        console.warn(
-          '[purchases] No offerings configured on RevenueCat dashboard. ' +
-            'Check that the Offering is marked "Current" and that products ' +
-            'are linked to App Store / Play Store.',
-        );
+        console.warn('[purchases]', lastOfferingsError);
       }
       return [];
     } catch (e: any) {
+      lastOfferingsError = String(e?.message || e || 'RevenueCat error');
       if (typeof console !== 'undefined') {
-        console.warn('[purchases] getOfferings error:', String(e?.message || e));
+        console.warn('[purchases] getOfferings error:', lastOfferingsError);
       }
       return [];
     }

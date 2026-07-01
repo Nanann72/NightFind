@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { usePremium } from '../lib/premium';
+import { getLastOfferingsError, isRealMode } from '../lib/purchases';
 import { HapticButton } from '../components/ui/HapticButton';
 import { radius, spacing, shadows, type ThemeColors, darkColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
@@ -36,9 +37,10 @@ export default function Paywall() {
   const router = useRouter();
   const params = useLocalSearchParams<{ reason?: string }>();
   const insets = useSafeAreaInsets();
-  const { isPremium, offerings, buy, restore, loading, devMode } = usePremium();
+  const { isPremium, offerings, buy, restore, loading, devMode, refreshOfferings } = usePremium();
   const [selectedId, setSelectedId] = useState<string>('annual');
   const [busy, setBusy] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     // Default-select annual if present (savings badge), else fall back
@@ -166,6 +168,34 @@ export default function Paywall() {
                 Nos offres Premium sont en cours d&apos;approbation par l&apos;App Store.
                 Reviens dans quelques heures !
               </Text>
+              <TouchableOpacity
+                style={styles.retryBtn}
+                activeOpacity={0.8}
+                onPress={async () => {
+                  setRetrying(true);
+                  try {
+                    await refreshOfferings();
+                  } finally {
+                    setRetrying(false);
+                  }
+                }}
+                disabled={retrying}
+                testID="paywall-retry"
+              >
+                {retrying ? (
+                  <ActivityIndicator color={colors.textPrimary} />
+                ) : (
+                  <>
+                    <Ionicons name="refresh" size={16} color={colors.textPrimary} />
+                    <Text style={styles.retryBtnText}>Réessayer</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              {isRealMode() && getLastOfferingsError() ? (
+                <Text style={styles.diagText} numberOfLines={3}>
+                  ⓘ {getLastOfferingsError()}
+                </Text>
+              ) : null}
             </View>
           ) : (
             offerings.map((p) => {
@@ -382,6 +412,27 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   priceWrap: { alignItems: 'flex-end' },
   priceText: { color: colors.textPrimary, fontSize: 18, fontWeight: '900' },
   priceUnit: { color: colors.textTertiary, fontSize: 11, marginTop: -2 },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    backgroundColor: colors.fill,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+  },
+  retryBtnText: { color: colors.textPrimary, fontWeight: '700', fontSize: 14 },
+  diagText: {
+    color: colors.textTertiary,
+    fontSize: 11,
+    marginTop: 12,
+    textAlign: 'center',
+    paddingHorizontal: 12,
+  },
 
   footnote: {
     color: colors.textTertiary,
