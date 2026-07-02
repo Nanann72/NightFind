@@ -154,7 +154,12 @@ export async function getOfferings(): Promise<PremiumPackage[]> {
       // do NOT return DEV mocks here (would cause a "fake price → fail"
       // experience when the user taps Continue).
       lastOfferingsError =
-        'Aucune offre configurée sur le tableau de bord RevenueCat. Vérifie que l\'Offering est marquée "Current" et que les produits sont liés à App Store Connect.';
+        'Les abonnements ne sont pas encore approuvés par Apple.\n\n' +
+        '👉 Étapes à faire dans App Store Connect :\n' +
+        '1) Créer une nouvelle version de l\'app.\n' +
+        '2) Y attacher les abonnements Premium (Mensuel + Annuel).\n' +
+        '3) Soumettre la version + les abonnements ensemble pour review.\n\n' +
+        'Une fois approuvés (24–48h), les prix apparaîtront ici automatiquement.';
       if (typeof console !== 'undefined') {
         console.warn('[purchases]', lastOfferingsError);
       }

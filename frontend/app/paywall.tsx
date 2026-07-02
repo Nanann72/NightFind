@@ -192,7 +192,7 @@ export default function Paywall() {
                 )}
               </TouchableOpacity>
               {isRealMode() && getLastOfferingsError() ? (
-                <Text style={styles.diagText} numberOfLines={3}>
+                <Text style={styles.diagText}>
                   ⓘ {getLastOfferingsError()}
                 </Text>
               ) : null}
@@ -427,11 +427,17 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   retryBtnText: { color: colors.textPrimary, fontWeight: '700', fontSize: 14 },
   diagText: {
-    color: colors.textTertiary,
-    fontSize: 11,
-    marginTop: 12,
-    textAlign: 'center',
-    paddingHorizontal: 12,
+    color: colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 16,
+    textAlign: 'left',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
   },
 
   footnote: {
