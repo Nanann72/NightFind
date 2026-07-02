@@ -43,6 +43,19 @@ export type User = {
   visibility?: 'always' | 'clubs_only' | 'hidden';
   is_premium?: boolean;
   premium_expires_at?: string | null;
+  is_admin?: boolean;
+};
+
+export type NearbyUser = {
+  user_id: string;
+  name: string;
+  picture?: string | null;
+  lat: number;
+  lng: number;
+  distance_km: number;
+  is_premium: boolean;
+  is_bot: boolean;
+  age?: number | null;
 };
 
 export type ActiveFriend = {
@@ -85,6 +98,25 @@ async function request<T>(
 }
 
 export const api = {
+  // Admin (require_admin on backend)
+  adminSeedBots: (count = 20) =>
+    request<{ ok: boolean; created: number; sample_names: string[] }>(
+      `/admin/seed-bots?count=${count}`,
+      { method: 'POST' },
+    ),
+  adminDeleteBots: () =>
+    request<{ ok: boolean; deleted: Record<string, number> }>('/admin/bots', {
+      method: 'DELETE',
+    }),
+  adminBotStats: () =>
+    request<{ total_bots: number; premium_bots: number; bots_with_location: number }>(
+      '/admin/bots/stats',
+    ),
+  // Users nearby (for the map + bots visualisation)
+  usersNearby: (lat: number, lng: number, radiusKm = 10) =>
+    request<{ users: NearbyUser[]; count: number }>(
+      `/users/nearby?lat=${lat}&lng=${lng}&radius_km=${radiusKm}`,
+    ),
   // Auth
   register: (email: string, password: string, name: string, dob: string) =>
     request<{ token: string; user: User }>('/auth/register', {

@@ -41,6 +41,7 @@ import places_service  # noqa: E402
 import push_service  # noqa: E402
 import legal_pages  # noqa: E402
 import email_service  # noqa: E402
+import admin_service  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -54,6 +55,46 @@ async def _startup() -> None:
     global http_client
     http_client = httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0))
     await places_service.ensure_indexes(db)
+    # Seed the admin account (idempotent). Credentials are set via env vars
+    # so they can be rotated without a code change. Defaults are safe:
+    # everything is behind is_admin=True and the account is hidden from
+    # discovery (visibility="hidden").
+    admin_email = os.environ.get("ADMIN_EMAIL", "admin@nightfinder.app").lower()
+    admin_password = os.environ.get("ADMIN_PASSWORD", "NightFinder2026!Admin")
+    existing = await db.users.find_one({"email": admin_email})
+    if existing:
+        # Make sure the flag is set even if the account already existed
+        if not existing.get("is_admin") or existing.get("visibility") != "hidden":
+            await db.users.update_one(
+                {"user_id": existing["user_id"]},
+                {"$set": {
+                    "is_admin": True,
+                    "visibility": "hidden",
+                    "is_premium": True,
+                }},
+            )
+            logger.info(f"Admin account {admin_email} upgraded (is_admin=True).")
+    else:
+        await db.users.insert_one({
+            "user_id": f"admin_{uuid.uuid4().hex[:12]}",
+            "email": admin_email,
+            "name": "Night Finder Admin",
+            "dob": "1990-01-01",
+            "password_hash": hash_password(admin_password),
+            "picture": None,
+            "photos": [],
+            "music_prefs": [],
+            "bio": "",
+            "city": "Paris",
+            "instagram": "",
+            "fav_clubs": [],
+            "auth_provider": "email",
+            "is_admin": True,
+            "is_premium": True,
+            "visibility": "hidden",
+            "created_at": datetime.now(timezone.utc),
+        })
+        logger.info(f"Admin account {admin_email} seeded.")
 
 
 @app.on_event("shutdown")
@@ -197,6 +238,13 @@ async def get_current_user(request: Request) -> dict:
     raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
+async def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    """Dependency: only allow requests from an admin account."""
+    if not bool(user.get("is_admin")):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
 def public_user(user: dict) -> dict:
     return {
         "user_id": user["user_id"],
@@ -218,6 +266,7 @@ def public_user(user: dict) -> dict:
         "fav_clubs": user.get("fav_clubs", []),
         "is_premium": bool(user.get("is_premium")),
         "premium_expires_at": user.get("premium_expires_at"),
+        "is_admin": bool(user.get("is_admin")),
     }
 
 
@@ -3127,6 +3176,96 @@ async def report_user(body: ReportBody, user: dict = Depends(get_current_user)):
     )
     return {"ok": True, "report_id": report_id}
 
+@api_router.get("/users/nearby")
+async def users_nearby(
+    lat: float,
+    lng: float,
+    radius_km: float = 10.0,
+    limit: int = 50,
+    user: dict = Depends(get_current_user),
+):
+    """Return public profiles located within `radius_km` of (lat,lng).
+
+    Only users with a `location` field (like bots and geo-shared users) show up.
+    Admin & hidden accounts are excluded. Each entry contains a light payload
+    optimised for map markers.
+    """
+    # Approx bounding box (fast pre-filter, then precise distance check).
+    # 1° latitude ≈ 111 km; longitude compensated with cos(lat).
+    lat_delta = radius_km / 111.0
+    lng_delta = radius_km / (111.0 * max(math.cos(math.radians(lat)), 0.01))
+
+    blocked = await _blocked_user_ids(user["user_id"])
+    exclude = set(blocked) | {user["user_id"]}
+
+    cursor = db.users.find(
+        {
+            "location.lat": {"$gte": lat - lat_delta, "$lte": lat + lat_delta},
+            "location.lng": {"$gte": lng - lng_delta, "$lte": lng + lng_delta},
+            "user_id": {"$nin": list(exclude)},
+            "visibility": {"$nin": ["hidden", "private"]},
+        },
+        {
+            "_id": 0,
+            "user_id": 1,
+            "name": 1,
+            "picture": 1,
+            "photos": 1,
+            "location": 1,
+            "is_premium": 1,
+            "is_bot": 1,
+            "dob": 1,
+        },
+    ).limit(limit * 2)
+
+    results = []
+    for u in await cursor.to_list(length=limit * 2):
+        loc = u.get("location") or {}
+        if "lat" not in loc or "lng" not in loc:
+            continue
+        # Precise Haversine distance
+        d = _haversine_km(lat, lng, loc["lat"], loc["lng"])
+        if d > radius_km:
+            continue
+        photo = u.get("picture") or (u.get("photos") or [None])[0]
+        # Compute age (best-effort) from DOB
+        age = None
+        dob = u.get("dob")
+        if isinstance(dob, str) and len(dob) >= 4:
+            try:
+                y = int(dob[:4])
+                age = datetime.now().year - y
+            except ValueError:
+                pass
+        results.append({
+            "user_id": u["user_id"],
+            "name": u.get("name") or "?",
+            "picture": photo,
+            "lat": loc["lat"],
+            "lng": loc["lng"],
+            "distance_km": round(d, 2),
+            "is_premium": bool(u.get("is_premium")),
+            "is_bot": bool(u.get("is_bot")),
+            "age": age,
+        })
+        if len(results) >= limit:
+            break
+    # Nearest first
+    results.sort(key=lambda r: r["distance_km"])
+    return {"users": results, "count": len(results)}
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance between two lat/lng points, in kilometres."""
+    r = 6371.0088  # mean Earth radius km
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    c = 2 * math.asin(math.sqrt(a))
+    return r * c
+
 
 @api_router.get("/users/me/export")
 async def export_my_data(user: dict = Depends(get_current_user)):
@@ -3347,6 +3486,33 @@ async def delete_message(message_id: str, user: dict = Depends(get_current_user)
 
 app.include_router(api_router)
 app.include_router(legal_pages.router)
+
+# ================== ADMIN ROUTES (require_admin) ================== #
+
+@api_router.post("/admin/seed-bots")
+async def admin_seed_bots(
+    count: int = 20,
+    _admin: dict = Depends(require_admin),
+):
+    """Create `count` bot users (visible on map + swipe deck)."""
+    return await admin_service.seed_bots(db, count=count)
+
+
+@api_router.delete("/admin/bots")
+async def admin_delete_bots(_admin: dict = Depends(require_admin)):
+    """Delete all bots + their associated data."""
+    return await admin_service.delete_all_bots(db)
+
+
+@api_router.get("/admin/bots/stats")
+async def admin_bot_stats(_admin: dict = Depends(require_admin)):
+    """Return counts of active bots."""
+    return await admin_service.get_bot_stats(db)
+
+
+# Re-include the router so the new admin endpoints are registered.
+# (FastAPI ignores duplicate include calls.)
+app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,

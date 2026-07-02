@@ -575,6 +575,16 @@ export default function Settings() {
           })}
         </View>
 
+        {/* SECTION — Admin (only visible for admin accounts) */}
+        {user?.is_admin && (
+          <>
+            <SectionHeader title="Console admin" />
+            <View style={styles.group}>
+              {renderRow('shield-checkmark-outline', 'Panneau admin & bots de test', () => router.push('/admin'), { testID: 'row-admin' })}
+            </View>
+          </>
+        )}
+
         {/* SECTION — Connexion */}
         <SectionHeader title={t('settings.sectionSignout')} />
         <View style={styles.group}>

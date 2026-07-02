@@ -6,9 +6,10 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useClubs } from '../lib/clubs';
 import { useLocation } from '../lib/useLocation';
-import { api, ActiveFriend } from '../lib/api';
+import { api, ActiveFriend, NearbyUser } from '../lib/api';
 import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
+import { useAuth } from '../lib/auth';
 
 const DARK_MAP_STYLE = [
   { elementType: 'geometry', stylers: [{ color: '#0f0f12' }] },
@@ -26,8 +27,10 @@ export default function MapImpl() {
   const router = useRouter();
   const { clubs } = useClubs();
   const loc = useLocation();
+  const { user: currentUser } = useAuth();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [friends, setFriends] = useState<ActiveFriend[]>([]);
+  const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
   const mapRef = useRef<MapView | null>(null);
 
   useEffect(() => {
@@ -47,6 +50,30 @@ export default function MapImpl() {
       clearInterval(interval);
     };
   }, []);
+
+  // Fetch nearby users (includes bots). Only visible for admin accounts —
+  // regular users only see checked-in friends and clubs.
+  useEffect(() => {
+    if (!currentUser?.is_admin) {
+      setNearbyUsers([]);
+      return;
+    }
+    let mounted = true;
+    const fetch = async () => {
+      try {
+        const res = await api.usersNearby(loc.coords.lat, loc.coords.lng, 15);
+        if (mounted) setNearbyUsers(res.users || []);
+      } catch {
+        if (mounted) setNearbyUsers([]);
+      }
+    };
+    fetch();
+    const interval = setInterval(fetch, 60_000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [currentUser?.is_admin, loc.coords.lat, loc.coords.lng]);
 
   const initialRegion = useMemo(
     () => ({
@@ -134,6 +161,41 @@ export default function MapImpl() {
             </Marker>
           );
         })}
+
+        {/* Bots (admin only) — visible as pink dots on the map */}
+        {nearbyUsers.map((u) => (
+          <Marker
+            key={`bot-${u.user_id}`}
+            coordinate={{ latitude: u.lat, longitude: u.lng }}
+            tracksViewChanges={false}
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <View style={styles.botMarker}>
+              {u.picture ? (
+                <Image source={{ uri: u.picture }} style={styles.botAvatar} />
+              ) : (
+                <View style={[styles.friendInitials, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.friendInitialsText}>
+                    {(u.name?.[0] ?? '?').toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              {u.is_bot && <View style={styles.botBadge} />}
+            </View>
+            <Callout tooltip>
+              <View style={styles.callout}>
+                <Text style={styles.calloutTitle}>
+                  {u.name}
+                  {u.age ? `, ${u.age}` : ''}
+                </Text>
+                <Text style={styles.calloutMeta}>
+                  {u.is_bot ? '🤖 Bot · ' : ''}
+                  à {u.distance_km} km
+                </Text>
+              </View>
+            </Callout>
+          </Marker>
+        ))}
       </MapView>
 
       <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
@@ -271,6 +333,33 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: '#22c55e',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  botMarker: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.tertiary ?? '#00D9FF',
+    borderWidth: 2,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  botAvatar: { width: 30, height: 30, borderRadius: 15 },
+  botBadge: {
+    position: 'absolute',
+    bottom: -3,
+    right: -3,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: colors.tertiary ?? '#00D9FF',
     borderWidth: 2,
     borderColor: '#fff',
   },
