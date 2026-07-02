@@ -16,11 +16,13 @@ import { api } from '../lib/api';
 import { HapticButton } from '../components/ui/HapticButton';
 import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
+import { useTranslation } from '../lib/i18n';
 
 export default function Matches() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,9 +48,9 @@ export default function Matches() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mes matches</Text>
+        <Text style={styles.headerTitle}>{t('matches.title')}</Text>
         <TouchableOpacity onPress={() => router.push('/match-requests')} testID="goto-requests">
-          <Text style={styles.headerLink}>Demandes reçues</Text>
+          <Text style={styles.headerLink}>{t('matches.requestsLink')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -61,7 +63,7 @@ export default function Matches() {
           loading ? (
             <ActivityIndicator color={colors.primary} style={{ marginTop: 60 }} />
           ) : (
-            <Text style={styles.empty}>Aucun match pour l'instant. Va swiper et accepter des demandes 💞</Text>
+            <Text style={styles.empty}>{t('matches.empty')}</Text>
           )
         }
         renderItem={({ item }) => (
@@ -82,7 +84,7 @@ export default function Matches() {
             <View style={{ flex: 1 }}>
               <Text style={styles.name}>{item.name}</Text>
               <Text style={styles.last} numberOfLines={1}>
-                {item.last_message || 'Dis bonjour 👋'}
+                {item.last_message || t('matches.sayHi')}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />

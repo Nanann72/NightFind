@@ -27,6 +27,7 @@ type AuthCtx = {
   signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
+  setSession: (token: string, user: User) => Promise<void>;
 };
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -177,8 +178,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const setSession = useCallback(async (token: string, u: User) => {
+    await saveToken(token);
+    setUser(u);
+  }, []);
+
   return (
-    <Ctx.Provider value={{ user, loading, signIn, signUp, signInWithGoogle, signInWithApple, signOut, refresh }}>
+    <Ctx.Provider value={{ user, loading, signIn, signUp, signInWithGoogle, signInWithApple, signOut, refresh, setSession }}>
       {children}
     </Ctx.Provider>
   );

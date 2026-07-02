@@ -20,11 +20,13 @@ import { MaskedDOBInput } from '../components/MaskedDOBInput';
 import { HapticButton } from '../components/ui/HapticButton';
 import { radius, spacing, shadows, type ThemeColors, darkColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
+import { useTranslation } from '../lib/i18n';
 
 export default function Register() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
+  const { t } = useTranslation();
   const { signUp } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -57,15 +59,15 @@ export default function Register() {
   const onSubmit = async () => {
     setErr(null);
     if (!name.trim() || !email.trim()) {
-      setErr('Nom et email requis');
+      setErr(t('auth.errNameEmail'));
       return;
     }
     if (password.length < 8) {
-      setErr('Mot de passe trop court (8 caractères minimum)');
+      setErr(t('auth.errPassShort'));
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
-      setErr('Choisis ta date de naissance');
+      setErr(t('auth.errDob'));
       return;
     }
     // Client-side 18+ check (server also validates)
@@ -76,11 +78,11 @@ export default function Register() {
       (today.getMonth() === dt.getMonth() && today.getDate() < dt.getDate()) ? 1 : 0
     );
     if (age < 18) {
-      setErr('Tu dois avoir 18 ans ou plus pour utiliser Night Finder');
+      setErr(t('auth.err18'));
       return;
     }
     if (!acceptTerms) {
-      setErr("Tu dois accepter les CGU et la Politique de confidentialité");
+      setErr(t('auth.errAcceptTerms'));
       return;
     }
     setLoading(true);
@@ -102,7 +104,7 @@ export default function Register() {
       await clearOnboarding();
       router.replace('/(tabs)');
     } catch (e: any) {
-      setErr(e.message || "Inscription impossible");
+      setErr(e.message || t('auth.errSignupFailed'));
     } finally {
       setLoading(false);
     }
@@ -126,9 +128,9 @@ export default function Register() {
           <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
 
-        <Text style={styles.title}>Créer un compte</Text>
+        <Text style={styles.title}>{t('auth.registerTitle')}</Text>
         <Text style={styles.subtitle}>
-          Trouvez les meilleures soirées autour de vous.
+          {t('auth.registerSubtitle')}
         </Text>
 
         <View style={styles.field}>
@@ -136,7 +138,7 @@ export default function Register() {
           <TextInput
             value={name}
             onChangeText={setName}
-            placeholder="Nom"
+            placeholder={t('auth.namePh')}
             placeholderTextColor={colors.textTertiary}
             style={styles.input}
             testID="register-name-input"
@@ -147,7 +149,7 @@ export default function Register() {
           <TextInput
             value={email}
             onChangeText={setEmail}
-            placeholder="Email"
+            placeholder={t('auth.email')}
             placeholderTextColor={colors.textTertiary}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -168,7 +170,7 @@ export default function Register() {
           <TextInput
             value={password}
             onChangeText={setPassword}
-            placeholder="Mot de passe (8+ caractères)"
+            placeholder={t('auth.passwordPh8')}
             placeholderTextColor={colors.textTertiary}
             secureTextEntry
             style={styles.input}
@@ -188,21 +190,21 @@ export default function Register() {
             {acceptTerms && <Ionicons name="checkmark" size={14} color={colors.bg} />}
           </View>
           <Text style={styles.termsText}>
-            J'accepte les{' '}
+            {t('auth.acceptPrefix')}
             <Text
               style={styles.termsLink}
               onPress={() => router.push({ pathname: '/legal', params: { doc: 'cgu' } })}
             >
-              Conditions Générales d'Utilisation
-            </Text>{' '}
-            et la{' '}
+              {t('auth.cguShort')}
+            </Text>
+            {t('auth.acceptMid')}
             <Text
               style={styles.termsLink}
               onPress={() => router.push({ pathname: '/legal', params: { doc: 'privacy' } })}
             >
-              Politique de Confidentialité
+              {t('auth.privacyShort')}
             </Text>
-            .
+            {t('auth.acceptSuffix')}
           </Text>
         </TouchableOpacity>
 

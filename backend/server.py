@@ -4,6 +4,8 @@ from __future__ import annotations
 import logging
 import math
 import os
+import secrets
+import hashlib
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -38,6 +40,7 @@ http_client: Optional[httpx.AsyncClient] = None
 import places_service  # noqa: E402
 import push_service  # noqa: E402
 import legal_pages  # noqa: E402
+import email_service  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -75,6 +78,14 @@ class EmailLogin(BaseModel):
 
 class ForgotPassword(BaseModel):
     email: EmailStr
+    mode: str = "otp"  # "otp" (6-digit code) or "link" (magic link)
+
+
+class ResetPassword(BaseModel):
+    email: EmailStr
+    code: Optional[str] = None  # 6-digit OTP
+    token: Optional[str] = None  # magic-link token
+    new_password: str = Field(min_length=6)
 
 
 class GoogleSession(BaseModel):
@@ -265,12 +276,108 @@ async def login(body: EmailLogin):
 
 
 @api_router.post("/auth/forgot-password")
-async def forgot_password(body: ForgotPassword):
-    # MVP: stub. Just acknowledge.
+async def forgot_password(body: ForgotPassword, request: Request):
+    """Send a password reset email (OTP or magic link) via Resend.
+
+    Always returns 200 to avoid leaking whether an email exists.
+    Rate limited per email (max 3 requests / 15 min).
+    """
+    email = body.email.lower().strip()
+    mode = "link" if body.mode == "link" else "otp"
+
+    # Rate limit: max 3 pending tokens in the last 15 minutes for this email
+    since = datetime.now(timezone.utc) - timedelta(minutes=15)
+    recent = await db.password_resets.count_documents(
+        {"email": email, "created_at": {"$gte": since}}
+    )
+    if recent >= 3:
+        # Silent: still return success to caller
+        return {
+            "ok": True,
+            "mode": mode,
+            "message": "If an account exists for this email, reset instructions have been sent.",
+        }
+
+    user = await db.users.find_one({"email": email}, {"_id": 0, "user_id": 1, "name": 1})
+
+    # Only actually send email if the user exists — but always respond OK.
+    if user:
+        if mode == "otp":
+            code = f"{secrets.randbelow(1_000_000):06d}"
+            token_hash = hashlib.sha256(code.encode()).hexdigest()
+            raw_for_email = code
+        else:
+            raw_token = secrets.token_urlsafe(32)
+            token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+            raw_for_email = raw_token
+
+        now = datetime.now(timezone.utc)
+        await db.password_resets.insert_one({
+            "reset_id": f"rst_{uuid.uuid4().hex[:12]}",
+            "email": email,
+            "user_id": user["user_id"],
+            "mode": mode,
+            "token_hash": token_hash,
+            "created_at": now,
+            "expires_at": now + timedelta(minutes=30),
+            "used": False,
+            "ip": (request.client.host if request.client else None),
+        })
+
+        try:
+            await email_service.send_password_reset(
+                email, mode=mode, code_or_token=raw_for_email, minutes=30
+            )
+        except Exception as exc:
+            logger.warning(f"Reset email send failed for {email}: {exc}")
+
     return {
         "ok": True,
+        "mode": mode,
         "message": "If an account exists for this email, reset instructions have been sent.",
     }
+
+
+@api_router.post("/auth/reset-password")
+async def reset_password(body: ResetPassword):
+    """Verify OTP or token and update the user's password."""
+    email = body.email.lower().strip()
+    if not body.code and not body.token:
+        raise HTTPException(status_code=400, detail="Missing code or token")
+
+    raw = body.code.strip() if body.code else body.token.strip()  # type: ignore
+    token_hash = hashlib.sha256(raw.encode()).hexdigest()
+    mode = "otp" if body.code else "link"
+
+    now = datetime.now(timezone.utc)
+    reset = await db.password_resets.find_one({
+        "email": email,
+        "token_hash": token_hash,
+        "mode": mode,
+        "used": False,
+        "expires_at": {"$gte": now},
+    })
+    if not reset:
+        raise HTTPException(status_code=400, detail="Code invalide ou expiré")
+
+    user = await db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(status_code=400, detail="Code invalide ou expiré")
+
+    # Mark used, invalidate all other pending resets for this user, update password
+    await db.password_resets.update_one(
+        {"_id": reset["_id"]}, {"$set": {"used": True, "used_at": now}}
+    )
+    await db.password_resets.update_many(
+        {"email": email, "used": False}, {"$set": {"used": True, "used_at": now}}
+    )
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"password_hash": hash_password(body.new_password), "auth_provider": user.get("auth_provider", "email")}},
+    )
+
+    token = make_jwt(user["user_id"])
+    return {"ok": True, "token": token, "user": public_user(user)}
 
 
 @api_router.post("/auth/session")

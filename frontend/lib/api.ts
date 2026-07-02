@@ -96,10 +96,15 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }),
-  forgotPassword: (email: string) =>
-    request<{ ok: boolean; message: string }>('/auth/forgot-password', {
+  forgotPassword: (email: string, mode: 'otp' | 'link' = 'otp') =>
+    request<{ ok: boolean; mode: 'otp' | 'link'; message: string }>('/auth/forgot-password', {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, mode }),
+    }),
+  resetPassword: (payload: { email: string; code?: string; token?: string; new_password: string }) =>
+    request<{ ok: boolean; token: string; user: User }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     }),
   googleSession: (session_token: string) =>
     request<{ token: string; user: User }>('/auth/session', {

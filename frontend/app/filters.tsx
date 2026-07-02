@@ -16,6 +16,7 @@ import { usePremium } from '../lib/premium';
 import { HapticButton } from '../components/ui/HapticButton';
 import { radius, spacing, shadows, type ThemeColors, darkColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
+import { useTranslation } from '../lib/i18n';
 
 const MUSIC_GENRES = [
   'techno', 'house', 'electronic', 'hip-hop', 'rnb', 'disco',
@@ -28,6 +29,7 @@ export default function Filters() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { filters, setFilters } = useClubs();
   const { isPremium } = usePremium();
@@ -68,14 +70,14 @@ export default function Filters() {
         <TouchableOpacity onPress={() => router.back()} testID="filters-close-btn">
           <Ionicons name="close" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.title}>Filtres</Text>
+        <Text style={styles.title}>{t('filters.title')}</Text>
         <TouchableOpacity onPress={reset} testID="filters-reset-btn">
-          <Text style={styles.reset}>Réinitialiser</Text>
+          <Text style={styles.reset}>{t('filters.reset')}</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
-        <Section title="Distance">
+        <Section title={t('filters.distance')}>
           <View style={styles.radiusRow}>
             {RADIUS_OPTIONS.map((r) => (
               <TouchableOpacity
@@ -123,12 +125,12 @@ export default function Filters() {
           </View>
           {!isPremium ? (
             <Text style={styles.premiumHint}>
-              ✨ Élargis ta recherche jusqu&apos;à 200 km avec Premium
+              {t('filters.premiumHint')}
             </Text>
           ) : null}
         </Section>
 
-        <Section title="Style musical">
+        <Section title={t('filters.musicStyle')}>
           <View style={styles.tagsRow}>
             {MUSIC_GENRES.map((g) => {
               const active = music === g;
@@ -146,13 +148,13 @@ export default function Filters() {
           </View>
         </Section>
 
-        <Section title="Prix moyen maximum">
+        <Section title={t('filters.maxPrice')}>
           <View style={styles.priceRow}>
             <TextInput
               keyboardType="numeric"
               value={maxPrice}
               onChangeText={setMaxPrice}
-              placeholder="Ex. 25"
+              placeholder={t('filters.pricePh')}
               placeholderTextColor={colors.textTertiary}
               style={styles.priceInput}
               testID="max-price-input"
@@ -161,10 +163,10 @@ export default function Filters() {
           </View>
         </Section>
 
-        <Section title="Préférences">
-          <SwitchRow label="Ouvert maintenant" value={openNow} onChange={setOpenNow} testID="switch-open-now" />
-          <SwitchRow label="VIP" value={vip} onChange={setVip} testID="switch-vip" />
-          <SwitchRow label="Terrasse" value={terrasse} onChange={setTerrasse} testID="switch-terrasse" />
+        <Section title={t('filters.prefs')}>
+          <SwitchRow label={t('filters.openNow')} value={openNow} onChange={setOpenNow} testID="switch-open-now" />
+          <SwitchRow label={t('filters.vip')} value={vip} onChange={setVip} testID="switch-vip" />
+          <SwitchRow label={t('filters.terrasse')} value={terrasse} onChange={setTerrasse} testID="switch-terrasse" />
         </Section>
       </ScrollView>
 
@@ -176,7 +178,7 @@ export default function Filters() {
           onPress={apply}
           testID="filters-apply-btn"
         >
-          <Text style={styles.applyText}>Appliquer</Text>
+          <Text style={styles.applyText}>{t('filters.apply')}</Text>
         </HapticButton>
       </View>
     </View>

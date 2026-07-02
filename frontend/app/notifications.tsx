@@ -15,6 +15,7 @@ import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
 import { api } from '../lib/api';
 import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
+import { useTranslation } from '../lib/i18n';
 
 const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   event: 'calendar',
@@ -43,6 +44,13 @@ export default function Notifications() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
+  const { t } = useTranslation();
+  const LABELS_T: Record<string, string> = {
+    event: t('notifications.labelEvent'),
+    promo: t('notifications.labelPromo'),
+    nearby: t('notifications.labelNearby'),
+    checkin: t('notifications.labelCheckin'),
+  };
   const insets = useSafeAreaInsets();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,7 +108,7 @@ export default function Notifications() {
         <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} testID="notif-back-btn">
           <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.title}>Notifications</Text>
+        <Text style={styles.title}>{t('notifications.title')}</Text>
         <View style={styles.iconBtn} />
       </View>
 
@@ -115,9 +123,9 @@ export default function Notifications() {
         ) : groups.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="notifications-off-outline" size={48} color={colors.textTertiary} />
-            <Text style={styles.emptyTitle}>Tout est calme</Text>
+            <Text style={styles.emptyTitle}>{t('notifications.emptyTitle')}</Text>
             <Text style={styles.emptyText}>
-              Tu seras notifié dès qu'une bonne occasion se présentera près de toi.
+              {t('notifications.emptyText')}
             </Text>
           </View>
         ) : (
@@ -130,6 +138,7 @@ export default function Notifications() {
                 setExpanded((prev) => ({ ...prev, [g.type]: !prev[g.type] }))
               }
               onItemPress={onItemPress}
+              labels={LABELS_T}
             />
           ))
         )}
@@ -143,13 +152,15 @@ function NotifStack({
   index,
   onToggle,
   onItemPress,
+  labels,
 }: {
   group: Group;
   index: number;
   onToggle: () => void;
   onItemPress: (item: any) => void;
+  labels?: Record<string, string>;
 }) {
-  const tag = LABELS[group.type] || 'Info';
+  const tag = (labels && labels[group.type]) || LABELS[group.type] || 'Info';
   const col = COLOURS[group.type] || colors.tertiary;
   const ic = ICONS[group.type] || 'notifications';
   const count = group.items.length;

@@ -109,6 +109,27 @@ user_problem_statement: |
   7 jours pour Premium.
 
 backend:
+  - task: "Resend forgot-password (OTP + magic link)"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py, /app/backend/email_service.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          POST /api/auth/forgot-password body {email, mode:"otp"|"link"} → toujours 200.
+          Génère un code OTP 6 chiffres (mode=otp) ou un token URL-safe (mode=link).
+          Stocke SHA-256 hash + expires_at (30 min) dans collection password_resets.
+          Envoie l'email via Resend SDK (from: onboarding@resend.dev par défaut).
+          Rate limit : max 3 pending resets par email / 15 min (silencieux).
+          POST /api/auth/reset-password body {email, code|token, new_password} → renvoie JWT + user.
+          Marque le reset comme used=true et invalide tous les autres pending resets pour cet email.
+          NOTE: Le sender de test `onboarding@resend.dev` n'accepte que l'email du propriétaire (erlann.drc72@gmail.com).
+          Pour un test réel avec envoi, utiliser cet email. Sinon tester la logique (rate limit, 200 always, reset flow).
+
   - task: "BeReal moments — POST /api/clubs/{club_id}/moments"
     implemented: true
     working: "NA"
@@ -214,15 +235,24 @@ metadata:
 
 test_plan:
   current_focus:
-    - "BeReal moments — POST /api/clubs/{club_id}/moments"
-    - "BeReal moments — GET /api/clubs/{club_id}/moments"
-    - "BeReal moments — GET /api/moments/window-state"
-    - "BeReal moments — GET /api/moments/active-clubs"
+    - "Resend forgot-password (OTP + magic link)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
 
 agent_communication:
+  - agent: "main"
+    message: |
+      NOUVEAU (juillet 2026) — Tester le flow Resend forgot/reset password :
+      1. POST /api/auth/forgot-password body {email:"apple.reviewer@nightfinder.app","mode":"otp"} → doit renvoyer {ok:true, mode:"otp", message:...}. STATUS 200.
+      2. Même appel avec email inexistant "ghost@nowhere.app" → doit renvoyer 200 (pas de leak).
+      3. Vérifier rate limit : 4 appels rapides sur le même email → tous renvoient 200 mais le 4e ne doit PAS créer d'entrée en DB.
+      4. Récupérer/insérer un reset connu en DB (le sender de test Resend limite l'envoi réel à erlann.drc72@gmail.com — inspecter password_resets collection pour obtenir un token_hash valide et tester avec un code connu qu'on insère manuellement).
+      5. POST /api/auth/reset-password body {email, code:"123456", new_password:"newpass1"} avec un mauvais code → 400 "Code invalide ou expiré".
+      6. Insérer manuellement un reset avec code connu → reset-password doit renvoyer {ok:true, token:"...", user:{...}} et user["password_hash"] doit être mis à jour (login avec new_password fonctionne).
+      7. Re-utiliser le même code → 400 (used=true).
+      8. Mode "link" : POST forgot-password avec mode:"link" → response mode:"link". Insérer un token connu et faire reset-password avec {token:"..."} → OK.
+
   - agent: "main"
     message: |
       Tests à effectuer (backend prioritaire — frontend BeReal requiert build native, pas testable via web preview) :

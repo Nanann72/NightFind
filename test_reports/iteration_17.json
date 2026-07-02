@@ -1,0 +1,47 @@
+{
+  "summary": "Backend-only testing for the Night Finder Forgot Password flow (Resend transactional email) — POST /api/auth/forgot-password + POST /api/auth/reset-password. Created a formal pytest suite (8 test cases) covering OTP mode, magic-link mode, privacy (200 for unknown emails), rate limit (max 3 rows / 15 min), body validation (missing code+token), invalid codes, full happy-path OTP reset with subsequent login using the new password, single-use enforcement (code cannot be replayed), and identical flow for magic-link tokens. Result: 8/8 PASSED. Rate limit correctly caps persisted entries at 3 even though all 4 requests return 200 (privacy-preserving). Backend logs also confirm Resend attempted delivery — real email to onboarding@resend.dev sender was accepted for the whitelisted address and refused for others (expected behavior, does not affect logic).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/auth/forgot-password",
+        "issue": "Rate-limit window is per-email (max 3 in 15min) but does not include the used flag in the counter — after a successful /reset-password call, existing rows are marked used but they still count toward the 15-min quota (count_documents ignores 'used'). Not a security issue (user reset succeeded), but a legitimate user who resets successfully and later needs another reset will be silently blocked. Consider adding {'used': False} to the count filter."
+      },
+      {
+        "endpoint": "POST /api/auth/reset-password",
+        "issue": "Response includes a fresh JWT that is issued BEFORE the password hash update is reflected in the returned public_user (still uses the pre-update `user` dict). Not a bug per se — the token itself is valid — but the returned user object is the pre-update snapshot. Cosmetic only."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_password_reset.py",
+    "/app/test_reports/pytest/password_reset_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Include {'used': False} in the rate-limit count_documents filter in /api/auth/forgot-password so a completed reset does not consume the 15-min quota.",
+    "(Optional) Re-fetch the user document after password_hash update before building public_user in /api/auth/reset-password (currently the returned user is the pre-update snapshot — token is still valid)."
+  ],
+  "critical_code_review_comments": [
+    "email_service.py correctly runs the blocking Resend SDK in a thread pool via loop.run_in_executor — good for FastAPI async handlers.",
+    "server.py password reset flow correctly uses sha256(code) as token_hash (never stores raw code), single-use via 'used' flag, and 30-min TTL via expires_at — matches security best practices.",
+    "Privacy: forgot-password intentionally returns 200 for both known and unknown emails — verified in tests.",
+    "Reset endpoint correctly invalidates all other pending resets for the same user after success (update_many with used:True) — good defence-in-depth."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_password_reset.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "N/A (backend-only testing requested)"
+  },
+  "seed_data_creation": "Tests create a throwaway user via /api/auth/register with a random suffix and clean it up (delete users + password_resets rows for that email) in the module fixture teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 8 forgot/reset password tests pass. Test file at /app/backend/tests/test_password_reset.py is reusable — it uses EXPO_PUBLIC_BACKEND_URL and MONGO_URL from env, cleans up after itself, and inserts reset rows directly into MongoDB to simulate 'user received the email'. Resend SDK will attempt real delivery on every forgot-password call but this is a no-op for the test flow (we insert the reset row manually)."
+}

@@ -21,6 +21,7 @@ import { useTabBarScroll } from '../../lib/tabBarScroll';
 import { SafeImage } from '../../components/SafeImage';
 import { radius, spacing, type ThemeColors, darkColors } from '../../lib/theme';
 import { useThemeColors } from '../../lib/themeContext';
+import { useTranslation } from '../../lib/i18n';
 
 const QUICK_FILTERS: { key: string; label: string; emoji: string }[] = [
   { key: 'all', label: 'Tous', emoji: '✨' },
@@ -34,6 +35,7 @@ export default function Discover() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   const { clubs, loading, favorites, refresh, toggleFavorite, filters, setFilters, setCoords } = useClubs();
   const loc = useLocation();
   const { onScroll: onScrollHide } = useTabBarScroll();
@@ -70,7 +72,7 @@ export default function Discover() {
         <View>
           <Text style={styles.brand}>NIGHT FINDER</Text>
           <Text style={styles.h1}>
-            Ce soir à {loc.city || 'Paris'} 🌃
+            {t('home.todayIn', { city: loc.city || 'Paris' })}
           </Text>
         </View>
         <View style={styles.headerActions}>
@@ -96,7 +98,7 @@ export default function Discover() {
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder="Rechercher un club, un quartier, un style..."
+          placeholder={t('home.searchPh')}
           placeholderTextColor={colors.textTertiary}
           style={styles.search}
           testID="discover-search-input"
@@ -153,7 +155,7 @@ export default function Discover() {
           loading ? (
             <ActivityIndicator color={colors.primary} style={{ marginTop: 60 }} />
           ) : (
-            <Text style={styles.empty}>Aucun club ne correspond pour le moment.</Text>
+            <Text style={styles.empty}>{t('home.empty')}</Text>
           )
         }
         renderItem={({ item, index }) => (

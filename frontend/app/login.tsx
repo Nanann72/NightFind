@@ -18,11 +18,13 @@ import { SocialAuthButtons } from '../components/SocialAuthButtons';
 import { HapticButton } from '../components/ui/HapticButton';
 import { radius, spacing, shadows, type ThemeColors, darkColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
+import { useTranslation } from '../lib/i18n';
 
 export default function Login() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
+  const { t } = useTranslation();
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -59,9 +61,9 @@ export default function Login() {
       >
         <View style={styles.header}>
           <Text style={styles.brand}>NIGHT FINDER</Text>
-          <Text style={styles.title}>Bon retour parmi nous</Text>
+          <Text style={styles.title}>{t('auth.loginTitle')}</Text>
           <Text style={styles.subtitle}>
-            Connectez-vous pour retrouver vos clubs favoris.
+            {t('auth.loginSubtitle')}
           </Text>
         </View>
 
@@ -70,7 +72,7 @@ export default function Login() {
           <TextInput
             value={email}
             onChangeText={setEmail}
-            placeholder="Email"
+            placeholder={t('auth.email')}
             placeholderTextColor={colors.textTertiary}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -78,7 +80,7 @@ export default function Login() {
             textContentType="emailAddress"
             style={styles.input}
             testID="login-email-input"
-            accessibilityLabel="Adresse email"
+            accessibilityLabel={t('auth.email')}
           />
         </View>
 
@@ -87,18 +89,18 @@ export default function Login() {
           <TextInput
             value={password}
             onChangeText={setPassword}
-            placeholder="Mot de passe"
+            placeholder={t('auth.password')}
             placeholderTextColor={colors.textTertiary}
             secureTextEntry={!showPwd}
             autoComplete="password"
             textContentType="password"
             style={styles.input}
             testID="login-password-input"
-            accessibilityLabel="Mot de passe"
+            accessibilityLabel={t('auth.password')}
           />
           <TouchableOpacity
             onPress={() => setShowPwd((v) => !v)}
-            accessibilityLabel={showPwd ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+            accessibilityLabel={showPwd ? t('auth.hidePassword') : t('auth.showPassword')}
             accessibilityRole="button"
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
@@ -114,10 +116,10 @@ export default function Login() {
           <TouchableOpacity
             style={styles.forgot}
             testID="forgot-link"
-            accessibilityLabel="Mot de passe oublié"
+            accessibilityLabel={t('auth.forgotPassword')}
             accessibilityRole="link"
           >
-            <Text style={styles.forgotText}>Mot de passe oublié ?</Text>
+            <Text style={styles.forgotText}>{t('auth.forgotPassword')}</Text>
           </TouchableOpacity>
         </Link>
 
@@ -140,23 +142,23 @@ export default function Login() {
           {loading ? (
             <ActivityIndicator color={colors.bg} />
           ) : (
-            <Text style={styles.primaryBtnText}>Se connecter</Text>
+            <Text style={styles.primaryBtnText}>{t('auth.signIn')}</Text>
           )}
         </HapticButton>
 
         <View style={styles.divider}>
           <View style={styles.line} />
-          <Text style={styles.dividerText}>OU</Text>
+          <Text style={styles.dividerText}>{t('common.or')}</Text>
           <View style={styles.line} />
         </View>
 
         <SocialAuthButtons />
 
         <View style={styles.bottom}>
-          <Text style={styles.bottomText}>Pas encore de compte ? </Text>
+          <Text style={styles.bottomText}>{t('auth.dontHaveAccount')} </Text>
           <Link href="/register" asChild>
             <TouchableOpacity testID="goto-register-link">
-              <Text style={styles.bottomLink}>{"S'inscrire"}</Text>
+              <Text style={styles.bottomLink}>{t('auth.signUp')}</Text>
             </TouchableOpacity>
           </Link>
         </View>
