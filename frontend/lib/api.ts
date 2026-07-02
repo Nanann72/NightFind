@@ -396,10 +396,10 @@ export const api = {
   listNotifications: () => request<any[]>('/notifications'),
 
   // Club Moments (live-photo) ---------------------------------------
-  uploadMoment: (clubId: string, image: string, caption?: string) =>
+  uploadMoment: (clubId: string, image: string, caption?: string, selfie?: string) =>
     request<any>(`/clubs/${clubId}/moments`, {
       method: 'POST',
-      body: JSON.stringify({ image, caption: caption || null }),
+      body: JSON.stringify({ image, caption: caption || null, selfie: selfie || null }),
     }),
   listClubMoments: (clubId: string) =>
     request<any[]>(`/clubs/${clubId}/moments`),

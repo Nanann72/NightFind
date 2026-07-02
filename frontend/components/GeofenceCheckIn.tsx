@@ -11,6 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -31,7 +32,16 @@ import { useThemeColors } from '../lib/themeContext';
 
 const GEOFENCE_RADIUS_KM = 0.05; // 50m
 const POLL_INTERVAL_MS = 60 * 1000;
-const DISMISS_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6h
+// Once the user confirms being at a club, don't ask again for 6h.
+const CONFIRMED_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+// If they said "Non" or closed the modal, wait 2h before asking again.
+const DISMISSED_COOLDOWN_MS = 2 * 60 * 60 * 1000;
+// Global cooldown: after ANY confirmation, don't show the geofence modal at all
+// (across all clubs) for this period — user is presumed to be in nightlife mode.
+const GLOBAL_CONFIRMED_COOLDOWN_MS = 4 * 60 * 60 * 1000;
+
+const STORAGE_KEY_DISMISSED = 'nf.geofence.dismissed';
+const STORAGE_KEY_CONFIRMED = 'nf.geofence.lastConfirmed';
 
 function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const R = 6371;
@@ -53,6 +63,43 @@ export function GeofenceCheckIn() {
   const [candidate, setCandidate] = useState<Club | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const dismissed = useRef<Record<string, number>>({});
+  const lastGlobalConfirmed = useRef<number>(0);
+  const [storageReady, setStorageReady] = useState(false);
+
+  // Load persisted state (survives component remount + app relaunch)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [rawDismissed, rawConfirmed] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEY_DISMISSED),
+          AsyncStorage.getItem(STORAGE_KEY_CONFIRMED),
+        ]);
+        if (cancelled) return;
+        if (rawDismissed) {
+          try { dismissed.current = JSON.parse(rawDismissed) || {}; } catch { dismissed.current = {}; }
+        }
+        if (rawConfirmed) {
+          const ts = parseInt(rawConfirmed, 10);
+          if (Number.isFinite(ts)) lastGlobalConfirmed.current = ts;
+        }
+      } finally {
+        if (!cancelled) setStorageReady(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const persistDismissed = async () => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY_DISMISSED, JSON.stringify(dismissed.current));
+    } catch {}
+  };
+  const persistConfirmed = async (ts: number) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY_CONFIRMED, String(ts));
+    } catch {}
+  };
 
   // Pulsing music icon
   const pulse = useSharedValue(1);
@@ -68,11 +115,14 @@ export function GeofenceCheckIn() {
   const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
 
   useEffect(() => {
-    if (!user || clubs.length === 0) return;
+    if (!user || clubs.length === 0 || !storageReady) return;
     let cancelled = false;
 
     const tick = async () => {
       try {
+        // Global cooldown: if user confirmed at ANY club recently, skip entirely.
+        if (Date.now() - lastGlobalConfirmed.current < GLOBAL_CONFIRMED_COOLDOWN_MS) return;
+
         let coords: { lat: number; lng: number } | null = null;
         if (Platform.OS === 'web') {
           if (typeof navigator !== 'undefined' && navigator.geolocation) {
@@ -107,7 +157,7 @@ export function GeofenceCheckIn() {
         if (!nearest) return;
 
         const last = dismissed.current[nearest.club_id] || 0;
-        if (Date.now() - last < DISMISS_COOLDOWN_MS) return;
+        if (Date.now() - last < DISMISSED_COOLDOWN_MS) return;
         setCandidate(nearest);
       } catch {
         // ignore
@@ -120,7 +170,7 @@ export function GeofenceCheckIn() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [user, clubs]);
+  }, [user, clubs, storageReady]);
 
   const respond = async (confirmed: boolean) => {
     if (!candidate) return;
@@ -128,19 +178,27 @@ export function GeofenceCheckIn() {
     try {
       await api.checkIn(candidate.club_id, confirmed);
       if (confirmed) {
-        // Real audio recognition (Audd.io) on native build, mock fallback on web.
         startLiveListening(candidate);
         startLiveListeningMock(candidate);
       }
     } catch {}
-    dismissed.current[candidate.club_id] = Date.now();
+
+    const now = Date.now();
+    // Set per-club cooldown (longer if user confirmed)
+    dismissed.current[candidate.club_id] = now + (confirmed
+      ? CONFIRMED_COOLDOWN_MS - DISMISSED_COOLDOWN_MS  // pushes effective cooldown to 6h
+      : 0);
+    if (confirmed) {
+      lastGlobalConfirmed.current = now;
+      await persistConfirmed(now);
+    }
+    await persistDismissed();
+
     const wasConfirmed = confirmed;
     const clubId = candidate.club_id;
     setSubmitting(false);
     setCandidate(null);
-    // After a confirmed check-in, propose the moment capture screen.
     if (wasConfirmed) {
-      // Small delay so the modal-close animation completes first.
       setTimeout(() => {
         router.push({ pathname: '/moment-capture', params: { club_id: clubId } });
       }, 250);
@@ -148,7 +206,10 @@ export function GeofenceCheckIn() {
   };
 
   const close = () => {
-    if (candidate) dismissed.current[candidate.club_id] = Date.now();
+    if (candidate) {
+      dismissed.current[candidate.club_id] = Date.now();
+      persistDismissed();
+    }
     setCandidate(null);
   };
 

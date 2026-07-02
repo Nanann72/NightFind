@@ -1447,11 +1447,13 @@ async def swipe_history(user: dict = Depends(get_current_user)):
 MOMENT_WINDOW_MIN = 5
 MOMENT_TTL_FREE_HOURS = 24
 MOMENT_TTL_PREMIUM_HOURS = 24 * 7
+MOMENT_COOLDOWN_HOURS = 4  # min. delay between two moments (across all clubs)
 
 
 class MomentUploadBody(BaseModel):
-    image: str  # base64 (data URI ok)
+    image: str  # base64 (data URI ok) — composite or main photo
     caption: Optional[str] = None
+    selfie: Optional[str] = None  # optional base64 selfie for BeReal-style dual view
 
 
 @api_router.post("/clubs/{club_id}/moments")
@@ -1483,6 +1485,27 @@ async def upload_moment(
     if existing:
         raise HTTPException(status_code=409, detail="Tu as déjà publié un moment pour ce check-in.")
 
+    # Global cooldown: one moment per user every MOMENT_COOLDOWN_HOURS across all clubs
+    cooldown_cutoff = now - timedelta(hours=MOMENT_COOLDOWN_HOURS)
+    recent_moment = await db.club_moments.find_one(
+        {"user_id": user["user_id"], "created_at": {"$gte": cooldown_cutoff}},
+        sort=[("created_at", -1)],
+    )
+    if recent_moment:
+        rm_created = recent_moment["created_at"]
+        if rm_created.tzinfo is None:
+            rm_created = rm_created.replace(tzinfo=timezone.utc)
+        next_ok = rm_created + timedelta(hours=MOMENT_COOLDOWN_HOURS)
+        mins_left = max(1, int((next_ok - now).total_seconds() / 60))
+        hours_left = round(mins_left / 60, 1)
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Tu as déjà posté un moment récemment. "
+                f"Reviens dans {hours_left}h pour en poster un nouveau."
+            ),
+        )
+
     ttl_hours = MOMENT_TTL_PREMIUM_HOURS if user.get("is_premium") else MOMENT_TTL_FREE_HOURS
     moment = {
         "moment_id": f"mom_{uuid.uuid4().hex[:12]}",
@@ -1492,6 +1515,7 @@ async def upload_moment(
         "club_id": club_id,
         "checkin_id": recent_ci.get("checkin_id"),
         "image": body.image,
+        "selfie": body.selfie or None,
         "caption": (body.caption or "")[:280],
         "is_premium_author": bool(user.get("is_premium")),
         "created_at": now,

@@ -109,12 +109,20 @@ export default function MySongs() {
     const result = await scanOnce(target);
     setScanning(false);
     if (!result.ok) {
+      // Show the real reason from Audd/mic/etc so the user knows what to fix
+      const msg =
+        result.errorMessage ||
+        "Impossible de scanner la musique. Réessaie dans quelques secondes.";
       if (result.reason === 'no-mic-permission') {
-        Alert.alert('Micro refusé', 'Active le microphone dans Réglages > Night Finder.');
+        Alert.alert('Micro refusé', msg);
       } else if (result.reason === 'native-only') {
-        Alert.alert('Indisponible', "Disponible uniquement sur l'app iOS/Android.");
+        Alert.alert('Indisponible', msg);
+      } else if (result.reason === 'no-audio-recorded') {
+        Alert.alert('Micro presque muet', msg);
+      } else if (result.reason === 'audd-not-recognised') {
+        Alert.alert('Reconnaissance échouée', msg);
       } else {
-        Alert.alert('Erreur', "Impossible de scanner la musique. Réessaie dans quelques secondes.");
+        Alert.alert('Erreur', msg);
       }
       return;
     }
@@ -127,7 +135,8 @@ export default function MySongs() {
     } else {
       Alert.alert(
         'Aucun morceau identifié',
-        'Approche-toi des enceintes et réessaie.',
+        result.errorMessage ||
+          'Approche-toi des enceintes (~1m), monte le volume et réessaie.',
       );
     }
   };
