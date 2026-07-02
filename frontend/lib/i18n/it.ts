@@ -58,7 +58,7 @@ export default {
     edit: 'Modifica profilo', share: 'Condividi profilo', photos: 'Foto', likes: 'Like',
     matches: 'Match', tabMoments: 'I miei Momenti', tabFavorites: 'Club preferiti',
     emptyMomentsTitle: 'Nessun Momento',
-    emptyMomentsSub: 'Fai check-in in un club e cattura il tuo primo BeReal in 5 min.',
+    emptyMomentsSub: 'Fai check-in in un club e cattura il tuo primo Moment in 5 min.',
     emptyFavoritesTitle: 'Nessun club preferito',
     emptyFavoritesSub: 'Aggiungi club ai preferiti dalla mappa o dalla scoperta.',
     premiumActive: 'Night Finder Premium', premiumGoTo: 'Passa a Premium',

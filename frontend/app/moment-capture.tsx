@@ -22,7 +22,7 @@ import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
 
 /**
- * BeReal-style live moment capture.
+ * Live moment capture.
  *
  * Uses expo-image-picker's `launchCameraAsync` (which delegates to the
  * OS native camera UI) to avoid pulling in `expo-camera`'s native module —
@@ -35,7 +35,7 @@ import { useThemeColors } from '../lib/themeContext';
  *  3. Once captured, allow an optional caption then upload to
  *     POST /clubs/{club_id}/moments as base64.
  */
-export default function BeRealCapture() {
+export default function MomentCapture() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
@@ -184,7 +184,7 @@ export default function BeRealCapture() {
         <TouchableOpacity
           onPress={cancel}
           style={styles.topBtn}
-          testID="bereal-close"
+          testID="moment-close"
           hitSlop={10}
         >
           <Ionicons name="close" size={22} color={colors.textPrimary} />
@@ -229,7 +229,7 @@ export default function BeRealCapture() {
               style={styles.shutter}
               onPress={openCamera}
               activeOpacity={0.85}
-              testID="bereal-open-camera"
+              testID="moment-open-camera"
             >
               <View style={styles.shutterInner}>
                 <Ionicons name="camera" size={26} color={colors.bg} />
@@ -244,7 +244,7 @@ export default function BeRealCapture() {
             <TouchableOpacity
               style={styles.retakeBtn}
               onPress={openCamera}
-              testID="bereal-retake"
+              testID="moment-retake"
             >
               <Ionicons name="refresh" size={16} color={colors.textPrimary} />
               <Text style={styles.retakeText}>Reprendre</Text>
@@ -258,7 +258,7 @@ export default function BeRealCapture() {
                 maxLength={140}
                 style={styles.captionInput}
                 multiline
-                testID="bereal-caption"
+                testID="moment-caption"
               />
               <Text style={styles.captionCount}>{caption.length}/140</Text>
             </View>
@@ -274,7 +274,7 @@ export default function BeRealCapture() {
             onPress={submit}
             disabled={submitting}
             activeOpacity={0.9}
-            testID="bereal-submit"
+            testID="moment-submit"
           >
             <Ionicons name="send" size={18} color={colors.bg} />
             <Text style={styles.ctaText}>

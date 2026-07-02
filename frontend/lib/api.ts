@@ -276,7 +276,7 @@ export const api = {
             const { startLiveListening } = await import('./audioRecognition');
             startLiveListening(club);
           }
-          // BeReal-style capture is temporarily disabled (native plugin
+          // Moment capture is temporarily disabled (native plugin
           // removed) — feature will return in a future build.
         } catch {
           // Live listening is best-effort.
@@ -363,7 +363,7 @@ export const api = {
   // Notifications
   listNotifications: () => request<any[]>('/notifications'),
 
-  // Club Moments (BeReal-style) ---------------------------------------
+  // Club Moments (live-photo) ---------------------------------------
   uploadMoment: (clubId: string, image: string, caption?: string) =>
     request<any>(`/clubs/${clubId}/moments`, {
       method: 'POST',

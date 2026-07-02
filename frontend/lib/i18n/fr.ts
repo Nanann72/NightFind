@@ -100,7 +100,7 @@ export default {
     tabMoments: 'Mes Moments',
     tabFavorites: 'Clubs Favoris',
     emptyMomentsTitle: "Aucun Moment pour l'instant",
-    emptyMomentsSub: 'Check-in dans un club puis capture ton premier BeReal dans les 5 min.',
+    emptyMomentsSub: 'Check-in dans un club puis capture ton premier Moment dans les 5 min.',
     emptyFavoritesTitle: 'Aucun club favori',
     emptyFavoritesSub: 'Ajoute des clubs à tes favoris depuis la carte ou la découverte.',
     premiumActive: 'Night Finder Premium',

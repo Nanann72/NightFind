@@ -55,7 +55,7 @@ export default {
     edit: 'Edit profile', share: 'Share profile', photos: 'Photos', likes: 'Likes',
     matches: 'Matches', tabMoments: 'My Moments', tabFavorites: 'Favorite Clubs',
     emptyMomentsTitle: 'No Moments yet',
-    emptyMomentsSub: 'Check in at a club and capture your first BeReal within 5 min.',
+    emptyMomentsSub: 'Check in at a club and capture your first Moment within 5 min.',
     emptyFavoritesTitle: 'No favorite clubs',
     emptyFavoritesSub: 'Add clubs to your favorites from the map or discovery.',
     premiumActive: 'Night Finder Premium', premiumGoTo: 'Upgrade to Premium',

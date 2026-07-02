@@ -1388,7 +1388,7 @@ async def swipe_history(user: dict = Depends(get_current_user)):
 
 
 # ---------------------------------------------------------------------------
-# Club Moments — BeReal-style live photos linked to a check-in
+# Club Moments — Live photo moments linked to a check-in
 # 5 min capture window after the user confirms they're at a club.
 # Free users → moments visible 24h. Premium → 7 days.
 # Indexed by club + expires_at for fast map queries.
@@ -1411,7 +1411,7 @@ async def upload_moment(
     body: MomentUploadBody,
     user: dict = Depends(get_current_user),
 ):
-    """Upload a BeReal-style moment. Must be within 5 min of a confirmed
+    """Upload a live moment. Must be within 5 min of a confirmed
     check-in to this club. Stored as base64; cleaned up via expires_at."""
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(minutes=MOMENT_WINDOW_MIN)
@@ -1493,7 +1493,7 @@ async def list_clubs_with_active_moments(user: dict = Depends(get_current_user))
 
 @api_router.get("/me/moments")
 async def list_my_moments(user: dict = Depends(get_current_user)):
-    """Return the current user's own BeReal-style moments (most recent first).
+    """Return the current user's own live moments (most recent first).
     Used by the Instagram-style profile grid and story highlights."""
     now = datetime.now(timezone.utc)
     # Include both active and recently expired (last 7 days) so the profile
@@ -1533,7 +1533,7 @@ async def list_my_moments(user: dict = Depends(get_current_user)):
 @api_router.get("/moments/window-state")
 async def moment_window_state(user: dict = Depends(get_current_user)):
     """Tells the frontend if the user is currently inside their 5-min capture
-    window (used to push them to the BeReal screen on app open / cold start)."""
+    window (used to push them to the Moment screen on app open / cold start)."""
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(minutes=MOMENT_WINDOW_MIN)
     ci = await db.checkins.find_one(
@@ -2610,7 +2610,7 @@ async def startup():
     await db.clubs.create_index("club_id", unique=True)
     await db.events.create_index("event_id", unique=True)
 
-    # Club moments (BeReal) — TTL index on expires_at for auto-cleanup
+    # Club moments (Moment) — TTL index on expires_at for auto-cleanup
     # plus query indexes for hot paths.
     try:
         await db.club_moments.create_index("expires_at", expireAfterSeconds=0)

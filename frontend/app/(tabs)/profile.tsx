@@ -166,7 +166,7 @@ export default function Profile() {
           </TouchableOpacity>
         </View>
 
-        {/* STORY HIGHLIGHTS — BeReal moments actifs */}
+        {/* STORY HIGHLIGHTS — Moments actifs */}
         {(loadingMoments || activeHighlights.length > 0) && (
           <View style={styles.highlightsWrap}>
             <ScrollView

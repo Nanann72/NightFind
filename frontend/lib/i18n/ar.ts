@@ -58,7 +58,7 @@ export default {
     edit: 'تعديل الملف', share: 'مشاركة الملف', photos: 'الصور', likes: 'الإعجابات',
     matches: 'التوافقات', tabMoments: 'لحظاتي', tabFavorites: 'النوادي المفضلة',
     emptyMomentsTitle: 'لا توجد لحظات بعد',
-    emptyMomentsSub: 'سجّل حضورك في نادٍ والتقط أول BeReal خلال 5 دقائق.',
+    emptyMomentsSub: 'سجّل حضورك في نادٍ والتقط أول Moment خلال 5 دقائق.',
     emptyFavoritesTitle: 'لا توجد نوادٍ مفضلة',
     emptyFavoritesSub: 'أضف نوادٍ إلى مفضلاتك من الخريطة أو الاكتشاف.',
     premiumActive: 'Night Finder Premium', premiumGoTo: 'الترقية إلى Premium',

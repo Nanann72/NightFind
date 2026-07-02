@@ -426,7 +426,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: radius.full,
   },
   favText: { color: colors.bg, fontWeight: '800', fontSize: 15 },
-  // Moments (BeReal-style)
+  // Moments (live-photo)
   momentsHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -138,11 +138,11 @@ export function GeofenceCheckIn() {
     const clubId = candidate.club_id;
     setSubmitting(false);
     setCandidate(null);
-    // After a confirmed check-in, propose the BeReal capture screen.
+    // After a confirmed check-in, propose the moment capture screen.
     if (wasConfirmed) {
       // Small delay so the modal-close animation completes first.
       setTimeout(() => {
-        router.push({ pathname: '/bereal-capture', params: { club_id: clubId } });
+        router.push({ pathname: '/moment-capture', params: { club_id: clubId } });
       }, 250);
     }
   };
