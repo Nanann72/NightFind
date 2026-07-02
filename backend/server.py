@@ -285,10 +285,10 @@ async def forgot_password(body: ForgotPassword, request: Request):
     email = body.email.lower().strip()
     mode = "link" if body.mode == "link" else "otp"
 
-    # Rate limit: max 3 pending tokens in the last 15 minutes for this email
+    # Rate limit: max 3 pending (unused) tokens in the last 15 minutes for this email
     since = datetime.now(timezone.utc) - timedelta(minutes=15)
     recent = await db.password_resets.count_documents(
-        {"email": email, "created_at": {"$gte": since}}
+        {"email": email, "used": False, "created_at": {"$gte": since}}
     )
     if recent >= 3:
         # Silent: still return success to caller
@@ -375,6 +375,8 @@ async def reset_password(body: ResetPassword):
         {"user_id": user["user_id"]},
         {"$set": {"password_hash": hash_password(body.new_password), "auth_provider": user.get("auth_provider", "email")}},
     )
+    # Re-fetch to return the updated public view
+    user = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0}) or user
 
     token = make_jwt(user["user_id"])
     return {"ok": True, "token": token, "user": public_user(user)}
