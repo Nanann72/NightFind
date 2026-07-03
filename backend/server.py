@@ -1740,18 +1740,31 @@ async def like_moment(moment_id: str, user: dict = Depends(get_current_user)):
     )
     # Create a notification only on first-time like (not on re-likes)
     if res.upserted_id is not None and m.get("user_id") != user["user_id"]:
+        actor_name = user.get("name") or "?"
+        actor_picture = user.get("picture") or ((user.get("photos") or [None])[0])
         try:
             await db.notifications.insert_one({
                 "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
                 "user_id": m["user_id"],
                 "type": "moment_like",
                 "actor_id": user["user_id"],
-                "actor_name": user.get("name") or "?",
-                "actor_picture": user.get("picture") or ((user.get("photos") or [None])[0]),
+                "actor_name": actor_name,
+                "actor_picture": actor_picture,
                 "moment_id": moment_id,
                 "created_at": now,
                 "read": False,
             })
+        except Exception:
+            pass
+        # Push notification (silent-fail — build required to actually deliver)
+        try:
+            await push_service.send_push(
+                [m["user_id"]],
+                title=f"{actor_name} a aimé ton moment ❤️",
+                message="Ouvre l'app pour voir qui c'est",
+                action_url=f"nightfinder://moments/{moment_id}",
+                idempotency_key=f"like:{moment_id}:{user['user_id']}",
+            )
         except Exception:
             pass
     count = await db.moment_likes.count_documents({"moment_id": moment_id})
@@ -1797,19 +1810,31 @@ async def add_moment_comment(
     await db.moment_comments.insert_one(comment)
     # Notify moment owner (never notify self-comments)
     if m.get("user_id") != user["user_id"]:
+        actor_name = user.get("name") or "?"
+        actor_picture = user.get("picture") or ((user.get("photos") or [None])[0])
         try:
             await db.notifications.insert_one({
                 "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
                 "user_id": m["user_id"],
                 "type": "moment_comment",
                 "actor_id": user["user_id"],
-                "actor_name": user.get("name") or "?",
-                "actor_picture": user.get("picture") or ((user.get("photos") or [None])[0]),
+                "actor_name": actor_name,
+                "actor_picture": actor_picture,
                 "moment_id": moment_id,
                 "text_preview": comment["text"][:80],
                 "created_at": comment["created_at"],
                 "read": False,
             })
+        except Exception:
+            pass
+        try:
+            await push_service.send_push(
+                [m["user_id"]],
+                title=f"{actor_name} a commenté ton moment 💬",
+                message=comment["text"][:80],
+                action_url=f"nightfinder://moments/{moment_id}",
+                idempotency_key=f"cmt:{comment['comment_id']}",
+            )
         except Exception:
             pass
     comment.pop("_id", None)
@@ -1871,6 +1896,20 @@ async def list_notifications(user: dict = Depends(get_current_user)):
         {"$or": [{"user_id": user["user_id"]}, {"user_id": None}]},
         {"_id": 0},
     ).sort("created_at", -1).to_list(100)
+    # Synthesize title/body for moment_like / moment_comment (their raw form only
+    # carries actor + moment_id). Existing notifs already ship with title/body.
+    for n in notifs:
+        if n.get("title"):
+            continue
+        t = n.get("type")
+        actor = n.get("actor_name") or "Quelqu'un"
+        if t == "moment_like":
+            n["title"] = f"{actor} a aimé ton moment ❤️"
+            n["body"] = "Ouvre l'app pour voir qui c'est"
+        elif t == "moment_comment":
+            preview = n.get("text_preview") or ""
+            n["title"] = f"{actor} a commenté ton moment 💬"
+            n["body"] = preview[:80] if preview else "Ouvre l'app pour lire le commentaire"
     return notifs
 
 
@@ -3429,6 +3468,57 @@ async def report_user(body: ReportBody, user: dict = Depends(get_current_user)):
         report_id, user["user_id"], body.target_user_id, reason,
     )
     return {"ok": True, "report_id": report_id}
+@api_router.get("/users/search")
+async def users_search(
+    q: str = "",
+    limit: int = 20,
+    user: dict = Depends(get_current_user),
+):
+    """Public user search — by name (email hidden for privacy).
+
+    Excludes admin/hidden accounts + the caller + blocked users.
+    """
+    q = (q or "").strip()
+    if len(q) < 2:
+        return {"users": [], "count": 0}
+    blocked = await _blocked_user_ids(user["user_id"])
+    safe = "".join(f"\\{ch}" if ch in ".^$*+?()[]{}|" else ch for ch in q)
+    query = {
+        "name": {"$regex": safe, "$options": "i"},
+        "is_admin": {"$ne": True},
+        "visibility": {"$nin": ["hidden", "private"]},
+        "user_id": {"$nin": list(blocked) + [user["user_id"]]},
+    }
+    limit = max(1, min(limit, 50))
+    cursor = db.users.find(
+        query,
+        {
+            "_id": 0, "user_id": 1, "name": 1, "picture": 1, "photos": 1,
+            "city": 1, "is_premium": 1, "is_bot": 1, "dob": 1, "bio": 1,
+        },
+    ).limit(limit)
+    rows = await cursor.to_list(limit)
+    results = []
+    now_year = datetime.now().year
+    for u in rows:
+        age = None
+        if isinstance(u.get("dob"), str) and len(u["dob"]) >= 4:
+            try:
+                age = now_year - int(u["dob"][:4])
+            except ValueError:
+                pass
+        results.append({
+            "user_id": u["user_id"],
+            "name": u.get("name") or "?",
+            "picture": u.get("picture") or ((u.get("photos") or [None])[0]),
+            "city": u.get("city"),
+            "bio": (u.get("bio") or "")[:120],
+            "is_premium": bool(u.get("is_premium")),
+            "is_bot": bool(u.get("is_bot")),
+            "age": age,
+        })
+    return {"users": results, "count": len(results)}
+
 
 @api_router.get("/users/nearby")
 async def users_nearby(

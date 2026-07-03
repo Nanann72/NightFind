@@ -94,6 +94,17 @@ export type NearbyUser = {
   age?: number | null;
 };
 
+export type SearchUser = {
+  user_id: string;
+  name: string;
+  picture?: string | null;
+  city?: string | null;
+  bio?: string;
+  age?: number | null;
+  is_premium: boolean;
+  is_bot: boolean;
+};
+
 export type AdminUser = {
   user_id: string;
   email: string;
@@ -168,6 +179,10 @@ export const api = {
   usersNearby: (lat: number, lng: number, radiusKm = 10) =>
     request<{ users: NearbyUser[]; count: number }>(
       `/users/nearby?lat=${lat}&lng=${lng}&radius_km=${radiusKm}`,
+    ),
+  usersSearch: (q: string, limit = 20) =>
+    request<{ users: SearchUser[]; count: number }>(
+      `/users/search?q=${encodeURIComponent(q)}&limit=${limit}`,
     ),
   // Admin — user moderation
   adminSearchUsers: (q = '', limit = 50) =>

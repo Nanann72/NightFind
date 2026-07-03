@@ -188,6 +188,9 @@ export default function MomentFeed() {
           <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.title}>Live</Text>
+        <TouchableOpacity onPress={() => router.push('/search')} style={styles.iconBtn} testID="feed-search">
+          <Ionicons name="search" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => load(true)} style={styles.iconBtn}>
           <Ionicons name="refresh" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
