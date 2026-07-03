@@ -1654,10 +1654,8 @@ async def moments_feed(
     blocked = await _blocked_user_ids(user["user_id"])
     query: dict = {
         "expires_at": {"$gt": now},
-        "user_id": {"$nin": list(blocked) + [user["user_id"]]},
+        "user_id": {"$nin": list(blocked)},
     }
-    # Actually include the viewer's own moments too (Insta shows your own feed)
-    query["user_id"] = {"$nin": list(blocked)}
     if club_id:
         query["club_id"] = club_id
 

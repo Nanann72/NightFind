@@ -174,7 +174,7 @@ export default function MomentFeed() {
 
       {/* Comments inline block */}
       {openComments === m.moment_id && (
-        <CommentsBlock momentId={m.moment_id} colors={colors} onCountChange={(n) => {
+        <CommentsBlock momentId={m.moment_id} colors={colors} momentOwnerId={m.user_id} onCountChange={(n) => {
           setFeed((prev) => prev.map((x) => x.moment_id === m.moment_id ? { ...x, comments_count: n } : x));
         }} />
       )}
@@ -237,10 +237,12 @@ export default function MomentFeed() {
 function CommentsBlock({
   momentId,
   colors,
+  momentOwnerId,
   onCountChange,
 }: {
   momentId: string;
   colors: ThemeColors;
+  momentOwnerId?: string;
   onCountChange?: (n: number) => void;
 }) {
   const { user } = useAuth();
@@ -303,7 +305,9 @@ function CommentsBlock({
         comments.map((c) => (
           <TouchableOpacity
             key={c.comment_id}
-            onLongPress={() => (c.user_id === user?.user_id) && remove(c)}
+            onLongPress={() =>
+              (c.user_id === user?.user_id || momentOwnerId === user?.user_id) && remove(c)
+            }
             style={s.commentRow}
             activeOpacity={0.8}
           >
