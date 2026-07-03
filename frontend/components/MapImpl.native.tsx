@@ -51,10 +51,11 @@ export default function MapImpl() {
     };
   }, []);
 
-  // Fetch nearby users (includes bots). Only visible for admin accounts —
-  // regular users only see checked-in friends and clubs.
+  // Fetch nearby users (includes bots and any real geo-sharing users).
+  // Bots are visible for everyone (they're test users designed to be swiped
+  // and appear on the map) — the backend filters admin/hidden accounts.
   useEffect(() => {
-    if (!currentUser?.is_admin) {
+    if (!currentUser) {
       setNearbyUsers([]);
       return;
     }
@@ -73,7 +74,7 @@ export default function MapImpl() {
       mounted = false;
       clearInterval(interval);
     };
-  }, [currentUser?.is_admin, loc.coords.lat, loc.coords.lng]);
+  }, [currentUser?.user_id, loc.coords.lat, loc.coords.lng]);
 
   const initialRegion = useMemo(
     () => ({
