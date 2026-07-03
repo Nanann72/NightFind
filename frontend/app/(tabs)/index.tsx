@@ -78,6 +78,13 @@ export default function Discover() {
         <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.iconBtn}
+            onPress={() => router.push('/feed')}
+            testID="open-feed-btn"
+          >
+            <Ionicons name="flame" size={20} color={colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.iconBtn}
             onPress={() => router.push('/notifications')}
             testID="open-notifications-btn"
           >

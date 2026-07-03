@@ -46,6 +46,42 @@ export type User = {
   is_admin?: boolean;
 };
 
+export type MomentComment = {
+  comment_id: string;
+  moment_id: string;
+  user_id: string;
+  user_name: string;
+  user_picture?: string | null;
+  text: string;
+  created_at: string;
+};
+
+export type FeedMoment = {
+  moment_id: string;
+  user_id: string;
+  user_name: string;
+  user_picture?: string | null;
+  club_id: string;
+  club_name?: string | null;
+  image: string;
+  selfie?: string | null;
+  caption?: string | null;
+  created_at: string;
+  expires_at: string;
+  likes_count: number;
+  comments_count: number;
+  liked_by_me: boolean;
+};
+
+export type StoryHighlight = {
+  user_id: string;
+  user_name: string;
+  user_picture?: string | null;
+  moment_id: string;
+  moments_count: number;
+  is_self: boolean;
+};
+
 export type NearbyUser = {
   user_id: string;
   name: string;
@@ -439,6 +475,34 @@ export const api = {
     request<any>(`/clubs/${clubId}/moments`, {
       method: 'POST',
       body: JSON.stringify({ image, caption: caption || null, selfie: selfie || null }),
+    }),
+  // Instagram-style feed / stories / likes / comments
+  momentsFeed: (limit = 30, clubId?: string) =>
+    request<{ moments: FeedMoment[]; count: number }>(
+      `/moments/feed?limit=${limit}${clubId ? `&club_id=${clubId}` : ''}`,
+    ),
+  momentsHighlights: () =>
+    request<{ highlights: StoryHighlight[]; count: number }>('/moments/highlights'),
+  likeMoment: (momentId: string) =>
+    request<{ ok: boolean; likes_count: number; liked_by_me: boolean }>(
+      `/moments/${momentId}/like`, { method: 'POST' },
+    ),
+  unlikeMoment: (momentId: string) =>
+    request<{ ok: boolean; likes_count: number; liked_by_me: boolean }>(
+      `/moments/${momentId}/like`, { method: 'DELETE' },
+    ),
+  momentComments: (momentId: string) =>
+    request<{ comments: MomentComment[]; count: number }>(
+      `/moments/${momentId}/comments`,
+    ),
+  addMomentComment: (momentId: string, text: string) =>
+    request<MomentComment>(`/moments/${momentId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+  deleteMomentComment: (momentId: string, commentId: string) =>
+    request<{ ok: boolean }>(`/moments/${momentId}/comments/${commentId}`, {
+      method: 'DELETE',
     }),
   listClubMoments: (clubId: string) =>
     request<any[]>(`/clubs/${clubId}/moments`),

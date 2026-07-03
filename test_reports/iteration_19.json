@@ -1,0 +1,42 @@
+{
+  "summary": "Phase 2 Night Finder — Instagram-style moment feed validated end-to-end. Backend: created pytest suite /app/backend/tests/test_moments_feed.py covering the 6 new endpoints (feed, highlights, like POST/DELETE, comments GET/POST/DELETE). 20/20 tests PASS. Frontend web (mobile viewport 390x844): logged in as admin@nightfinder.app, tapped the flame 🔥 button (testID=open-feed-btn) on the Discover screen → navigated to /feed → rendered 7 pink-bordered story highlight circles (Chloé, Louis, Camille, Clara, Inès, Malo, Adam) + 8 moment cards with header (avatar, user_name, 📍 club_name, time-ago), full-width photo, heart + speech-bubble action row, likes count, caption, 'Voir les N commentaires' link, and inline comments block with input + Publier button. Verified: (a) like toggles instantly (optimistic UI, heart turns filled pink, count increments to 1 j'aime); (b) comment POST returns full comment doc, appears live in the list; (c) is_self ordering — admin (no moments) sees Chloé first, not 'Toi', which matches the sort rule (self-first among users who HAVE moments; admin doesn't appear at all in highlights). No red screens, no console errors related to feed. Feed correctly excludes expired moments (verified via test_feed_only_active).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/moments/feed", "issue": "Line 1657-1660 in server.py: query['user_id'] is set twice — first to $nin blocked+self, then overwritten to $nin blocked only. This is intentional per the comment ('Insta shows your own feed'), but the first assignment is dead code and should be removed for clarity. Non-blocking."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_moments_feed.py",
+    "/app/test_reports/pytest/moments_feed.xml"
+  ],
+  "action_items": [
+    "(Optional / non-blocking) Remove the dead line 1657 `query['user_id'] = {'$nin': list(blocked) + [user['user_id']]}` in server.py since it is immediately overwritten by line 1660. Keeps the intent (show own moments) explicit.",
+    "(Optional) In feed.tsx line 306, the delete permission check uses only `c.user_id === user?.user_id` — this hides the option for the moment owner to delete comments from OTHER users, even though the backend allows it (403 test verified). Consider passing the moment's user_id to CommentsBlock so moment owners can long-press to delete any comment on their own posts."
+  ],
+  "critical_code_review_comments": [
+    "server.py _enrich_moment (line 1628) does 3 sequential DB queries per moment (count likes, count comments, find_one liked_by_me). For a 30-moment feed this is 90 round-trips. Consider a single aggregation with $lookup or a batched approach when the feed grows. Not blocking at current scale (8 moments).",
+    "server.py /api/moments/highlights uses aggregation with $group + $sort — good, MongoDB-native. Correctly excludes _id from response via explicit projection at group stage.",
+    "server.py comment insert (line 1776) mutates the local dict but pops _id after insert — clean, no leakage in response body (verified via test_post_comment_returns_full).",
+    "feed.tsx has proper optimistic like update with rollback on error (lines 71-84) — good UX pattern.",
+    "feed.tsx CommentsBlock re-fetches comments on open — no stale data, correct behavior."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_moments_feed.py (new — 20 pytest tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (20/20 tests pass)",
+    "frontend": "100% (login → flame → /feed → 7 highlights + 8 cards + like + comment all working)"
+  },
+  "seed_data_creation": "Two throw-away regular users are registered per module (TEST_feed_<random>@example.com) for like/comment/permission tests. No cleanup API available. Test comments prefixed with 'TEST ' remain on the seeded moment (Chloé's) — safe since expires_at auto-purges via TTL index (24h/7d).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 2 feed is fully working. Reusable pytest suite at /app/backend/tests/test_moments_feed.py (uses admin creds + creates 2 fresh users). Frontend testIDs: `open-feed-btn` (home flame), `highlight-{user_id}`, `like-{moment_id}`, `comment-btn-{moment_id}`, `comment-input-{moment_id}`, `comment-send-{moment_id}`, `feed-back`. The web login form uses button text 'Sign in' (not French) — use `get_by_text('Sign in')` to submit. 8 seeded moments in club_moments (Chloé × 2, Louis, Camille, Clara, Inès, Malo, Adam) — Chloé has the most recent so she's first in the feed.",
+  "rca_of_issue": "N/A — this was a feature validation run, not a bug hunt. All acceptance criteria from the review request satisfied."
+}

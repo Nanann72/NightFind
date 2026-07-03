@@ -1618,6 +1618,183 @@ async def list_my_moments(user: dict = Depends(get_current_user)):
     return moments
 
 
+# ---------- Instagram-style feed: likes, comments, highlights ---------- #
+
+
+class CommentBody(BaseModel):
+    text: str = Field(min_length=1, max_length=280)
+
+
+async def _enrich_moment(m: dict, viewer_id: str) -> dict:
+    """Attach counts + viewer-specific state (liked_by_me) to a moment doc."""
+    mid = m.get("moment_id")
+    likes = await db.moment_likes.count_documents({"moment_id": mid})
+    comments = await db.moment_comments.count_documents({"moment_id": mid})
+    liked_by_me = await db.moment_likes.find_one(
+        {"moment_id": mid, "user_id": viewer_id}, {"_id": 1}
+    ) is not None
+    m["likes_count"] = likes
+    m["comments_count"] = comments
+    m["liked_by_me"] = liked_by_me
+    return m
+
+
+@api_router.get("/moments/feed")
+async def moments_feed(
+    limit: int = 30,
+    club_id: Optional[str] = None,
+    user: dict = Depends(get_current_user),
+):
+    """Instagram-style feed of active moments (newest first).
+
+    Excludes moments from users blocked by / who blocked the viewer.
+    """
+    limit = max(1, min(limit, 100))
+    now = datetime.now(timezone.utc)
+    blocked = await _blocked_user_ids(user["user_id"])
+    query: dict = {
+        "expires_at": {"$gt": now},
+        "user_id": {"$nin": list(blocked) + [user["user_id"]]},
+    }
+    # Actually include the viewer's own moments too (Insta shows your own feed)
+    query["user_id"] = {"$nin": list(blocked)}
+    if club_id:
+        query["club_id"] = club_id
+
+    cursor = db.club_moments.find(query, {"_id": 0}).sort("created_at", -1).limit(limit)
+    moments = await cursor.to_list(limit)
+
+    # Enrich with club name + counts + liked_by_me
+    club_ids = list({m.get("club_id") for m in moments if m.get("club_id")})
+    name_map: dict = {}
+    if club_ids:
+        async for c in db.clubs.find(
+            {"club_id": {"$in": club_ids}}, {"_id": 0, "club_id": 1, "name": 1}
+        ):
+            name_map[c["club_id"]] = c.get("name")
+
+    for m in moments:
+        m["club_name"] = name_map.get(m.get("club_id"))
+        await _enrich_moment(m, user["user_id"])
+    return {"moments": moments, "count": len(moments)}
+
+
+@api_router.get("/moments/highlights")
+async def moments_highlights(user: dict = Depends(get_current_user)):
+    """Story-highlights bar (Instagram-style) — one entry per user with active moments.
+
+    Returns the most recent moment per user (last 24h/7d based on premium), grouped.
+    """
+    now = datetime.now(timezone.utc)
+    blocked = await _blocked_user_ids(user["user_id"])
+    pipeline = [
+        {"$match": {
+            "expires_at": {"$gt": now},
+            "user_id": {"$nin": list(blocked)},
+        }},
+        {"$sort": {"created_at": -1}},
+        {"$group": {
+            "_id": "$user_id",
+            "moment_id": {"$first": "$moment_id"},
+            "user_name": {"$first": "$user_name"},
+            "user_picture": {"$first": "$user_picture"},
+            "image": {"$first": "$image"},
+            "created_at": {"$first": "$created_at"},
+            "moments_count": {"$sum": 1},
+        }},
+        {"$sort": {"created_at": -1}},
+        {"$limit": 40},
+    ]
+    rows = await db.club_moments.aggregate(pipeline).to_list(40)
+    highlights = []
+    for r in rows:
+        highlights.append({
+            "user_id": r["_id"],
+            "user_name": r.get("user_name") or "?",
+            "user_picture": r.get("user_picture"),
+            "moment_id": r.get("moment_id"),
+            "moments_count": r.get("moments_count", 1),
+            "is_self": r["_id"] == user["user_id"],
+        })
+    # Move self to the front (Insta convention: your own story is first)
+    highlights.sort(key=lambda h: (0 if h["is_self"] else 1))
+    return {"highlights": highlights, "count": len(highlights)}
+
+
+@api_router.post("/moments/{moment_id}/like")
+async def like_moment(moment_id: str, user: dict = Depends(get_current_user)):
+    """Idempotent like."""
+    m = await db.club_moments.find_one({"moment_id": moment_id}, {"_id": 0, "user_id": 1})
+    if not m:
+        raise HTTPException(status_code=404, detail="Moment not found")
+    now = datetime.now(timezone.utc)
+    await db.moment_likes.update_one(
+        {"moment_id": moment_id, "user_id": user["user_id"]},
+        {"$setOnInsert": {"created_at": now}},
+        upsert=True,
+    )
+    count = await db.moment_likes.count_documents({"moment_id": moment_id})
+    return {"ok": True, "likes_count": count, "liked_by_me": True}
+
+
+@api_router.delete("/moments/{moment_id}/like")
+async def unlike_moment(moment_id: str, user: dict = Depends(get_current_user)):
+    await db.moment_likes.delete_one({"moment_id": moment_id, "user_id": user["user_id"]})
+    count = await db.moment_likes.count_documents({"moment_id": moment_id})
+    return {"ok": True, "likes_count": count, "liked_by_me": False}
+
+
+@api_router.get("/moments/{moment_id}/comments")
+async def list_moment_comments(
+    moment_id: str, user: dict = Depends(get_current_user),
+):
+    cursor = db.moment_comments.find(
+        {"moment_id": moment_id}, {"_id": 0}
+    ).sort("created_at", 1).limit(500)
+    comments = await cursor.to_list(500)
+    return {"comments": comments, "count": len(comments)}
+
+
+@api_router.post("/moments/{moment_id}/comments")
+async def add_moment_comment(
+    moment_id: str,
+    body: CommentBody,
+    user: dict = Depends(get_current_user),
+):
+    m = await db.club_moments.find_one({"moment_id": moment_id}, {"_id": 0, "user_id": 1})
+    if not m:
+        raise HTTPException(status_code=404, detail="Moment not found")
+    comment = {
+        "comment_id": f"cmt_{uuid.uuid4().hex[:12]}",
+        "moment_id": moment_id,
+        "user_id": user["user_id"],
+        "user_name": user.get("name") or "?",
+        "user_picture": user.get("picture") or ((user.get("photos") or [None])[0]),
+        "text": body.text.strip()[:280],
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.moment_comments.insert_one(comment)
+    comment.pop("_id", None)
+    return comment
+
+
+@api_router.delete("/moments/{moment_id}/comments/{comment_id}")
+async def delete_moment_comment(
+    moment_id: str,
+    comment_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Author of the comment OR author of the moment can delete."""
+    moment = await db.club_moments.find_one({"moment_id": moment_id}, {"_id": 0, "user_id": 1})
+    cmt = await db.moment_comments.find_one({"comment_id": comment_id}, {"_id": 0})
+    if not cmt:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    if cmt.get("user_id") != user["user_id"] and (moment or {}).get("user_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not allowed")
+    await db.moment_comments.delete_one({"comment_id": comment_id})
+    return {"ok": True}
+
+
 @api_router.get("/moments/window-state")
 async def moment_window_state(user: dict = Depends(get_current_user)):
     """Tells the frontend if the user is currently inside their 5-min capture
