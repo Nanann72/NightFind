@@ -477,10 +477,14 @@ export const api = {
       body: JSON.stringify({ image, caption: caption || null, selfie: selfie || null }),
     }),
   // Instagram-style feed / stories / likes / comments
-  momentsFeed: (limit = 30, clubId?: string) =>
-    request<{ moments: FeedMoment[]; count: number }>(
-      `/moments/feed?limit=${limit}${clubId ? `&club_id=${clubId}` : ''}`,
-    ),
+  momentsFeed: (limit = 30, clubId?: string, userId?: string) => {
+    const q = new URLSearchParams({ limit: String(limit) });
+    if (clubId) q.set('club_id', clubId);
+    if (userId) q.set('user_id', userId);
+    return request<{ moments: FeedMoment[]; count: number }>(
+      `/moments/feed?${q.toString()}`,
+    );
+  },
   momentsHighlights: () =>
     request<{ highlights: StoryHighlight[]; count: number }>('/moments/highlights'),
   likeMoment: (momentId: string) =>

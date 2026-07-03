@@ -1643,11 +1643,13 @@ async def _enrich_moment(m: dict, viewer_id: str) -> dict:
 async def moments_feed(
     limit: int = 30,
     club_id: Optional[str] = None,
+    user_id: Optional[str] = None,
     user: dict = Depends(get_current_user),
 ):
     """Instagram-style feed of active moments (newest first).
 
     Excludes moments from users blocked by / who blocked the viewer.
+    Optional `user_id` filter → returns only that user's moments (for story viewer).
     """
     limit = max(1, min(limit, 100))
     now = datetime.now(timezone.utc)
@@ -1656,6 +1658,11 @@ async def moments_feed(
         "expires_at": {"$gt": now},
         "user_id": {"$nin": list(blocked)},
     }
+    if user_id:
+        # Filter by that specific user (still respects block list)
+        if user_id in blocked:
+            return {"moments": [], "count": 0}
+        query["user_id"] = user_id
     if club_id:
         query["club_id"] = club_id
 
@@ -1726,11 +1733,27 @@ async def like_moment(moment_id: str, user: dict = Depends(get_current_user)):
     if not m:
         raise HTTPException(status_code=404, detail="Moment not found")
     now = datetime.now(timezone.utc)
-    await db.moment_likes.update_one(
+    res = await db.moment_likes.update_one(
         {"moment_id": moment_id, "user_id": user["user_id"]},
         {"$setOnInsert": {"created_at": now}},
         upsert=True,
     )
+    # Create a notification only on first-time like (not on re-likes)
+    if res.upserted_id is not None and m.get("user_id") != user["user_id"]:
+        try:
+            await db.notifications.insert_one({
+                "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+                "user_id": m["user_id"],
+                "type": "moment_like",
+                "actor_id": user["user_id"],
+                "actor_name": user.get("name") or "?",
+                "actor_picture": user.get("picture") or ((user.get("photos") or [None])[0]),
+                "moment_id": moment_id,
+                "created_at": now,
+                "read": False,
+            })
+        except Exception:
+            pass
     count = await db.moment_likes.count_documents({"moment_id": moment_id})
     return {"ok": True, "likes_count": count, "liked_by_me": True}
 
@@ -1772,6 +1795,23 @@ async def add_moment_comment(
         "created_at": datetime.now(timezone.utc),
     }
     await db.moment_comments.insert_one(comment)
+    # Notify moment owner (never notify self-comments)
+    if m.get("user_id") != user["user_id"]:
+        try:
+            await db.notifications.insert_one({
+                "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+                "user_id": m["user_id"],
+                "type": "moment_comment",
+                "actor_id": user["user_id"],
+                "actor_name": user.get("name") or "?",
+                "actor_picture": user.get("picture") or ((user.get("photos") or [None])[0]),
+                "moment_id": moment_id,
+                "text_preview": comment["text"][:80],
+                "created_at": comment["created_at"],
+                "read": False,
+            })
+        except Exception:
+            pass
     comment.pop("_id", None)
     return comment
 

@@ -87,7 +87,7 @@ export default function MomentFeed() {
   const renderHighlight = ({ item: h }: { item: StoryHighlight }) => (
     <TouchableOpacity
       style={styles.hlItem}
-      onPress={() => Alert.alert(h.user_name, `${h.moments_count} moment${h.moments_count > 1 ? 's' : ''} actif${h.moments_count > 1 ? 's' : ''}`)}
+      onPress={() => router.push({ pathname: '/story-viewer', params: { user_id: h.user_id, user_name: h.user_name } })}
       testID={`highlight-${h.user_id}`}
       activeOpacity={0.85}
     >
