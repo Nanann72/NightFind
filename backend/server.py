@@ -234,6 +234,21 @@ async def get_current_user(request: Request) -> dict:
                     {"user_id": session["user_id"]}, {"_id": 0}
                 )
                 if user:
+                    # Reject banned users (auto-expire temporary bans)
+                    is_banned, reason = admin_service.is_user_banned(user)
+                    if is_banned:
+                        raise HTTPException(
+                            status_code=403,
+                            detail={
+                                "code": "account_banned",
+                                "message": "Ton compte a été suspendu.",
+                                "reason": reason or "Non spécifié",
+                                "until": (
+                                    user.get("banned_until").isoformat()
+                                    if user.get("banned_until") else None
+                                ),
+                            },
+                        )
                     return user
     raise HTTPException(status_code=401, detail="Invalid or expired token")
 
@@ -3532,6 +3547,71 @@ async def admin_delete_bots(_admin: dict = Depends(require_admin)):
 async def admin_bot_stats(_admin: dict = Depends(require_admin)):
     """Return counts of active bots."""
     return await admin_service.get_bot_stats(db)
+
+
+# ---- User moderation ----
+
+class AdminBanBody(BaseModel):
+    duration_hours: Optional[int] = None  # None = permanent
+    reason: Optional[str] = None
+
+
+class AdminPremiumBody(BaseModel):
+    duration_days: Optional[int] = None  # None = unlimited
+    remove: bool = False
+
+
+@api_router.get("/admin/users")
+async def admin_search_users(
+    q: str = "",
+    limit: int = 50,
+    _admin: dict = Depends(require_admin),
+):
+    return await admin_service.search_users(db, q=q, limit=limit)
+
+
+@api_router.get("/admin/users/{user_id}")
+async def admin_get_user(user_id: str, _admin: dict = Depends(require_admin)):
+    u = await db.users.find_one({"user_id": user_id})
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    return admin_service._public_user_admin(u)
+
+
+@api_router.post("/admin/users/{user_id}/ban")
+async def admin_ban_user(
+    user_id: str,
+    body: AdminBanBody,
+    _admin: dict = Depends(require_admin),
+):
+    res = await admin_service.ban_user(
+        db, user_id, duration_hours=body.duration_hours, reason=body.reason,
+    )
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Ban failed"))
+    return res
+
+
+@api_router.post("/admin/users/{user_id}/unban")
+async def admin_unban_user(user_id: str, _admin: dict = Depends(require_admin)):
+    res = await admin_service.unban_user(db, user_id)
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Unban failed"))
+    return res
+
+
+@api_router.post("/admin/users/{user_id}/premium")
+async def admin_set_premium(
+    user_id: str,
+    body: AdminPremiumBody,
+    _admin: dict = Depends(require_admin),
+):
+    res = await admin_service.set_user_premium(
+        db, user_id, duration_days=body.duration_days, remove=body.remove,
+    )
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Update failed"))
+    return res
 
 
 # Re-include the router so the new admin endpoints are registered.

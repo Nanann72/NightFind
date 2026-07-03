@@ -156,7 +156,21 @@ export default function AdminScreen() {
         </Text>
 
         {/* Cleanup */}
-        <Text style={styles.section}>Nettoyage</Text>
+        <Text style={styles.section}>Modération utilisateurs</Text>
+        <TouchableOpacity
+          onPress={() => router.push('/admin-users')}
+          style={styles.userMgmtBtn}
+          activeOpacity={0.85}
+          testID="admin-users-btn"
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userMgmtTitle}>Bannir · Premium · Modération</Text>
+            <Text style={styles.userMgmtSub}>Rechercher, bannir (24h/7j/30j/permanent), offrir Premium (7j/30j/1an/illimité)</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+
+        <Text style={styles.section}>Nettoyage bots</Text>
         <TouchableOpacity
           onPress={wipe}
           disabled={!!busy}
@@ -313,4 +327,16 @@ const makeStyles = (colors: ThemeColors) =>
       gap: 10,
     },
     dangerBtnText: { color: '#fff', fontWeight: '800', fontSize: 15 },
+    userMgmtBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      padding: spacing.md,
+      gap: spacing.sm,
+    },
+    userMgmtTitle: { color: colors.textPrimary, fontWeight: '700', fontSize: 14 },
+    userMgmtSub: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   });

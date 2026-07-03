@@ -58,6 +58,22 @@ export type NearbyUser = {
   age?: number | null;
 };
 
+export type AdminUser = {
+  user_id: string;
+  email: string;
+  name: string;
+  picture?: string | null;
+  city?: string | null;
+  is_admin: boolean;
+  is_premium: boolean;
+  premium_expires_at?: string | null;
+  is_bot: boolean;
+  is_banned: boolean;
+  banned_until?: string | null;
+  ban_reason?: string | null;
+  created_at?: string | null;
+};
+
 export type ActiveFriend = {
   user_id: string;
   username?: string | null;
@@ -116,6 +132,29 @@ export const api = {
   usersNearby: (lat: number, lng: number, radiusKm = 10) =>
     request<{ users: NearbyUser[]; count: number }>(
       `/users/nearby?lat=${lat}&lng=${lng}&radius_km=${radiusKm}`,
+    ),
+  // Admin — user moderation
+  adminSearchUsers: (q = '', limit = 50) =>
+    request<{ users: AdminUser[]; count: number }>(
+      `/admin/users?q=${encodeURIComponent(q)}&limit=${limit}`,
+    ),
+  adminBanUser: (userId: string, durationHours: number | null, reason: string) =>
+    request<{ ok: boolean; banned_until: string | null }>(
+      `/admin/users/${userId}/ban`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ duration_hours: durationHours, reason }),
+      },
+    ),
+  adminUnbanUser: (userId: string) =>
+    request<{ ok: boolean }>(`/admin/users/${userId}/unban`, { method: 'POST' }),
+  adminSetPremium: (userId: string, durationDays: number | null, remove = false) =>
+    request<{ ok: boolean; is_premium: boolean; premium_expires_at: string | null }>(
+      `/admin/users/${userId}/premium`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ duration_days: durationDays, remove }),
+      },
     ),
   // Auth
   register: (email: string, password: string, name: string, dob: string) =>

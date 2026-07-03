@@ -1,4 +1,4 @@
-"""Admin utilities — bot seeding, cleanup, and stats.
+"""Admin utilities — bot seeding, cleanup, user moderation and stats.
 
 Access to these routes MUST be gated behind `require_admin` in server.py.
 Everything here operates on the shared `db` handle passed in.
@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import random
 import uuid
-from datetime import datetime, timezone
-from typing import Any
+from datetime import datetime, timedelta, timezone
+from typing import Any, Optional
 
 
 # ---------------- Bot content pools ---------------- #
@@ -178,3 +178,144 @@ async def get_bot_stats(db) -> dict[str, Any]:
         "premium_bots": premium,
         "bots_with_location": with_location,
     }
+
+
+# ---------------- User moderation ---------------- #
+
+
+def _public_user_admin(u: dict) -> dict:
+    """Slim user representation for admin lists (no password/hash/tokens)."""
+    now = datetime.now(timezone.utc)
+    banned_until = u.get("banned_until")
+    if banned_until and hasattr(banned_until, "tzinfo") and banned_until.tzinfo is None:
+        banned_until = banned_until.replace(tzinfo=timezone.utc)
+    premium_expires_at = u.get("premium_expires_at")
+    if premium_expires_at and hasattr(premium_expires_at, "tzinfo") and premium_expires_at.tzinfo is None:
+        premium_expires_at = premium_expires_at.replace(tzinfo=timezone.utc)
+    return {
+        "user_id": u.get("user_id"),
+        "email": u.get("email"),
+        "name": u.get("name"),
+        "picture": u.get("picture") or ((u.get("photos") or [None])[0]),
+        "city": u.get("city"),
+        "is_admin": bool(u.get("is_admin")),
+        "is_premium": bool(u.get("is_premium")),
+        "premium_expires_at": premium_expires_at.isoformat() if premium_expires_at else None,
+        "is_bot": bool(u.get("is_bot")),
+        "is_banned": bool(u.get("is_banned")) and (
+            banned_until is None or banned_until > now
+        ),
+        "banned_until": banned_until.isoformat() if banned_until else None,
+        "ban_reason": u.get("ban_reason"),
+        "created_at": (u.get("created_at").isoformat() if u.get("created_at") else None),
+    }
+
+
+async def search_users(db, q: str = "", limit: int = 50) -> dict[str, Any]:
+    """Full-text-ish search on email / name. Excludes admin accounts."""
+    query: dict[str, Any] = {"is_admin": {"$ne": True}}
+    q = (q or "").strip()
+    if q:
+        # Escape regex special chars in the user query
+        safe = "".join(f"\\{ch}" if ch in ".^$*+?()[]{}|" else ch for ch in q)
+        query["$or"] = [
+            {"email": {"$regex": safe, "$options": "i"}},
+            {"name": {"$regex": safe, "$options": "i"}},
+        ]
+    cursor = db.users.find(query, {"_id": 0}).sort("created_at", -1).limit(max(1, min(limit, 200)))
+    users = [_public_user_admin(u) for u in await cursor.to_list(length=limit)]
+    return {"users": users, "count": len(users)}
+
+
+async def ban_user(
+    db,
+    user_id: str,
+    *,
+    duration_hours: Optional[int] = None,
+    reason: Optional[str] = None,
+) -> dict[str, Any]:
+    """Ban a user. `duration_hours=None` → permanent."""
+    user = await db.users.find_one({"user_id": user_id})
+    if not user:
+        return {"ok": False, "error": "User not found"}
+    if user.get("is_admin"):
+        return {"ok": False, "error": "Cannot ban an admin"}
+    now = datetime.now(timezone.utc)
+    banned_until = None if not duration_hours else now + timedelta(hours=duration_hours)
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "is_banned": True,
+            "banned_until": banned_until,
+            "ban_reason": (reason or "").strip()[:200] or None,
+            "banned_at": now,
+        }},
+    )
+    return {"ok": True, "banned_until": banned_until.isoformat() if banned_until else None}
+
+
+async def unban_user(db, user_id: str) -> dict[str, Any]:
+    res = await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {"is_banned": False, "banned_until": None, "ban_reason": None}},
+    )
+    if res.matched_count == 0:
+        return {"ok": False, "error": "User not found"}
+    return {"ok": True}
+
+
+async def set_user_premium(
+    db,
+    user_id: str,
+    *,
+    duration_days: Optional[int] = None,
+    remove: bool = False,
+) -> dict[str, Any]:
+    """Grant Premium (or remove).
+
+    - remove=True → strip premium immediately.
+    - duration_days=None → unlimited (never expires).
+    - duration_days=N → premium for the next N days.
+    """
+    user = await db.users.find_one({"user_id": user_id})
+    if not user:
+        return {"ok": False, "error": "User not found"}
+    now = datetime.now(timezone.utc)
+    if remove:
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"is_premium": False, "premium_expires_at": None}},
+        )
+        return {"ok": True, "is_premium": False}
+    expires_at = None if duration_days is None else now + timedelta(days=duration_days)
+    await db.users.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "is_premium": True,
+            "premium_expires_at": expires_at,
+            "premium_granted_by_admin": True,
+        }},
+    )
+    return {
+        "ok": True,
+        "is_premium": True,
+        "premium_expires_at": expires_at.isoformat() if expires_at else None,
+    }
+
+
+# ---------------- Ban check ---------------- #
+
+
+def is_user_banned(user: dict) -> tuple[bool, Optional[str]]:
+    """Return (is_banned_now, reason). Auto-expires temporary bans."""
+    if not user.get("is_banned"):
+        return False, None
+    banned_until = user.get("banned_until")
+    if banned_until is None:
+        # permanent ban
+        return True, user.get("ban_reason")
+    if hasattr(banned_until, "tzinfo") and banned_until.tzinfo is None:
+        banned_until = banned_until.replace(tzinfo=timezone.utc)
+    if banned_until <= datetime.now(timezone.utc):
+        return False, None  # expired
+    return True, user.get("ban_reason")
