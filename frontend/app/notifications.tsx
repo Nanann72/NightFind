@@ -70,6 +70,9 @@ export default function Notifications() {
 
   useEffect(() => {
     load();
+    // Mark all as read as soon as the user opens this screen — the badge in
+    // the top-right icon of Discover will clear on next poll.
+    api.notificationsMarkRead().catch(() => {});
   }, []);
 
   const groups: Group[] = useMemo(() => {

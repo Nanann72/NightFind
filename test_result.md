@@ -229,16 +229,56 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "1.2.0"
-  test_sequence: 1
+  version: "1.3.0"
+  test_sequence: 2
   run_ui: false
 
 test_plan:
-  current_focus:
-    - "Resend forgot-password (OTP + magic link)"
+  current_focus: []
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
+
+backend_verified_2026_01:
+  - task: "GET /api/users/search — advanced filters (age, city, music, premium)"
+    working: true
+    file: "/app/backend/server.py"
+    notes: |
+      All 7 scenarios pass. Bug fix applied by testing agent:
+      music filter previously crashed with 500 "cannot nest $ under $in" because
+      the code passed [{"$regex": t, "$options": "i"}, ...] inside $in — MongoDB
+      requires compiled regex objects there. Replaced with re.compile(re.escape(t), IGNORECASE).
+      File: /app/backend/server.py around users_search() music branch.
+  - task: "GET /api/notifications/unread-count + POST /api/notifications/mark-read"
+    working: true
+    file: "/app/backend/server.py"
+    notes: "Unread count returns int, mark-read zeroes it, list endpoint unaffected."
+  - task: "Chat typing indicator + read receipts (POST /typing, GET /peer-state, POST /read)"
+    working: true
+    file: "/app/backend/server.py"
+    notes: "Smoke tested with reviewer's pre-seeded match; 404 also verified for bogus match_id."
+
+agent_communication:
+  - agent: "main"
+    message: |
+      NOUVEAU (juin 2026) — Tester les nouvelles fonctionnalités :
+
+      BACKEND :
+      1. GET /api/users/search?q=chlo → doit renvoyer une liste (comme avant).
+      2. GET /api/users/search?min_age=18&max_age=25 (sans q) → doit maintenant fonctionner et renvoyer des users âge 18-25.
+      3. GET /api/users/search?city=paris (sans q) → doit renvoyer des users à Paris (case-insensitive).
+      4. GET /api/users/search?music=techno,house → doit renvoyer users avec au moins un genre correspondant.
+      5. GET /api/users/search?premium_only=true → doit renvoyer uniquement is_premium=true.
+      6. GET /api/users/search sans aucun param → doit renvoyer {users:[], count:0}.
+      7. GET /api/notifications/unread-count → renvoie {unread: <int>}. Après POST /api/notifications/mark-read
+         puis re-appel, doit renvoyer {unread: 0}.
+      8. Auth: apple.reviewer@nightfinder.app / Reviewer2026!
+
+      FRONTEND (optionnel, native only pour la caméra) :
+      - Ouvrir écran /search, taper le bouton filtres (icône options), sélectionner un âge et une ville → la liste doit se mettre à jour.
+      - Ouvrir écran /notifications → à la sortie, le badge sur l'icône notifications de Discover doit disparaître (poll toutes les 45s).
+      - Ouvrir un chat existant → indicateur "en train d'écrire" et 3 points animés doivent s'afficher quand le peer écrit.
+      - Après lecture du peer, un texte "Vu à HH:MM" doit apparaître sous le dernier message envoyé.
 
 agent_communication:
   - agent: "main"

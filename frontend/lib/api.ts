@@ -103,6 +103,7 @@ export type SearchUser = {
   age?: number | null;
   is_premium: boolean;
   is_bot: boolean;
+  music?: string[];
 };
 
 export type AdminUser = {
@@ -180,12 +181,13 @@ export const api = {
     request<{ users: NearbyUser[]; count: number }>(
       `/users/nearby?lat=${lat}&lng=${lng}&radius_km=${radiusKm}`,
     ),
-  usersSearch: (q: string, limit = 20, filters?: { minAge?: number; maxAge?: number; city?: string; music?: string }) => {
+  usersSearch: (q: string, limit = 20, filters?: { minAge?: number; maxAge?: number; city?: string; music?: string; premiumOnly?: boolean }) => {
     const p = new URLSearchParams({ q, limit: String(limit) });
     if (filters?.minAge) p.set('min_age', String(filters.minAge));
     if (filters?.maxAge) p.set('max_age', String(filters.maxAge));
     if (filters?.city) p.set('city', filters.city);
     if (filters?.music) p.set('music', filters.music);
+    if (filters?.premiumOnly) p.set('premium_only', 'true');
     return request<{ users: SearchUser[]; count: number }>(`/users/search?${p.toString()}`);
   },
   notificationsUnread: () =>

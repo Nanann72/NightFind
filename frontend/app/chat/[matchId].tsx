@@ -13,6 +13,14 @@ import {
   Alert,
   Modal,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  withDelay,
+} from 'react-native-reanimated';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -334,9 +342,17 @@ export default function Chat() {
                     )}
                   </View>
                 </TouchableOpacity>
+                {showRead && peerLastRead ? (
+                  <Text style={styles.readReceipt} testID={`read-receipt-${item.message_id}`}>
+                    Vu à {formatTime(peerLastRead)}
+                  </Text>
+                ) : null}
               </View>
             );
           }}
+          ListFooterComponent={
+            peerTyping ? <TypingBubble colors={colors} styles={styles} /> : null
+          }
         />
       )}
 
@@ -437,7 +453,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   headerStatus: { color: colors.primary, fontSize: 12, fontWeight: '700', marginTop: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { color: colors.textTertiary, textAlign: 'center', marginTop: 40 },
-  bubbleRow: { flexDirection: 'row', marginBottom: 6 },
+  bubbleRow: { flexDirection: 'row', marginBottom: 6, flexWrap: 'wrap' },
   bubbleRowMine: { justifyContent: 'flex-end' },
   bubbleRowOther: { justifyContent: 'flex-start' },
   bubble: { maxWidth: '78%', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 18 },
@@ -450,6 +466,37 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   bubbleMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 3, alignSelf: 'flex-end' },
   bubbleTime: { color: colors.textTertiary, fontSize: 10, fontWeight: '600' },
   bubbleTimeMine: { color: 'rgba(255,255,255,0.7)' },
+  readReceipt: {
+    width: '100%',
+    textAlign: 'right',
+    color: colors.textTertiary,
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 2,
+    paddingRight: 4,
+  },
+  typingRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    marginBottom: 6,
+  },
+  typingBubble: {
+    backgroundColor: colors.surface,
+    borderBottomLeftRadius: 4,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    gap: 4,
+    alignItems: 'flex-end',
+    minWidth: 52,
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.textTertiary,
+  },
   composer: {
     flexDirection: 'row', alignItems: 'flex-end', gap: 8,
     paddingHorizontal: spacing.lg, paddingTop: 8,
@@ -494,3 +541,53 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
 // use `useThemeColors()`.
 const colors = darkColors;
 const styles = makeStyles(darkColors);
+
+/**
+ * Animated 3-dot typing indicator bubble (iMessage-style).
+ */
+function TypingBubble({
+  colors,
+  styles,
+}: {
+  colors: ThemeColors;
+  styles: any;
+}) {
+  const d1 = useSharedValue(0);
+  const d2 = useSharedValue(0);
+  const d3 = useSharedValue(0);
+
+  useEffect(() => {
+    const loop = (sv: any, delay: number) => {
+      sv.value = withRepeat(
+        withDelay(delay, withSequence(withTiming(1, { duration: 400 }), withTiming(0, { duration: 400 }))),
+        -1,
+      );
+    };
+    loop(d1, 0);
+    loop(d2, 150);
+    loop(d3, 300);
+  }, [d1, d2, d3]);
+
+  const style1 = useAnimatedStyle(() => ({
+    opacity: 0.35 + d1.value * 0.6,
+    transform: [{ translateY: -d1.value * 2 }],
+  }));
+  const style2 = useAnimatedStyle(() => ({
+    opacity: 0.35 + d2.value * 0.6,
+    transform: [{ translateY: -d2.value * 2 }],
+  }));
+  const style3 = useAnimatedStyle(() => ({
+    opacity: 0.35 + d3.value * 0.6,
+    transform: [{ translateY: -d3.value * 2 }],
+  }));
+
+  return (
+    <View style={styles.typingRow} testID="typing-bubble">
+      <View style={styles.typingBubble}>
+        <Animated.View style={[styles.typingDot, style1]} />
+        <Animated.View style={[styles.typingDot, style2]} />
+        <Animated.View style={[styles.typingDot, style3]} />
+      </View>
+    </View>
+  );
+}

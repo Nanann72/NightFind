@@ -1,0 +1,41 @@
+{
+  "summary": "Backend-only review (Jan 2026): /api/users/search advanced filters, /api/notifications unread + mark-read, /api/matches/{id} typing/peer-state/read. 13/13 pytest tests pass after a single bug fix on the music filter (MongoDB $regex-inside-$in error).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/users/search?music=...",
+        "issue": "FIXED by testing agent: passing [{'$regex': t, '$options': 'i'}] inside {'$in': ...} raised pymongo OperationFailure 'cannot nest $ under $in' → HTTP 500. Replaced with re.compile(re.escape(t), IGNORECASE) so BSON regex objects are used inside $in."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_search_notif_chat_2026_01.py",
+    "/app/test_reports/pytest/search_notif_chat_2026_01.xml"
+  ],
+  "action_items": [
+    "Verify the music-filter fix (re.compile inside $in) — main agent may want to also apply same pattern to any other user-search endpoints that build $in-of-regex lists.",
+    "Consider adding a top-level `import re` at server.py header instead of the local import shim to remove the intra-function import."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 4002+ lines — should be split into routers (auth, users/search, chat, moments, notifications, admin) for maintainability.",
+    "users_search() computes age using `datetime.now().year` (naive) while ban/match code uses timezone.utc — cosmetic but worth aligning."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (music filter regex fix in users_search)",
+    "/app/test_result.md",
+    "/app/backend/tests/test_search_notif_chat_2026_01.py (new)"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "not tested (per request)"},
+  "seed_data_creation": "None. Used existing seed (20 Paris bots + reviewer pre-seeded matches).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Reviewer creds: apple.reviewer@nightfinder.app / Reviewer2026!. Pre-seeded matches (mt_bb40b4f229 with Emma/Lucas). Music-filter fix ships with `import re as _re_local` inside users_search — safe but could be hoisted. All 3 review areas (search filters, notifications unread/mark-read, chat typing/read receipts) are working end-to-end.",
+  "rca_of_issue": "GET /api/users/search?music=techno,house returned 500. RCA: MongoDB rejects `{'$in': [{'$regex': 't', '$options': 'i'}]}` with 'cannot nest $ under $in'. Only compiled regex (Python re.Pattern / bson.regex.Regex) is allowed inside $in. Fix: build list with `[re.compile(re.escape(t), re.IGNORECASE) for t in tags]`. Verified with pytest — all filters (music, combined city+age+music) now succeed."
+}

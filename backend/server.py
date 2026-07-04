@@ -3495,34 +3495,73 @@ async def users_search(
     max_age: Optional[int] = None,
     city: Optional[str] = None,
     music: Optional[str] = None,
+    premium_only: bool = False,
     user: dict = Depends(get_current_user),
 ):
-    """Public user search — by name (email hidden for privacy).
+    """Public user search — by name/bio + optional filters (age, city, music).
 
     Excludes admin/hidden accounts + the caller + blocked users.
+    A query `q` OR at least one filter is required.
     """
     q = (q or "").strip()
-    if len(q) < 2:
+    has_filters = any([min_age, max_age, (city or "").strip(), (music or "").strip(), premium_only])
+    if len(q) < 2 and not has_filters:
         return {"users": [], "count": 0}
     blocked = await _blocked_user_ids(user["user_id"])
-    safe = "".join(f"\\{ch}" if ch in ".^$*+?()[]{}|" else ch for ch in q)
-    query = {
-        "name": {"$regex": safe, "$options": "i"},
+    query: dict = {
         "is_admin": {"$ne": True},
         "visibility": {"$nin": ["hidden", "private"]},
         "user_id": {"$nin": list(blocked) + [user["user_id"]]},
     }
+    if len(q) >= 2:
+        safe = "".join(f"\\{ch}" if ch in ".^$*+?()[]{}|" else ch for ch in q)
+        query["$or"] = [
+            {"name": {"$regex": safe, "$options": "i"}},
+            {"bio": {"$regex": safe, "$options": "i"}},
+        ]
+    if city and city.strip():
+        safe_city = "".join(f"\\{ch}" if ch in ".^$*+?()[]{}|" else ch for ch in city.strip())
+        query["city"] = {"$regex": safe_city, "$options": "i"}
+    if music and music.strip():
+        # music may be a comma separated list of tags
+        import re as _re_local
+        tags = [t.strip() for t in music.split(",") if t.strip()]
+        if tags:
+            # MongoDB does not allow {"$regex": ...} inside $in — must use
+            # compiled regex objects (BSON regex).
+            regexes = [_re_local.compile(_re_local.escape(t), _re_local.IGNORECASE) for t in tags]
+            query["music"] = {"$in": regexes}
+    if premium_only:
+        query["is_premium"] = True
+
+    # Age filter -> DoB year range
+    now_year = datetime.now().year
+    if min_age or max_age:
+        dob_year_min = None
+        dob_year_max = None
+        if max_age:
+            dob_year_min = str(now_year - int(max_age))
+        if min_age:
+            dob_year_max = str(now_year - int(min_age)) + "-12-31"
+        dob_q: dict = {}
+        if dob_year_min:
+            dob_q["$gte"] = dob_year_min
+        if dob_year_max:
+            dob_q["$lte"] = dob_year_max
+        if dob_q:
+            query["dob"] = dob_q
+
     limit = max(1, min(limit, 50))
     cursor = db.users.find(
         query,
         {
             "_id": 0, "user_id": 1, "name": 1, "picture": 1, "photos": 1,
             "city": 1, "is_premium": 1, "is_bot": 1, "dob": 1, "bio": 1,
+            "music": 1,
         },
     ).limit(limit)
     rows = await cursor.to_list(limit)
     results = []
-    now_year = datetime.now().year
     for u in rows:
         age = None
         if isinstance(u.get("dob"), str) and len(u["dob"]) >= 4:
@@ -3539,6 +3578,7 @@ async def users_search(
             "is_premium": bool(u.get("is_premium")),
             "is_bot": bool(u.get("is_bot")),
             "age": age,
+            "music": u.get("music") or [],
         })
     return {"users": results, "count": len(results)}
 
