@@ -3524,12 +3524,11 @@ async def users_search(
         query["city"] = {"$regex": safe_city, "$options": "i"}
     if music and music.strip():
         # music may be a comma separated list of tags
-        import re as _re_local
         tags = [t.strip() for t in music.split(",") if t.strip()]
         if tags:
             # MongoDB does not allow {"$regex": ...} inside $in — must use
             # compiled regex objects (BSON regex).
-            regexes = [_re_local.compile(_re_local.escape(t), _re_local.IGNORECASE) for t in tags]
+            regexes = [_re.compile(_re.escape(t), _re.IGNORECASE) for t in tags]
             query["music"] = {"$in": regexes}
     if premium_only:
         query["is_premium"] = True
