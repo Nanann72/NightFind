@@ -1913,6 +1913,25 @@ async def list_notifications(user: dict = Depends(get_current_user)):
     return notifs
 
 
+@api_router.get("/notifications/unread-count")
+async def unread_notifications_count(user: dict = Depends(get_current_user)):
+    """Return count of unread notifications for the logged-in user."""
+    c = await db.notifications.count_documents(
+        {"user_id": user["user_id"], "read": {"$ne": True}}
+    )
+    return {"unread": c}
+
+
+@api_router.post("/notifications/mark-read")
+async def mark_notifications_read(user: dict = Depends(get_current_user)):
+    """Mark ALL unread notifications for this user as read."""
+    res = await db.notifications.update_many(
+        {"user_id": user["user_id"], "read": {"$ne": True}},
+        {"$set": {"read": True, "read_at": datetime.now(timezone.utc)}},
+    )
+    return {"ok": True, "updated": res.modified_count}
+
+
 @api_router.post("/checkins")
 async def checkin(body: CheckInBody, user: dict = Depends(get_current_user)):
     club = await db.clubs.find_one({"club_id": body.club_id}, {"_id": 0})
@@ -3472,6 +3491,10 @@ async def report_user(body: ReportBody, user: dict = Depends(get_current_user)):
 async def users_search(
     q: str = "",
     limit: int = 20,
+    min_age: Optional[int] = None,
+    max_age: Optional[int] = None,
+    city: Optional[str] = None,
+    music: Optional[str] = None,
     user: dict = Depends(get_current_user),
 ):
     """Public user search — by name (email hidden for privacy).

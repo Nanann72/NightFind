@@ -180,10 +180,18 @@ export const api = {
     request<{ users: NearbyUser[]; count: number }>(
       `/users/nearby?lat=${lat}&lng=${lng}&radius_km=${radiusKm}`,
     ),
-  usersSearch: (q: string, limit = 20) =>
-    request<{ users: SearchUser[]; count: number }>(
-      `/users/search?q=${encodeURIComponent(q)}&limit=${limit}`,
-    ),
+  usersSearch: (q: string, limit = 20, filters?: { minAge?: number; maxAge?: number; city?: string; music?: string }) => {
+    const p = new URLSearchParams({ q, limit: String(limit) });
+    if (filters?.minAge) p.set('min_age', String(filters.minAge));
+    if (filters?.maxAge) p.set('max_age', String(filters.maxAge));
+    if (filters?.city) p.set('city', filters.city);
+    if (filters?.music) p.set('music', filters.music);
+    return request<{ users: SearchUser[]; count: number }>(`/users/search?${p.toString()}`);
+  },
+  notificationsUnread: () =>
+    request<{ unread: number }>('/notifications/unread-count'),
+  notificationsMarkRead: () =>
+    request<{ ok: boolean; updated: number }>('/notifications/mark-read', { method: 'POST' }),
   // Admin — user moderation
   adminSearchUsers: (q = '', limit = 50) =>
     request<{ users: AdminUser[]; count: number }>(
