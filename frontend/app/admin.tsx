@@ -170,6 +170,20 @@ export default function AdminScreen() {
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
 
+        <Text style={styles.section}>Diagnostic Audd.io</Text>
+        <TouchableOpacity
+          onPress={() => router.push('/admin-audd')}
+          style={styles.userMgmtBtn}
+          activeOpacity={0.85}
+          testID="admin-audd-btn"
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userMgmtTitle}>Reconnaissance musicale — test & stats</Text>
+            <Text style={styles.userMgmtSub}>Config token, test live avec le micro, réponse brute Audd.io, historique</Text>
+          </View>
+          <Ionicons name="musical-notes-outline" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+
         <Text style={styles.section}>Nettoyage bots</Text>
         <TouchableOpacity
           onPress={wipe}

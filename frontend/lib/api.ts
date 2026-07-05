@@ -217,6 +217,44 @@ export const api = {
         body: JSON.stringify({ duration_days: durationDays, remove }),
       },
     ),
+  // Admin — Audd.io diagnostic
+  adminAuddStatus: () =>
+    request<{
+      configured: boolean;
+      token_preview: string;
+      total_songs: number;
+      recent_songs: Array<{
+        song_id: string;
+        user_id: string;
+        club_name?: string | null;
+        title?: string | null;
+        artist?: string | null;
+        detected_at?: string | null;
+      }>;
+    }>('/admin/audd/status'),
+  adminAuddProbe: (audio_base64: string) =>
+    request<{
+      ok: boolean;
+      http_status?: number;
+      audd_status?: string;
+      recognised: boolean;
+      sample_bytes: number;
+      elapsed_ms?: number;
+      summary?: {
+        title?: string | null;
+        artist?: string | null;
+        album?: string | null;
+        release_date?: string | null;
+        spotify_url?: string | null;
+        apple_music_url?: string | null;
+      } | null;
+      error?: { error_code?: number; error_message?: string } | null;
+      raw?: any;
+      message?: string;
+    }>('/admin/audd/probe', {
+      method: 'POST',
+      body: JSON.stringify({ audio_base64 }),
+    }),
   // Auth
   register: (email: string, password: string, name: string, dob: string) =>
     request<{ token: string; user: User }>('/auth/register', {

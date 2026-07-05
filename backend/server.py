@@ -3916,6 +3916,133 @@ async def admin_bot_stats(_admin: dict = Depends(require_admin)):
     return await admin_service.get_bot_stats(db)
 
 
+# ---- Audd.io diagnostic (admin only) ----
+
+@api_router.get("/admin/audd/status")
+async def admin_audd_status(_admin: dict = Depends(require_admin)):
+    """Return Audd.io configuration status + recent recognitions.
+
+    Response:
+      - `configured`: bool          — token env variable present
+      - `token_preview`: str        — masked token (first 4 + last 4)
+      - `total_songs`: int          — count of user_songs from Audd
+      - `recent_songs`: list[dict]  — last 10 successful recognitions
+    """
+    token = os.environ.get("AUDD_API_TOKEN", "").strip()
+    configured = bool(token)
+    token_preview = ""
+    if token:
+        if len(token) > 10:
+            token_preview = f"{token[:4]}…{token[-4:]}"
+        else:
+            token_preview = "•" * len(token)
+    total = await db.user_songs.count_documents({"source": "audd"})
+    recent = await db.user_songs.find(
+        {"source": "audd"},
+        {"_id": 0, "song_id": 1, "user_id": 1, "club_name": 1,
+         "title": 1, "artist": 1, "detected_at": 1},
+    ).sort("created_at", -1).to_list(10)
+    return {
+        "configured": configured,
+        "token_preview": token_preview,
+        "total_songs": total,
+        "recent_songs": recent,
+    }
+
+
+class AdminAuddProbeBody(BaseModel):
+    audio_base64: str
+
+
+@api_router.post("/admin/audd/probe")
+async def admin_audd_probe(
+    body: AdminAuddProbeBody,
+    _admin: dict = Depends(require_admin),
+):
+    """Forward an audio sample to Audd.io and return the FULL raw response.
+
+    Unlike `/recognize/audio`, this endpoint:
+      - does NOT persist the match into `user_songs`;
+      - does NOT require a real club check-in;
+      - returns the raw Audd payload + HTTP status + elapsed time
+        so an admin can validate the integration end-to-end.
+    """
+    import base64
+    import time as _time
+
+    token = os.environ.get("AUDD_API_TOKEN", "").strip()
+    if not token:
+        raise HTTPException(status_code=503, detail="Audd.io not configured")
+    if http_client is None:
+        raise HTTPException(status_code=503, detail="Service not ready")
+
+    try:
+        raw = base64.b64decode(body.audio_base64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid base64 audio")
+    if len(raw) > 1_500_000:
+        raise HTTPException(status_code=413, detail="Audio sample too large")
+    if len(raw) < 20_000:
+        # Refuse to spend a quota credit on obviously empty samples
+        return {
+            "ok": False,
+            "sample_bytes": len(raw),
+            "message": "Sample too small (<20KB) — record longer / louder.",
+        }
+
+    started = _time.monotonic()
+    try:
+        files = {"file": ("sample.m4a", raw, "audio/m4a")}
+        data = {
+            "api_token": token,
+            "return": "spotify,apple_music,deezer,musicbrainz",
+            "accurate_offsets": "true",
+        }
+        r = await http_client.post(
+            "https://api.audd.io/", data=data, files=files, timeout=25.0
+        )
+    except Exception as exc:
+        return {
+            "ok": False,
+            "sample_bytes": len(raw),
+            "elapsed_ms": int((_time.monotonic() - started) * 1000),
+            "message": f"Network error: {exc}",
+        }
+    elapsed_ms = int((_time.monotonic() - started) * 1000)
+
+    try:
+        payload = r.json()
+    except Exception:
+        payload = {"raw_text": (r.text or "")[:500]}
+
+    # Extract clean summary
+    status = payload.get("status")
+    result = payload.get("result") if isinstance(payload, dict) else None
+    summary = None
+    if isinstance(result, dict):
+        summary = {
+            "title": result.get("title"),
+            "artist": result.get("artist"),
+            "album": result.get("album"),
+            "release_date": result.get("release_date"),
+            "spotify_url": (result.get("spotify") or {})
+                .get("external_urls", {}).get("spotify"),
+            "apple_music_url": (result.get("apple_music") or {}).get("url"),
+        }
+
+    return {
+        "ok": r.status_code == 200 and status == "success",
+        "http_status": r.status_code,
+        "audd_status": status,
+        "recognised": summary is not None,
+        "sample_bytes": len(raw),
+        "elapsed_ms": elapsed_ms,
+        "summary": summary,
+        "error": payload.get("error") if isinstance(payload, dict) else None,
+        "raw": payload,
+    }
+
+
 # ---- User moderation ----
 
 class AdminBanBody(BaseModel):

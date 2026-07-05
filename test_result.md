@@ -239,6 +239,25 @@ test_plan:
   test_all: false
   test_priority: "high_first"
 
+backend_verified_2026_01_audd:
+  - task: "GET /api/admin/audd/status (require_admin)"
+    working: true
+    file: "/app/backend/server.py"
+    notes: |
+      Returns {configured, token_preview, total_songs, recent_songs}.
+      token_preview masked as `abcd…wxyz` when configured (never leaks raw token).
+      Non-admin reviewer -> 403. Verified in test_audd_admin.py::TestAuddStatus.
+  - task: "POST /api/admin/audd/probe (require_admin, guardrails)"
+    working: true
+    file: "/app/backend/server.py"
+    notes: |
+      Verified guardrails WITHOUT calling Audd.io (no quota burn):
+        - base64('hi')  → 200 {ok:false, sample_bytes:2, message:'Sample too small…'}
+        - invalid b64   → 400
+        - 2 MB payload  → 413 (limit 1.5 MB)
+        - non-admin     → 403
+      All 4 scenarios pass in test_audd_admin.py::TestAuddProbe.
+
 backend_verified_2026_01:
   - task: "GET /api/users/search — advanced filters (age, city, music, premium)"
     working: true
