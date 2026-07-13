@@ -375,6 +375,35 @@ export default function Settings() {
           )}
         </View>
 
+        {/* Profile header card — iOS Settings style */}
+        {!q && (
+          <TouchableOpacity
+            style={styles.profileCard}
+            activeOpacity={0.8}
+            onPress={() => router.push('/swipe-profile' as any)}
+            testID="settings-profile-card"
+          >
+            <View style={styles.profileAvatar}>
+              <Text style={styles.profileAvatarText} allowFontScaling={false}>
+                {(user?.name || '?').trim().charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={styles.profileName} numberOfLines={1}>{user?.name || '—'}</Text>
+                {isPremium ? (
+                  <View style={styles.premiumChip}>
+                    <Ionicons name="diamond" size={10} color="#fff" />
+                    <Text style={styles.premiumChipText} allowFontScaling={false}>PREMIUM</Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={styles.profileEmail} numberOfLines={1}>{user?.email || ''}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
+        )}
+
         {/* SECTION — Votre compte */}
         <SectionHeader title={t('settings.sectionAccount')} />
         <View style={styles.group}>
@@ -417,6 +446,17 @@ export default function Settings() {
               testID: 'row-premium',
             },
           )}
+          {isPremium
+            ? renderRow('card-outline', 'Gérer mon abonnement', () => {
+                const url = Platform.OS === 'android'
+                  ? 'https://play.google.com/store/account/subscriptions'
+                  : 'https://apps.apple.com/account/subscriptions';
+                Linking.openURL(url).catch(() => {});
+              }, {
+                subtext: 'Modifier ou annuler depuis ton store',
+                testID: 'row-manage-subscription',
+              })
+            : null}
           {isPremium && devMode && __DEV__
             ? renderRow('refresh-outline', 'Reset Premium (DEV)', () => {
                 Alert.alert('Reset Premium (DEV)', 'Désactiver le Premium simulé ?', [
@@ -549,6 +589,12 @@ export default function Settings() {
               'Tes préférences musicales et favoris ne sont visibles que par toi. Localisation jamais partagée avec des tiers.',
             ),
           { testID: 'row-privacy-info' })}
+          {renderRow('mail-outline', 'Contacter le support', () =>
+            Linking.openURL('mailto:support@nightfinder.app?subject=Support%20Night%20Finder').catch(() => {}),
+          { testID: 'row-support' })}
+          {renderRow('flag-outline', 'Signaler un problème', () =>
+            Linking.openURL('mailto:support@nightfinder.app?subject=Bug%20Night%20Finder').catch(() => {}),
+          { testID: 'row-report-problem' })}
         </View>
 
         {/* SECTION — Légal */}
@@ -776,6 +822,39 @@ const makeStyles = (colors: any) =>
       letterSpacing: -0.2,
     },
 
+    profileCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      backgroundColor: colors.surfaceElevated,
+      borderRadius: radius.xl,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 16,
+      marginHorizontal: spacing.md,
+      marginBottom: spacing.md,
+    },
+    profileAvatar: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: colors.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    profileAvatarText: { color: colors.primary, fontSize: 24, fontWeight: '700' },
+    profileName: { color: colors.textPrimary, fontSize: 17, fontWeight: '700', flexShrink: 1 },
+    profileEmail: { color: colors.textSecondary, fontSize: 13, marginTop: 3 },
+    premiumChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.primary,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 999,
+    },
+    premiumChipText: { color: '#fff', fontSize: 9, fontWeight: '800', letterSpacing: 0.8 },
     group: {
       backgroundColor: colors.surface,
       marginHorizontal: 0,

@@ -873,6 +873,9 @@ async def list_events(upcoming_only: bool = True, user: dict = Depends(get_curre
             if not e.get("location_address"):
                 e["location_address"] = c.get("address", "")
         e.setdefault("visibility", "public")
+        # Consistent shape for user-created events without a club
+        e.setdefault("club_name", None)
+        e.setdefault("club_photo", None)
     events.sort(key=lambda e: e.get("date", ""))
     return events
 
@@ -2518,8 +2521,8 @@ async def recognize_audio(
         raw = base64.b64decode(body.audio_base64)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid base64 audio")
-    if len(raw) > 1_500_000:
-        raise HTTPException(status_code=413, detail="Audio sample too large (max ~1.5MB)")
+    if len(raw) > 5_000_000:
+        raise HTTPException(status_code=413, detail="Audio sample too large (max 5MB)")
 
     try:
         files = {"file": ("sample.m4a", raw, "audio/m4a")}
@@ -2557,11 +2560,22 @@ async def recognize_audio(
             err.get("error_code"),
             err.get("error_message"),
         )
+        # Map technical Audd errors to actionable French messages.
+        code = err.get("error_code")
+        if code == 900:
+            friendly = (
+                "Service de reconnaissance inactif — l'abonnement Audd.io doit être "
+                "réactivé sur dashboard.audd.io."
+            )
+        elif code == 901:
+            friendly = "Quota de reconnaissance épuisé pour aujourd'hui. Réessaie demain."
+        else:
+            friendly = err.get("error_message") or "Erreur du service de reconnaissance."
         return {
             "ok": False,
             "recognised": False,
-            "error_code": err.get("error_code"),
-            "error_message": err.get("error_message") or "Audd error",
+            "error_code": code,
+            "error_message": friendly,
         }
     result = payload.get("result")
     if not result:
@@ -3980,7 +3994,7 @@ async def admin_audd_probe(
         raw = base64.b64decode(body.audio_base64)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid base64 audio")
-    if len(raw) > 1_500_000:
+    if len(raw) > 5_000_000:
         raise HTTPException(status_code=413, detail="Audio sample too large")
     if len(raw) < 20_000:
         # Refuse to spend a quota credit on obviously empty samples

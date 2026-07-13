@@ -108,8 +108,8 @@ class TestAuddProbe:
         assert r.status_code == 400, f"expected 400, got {r.status_code} {r.text[:200]}"
 
     def test_probe_too_large(self, admin_token):
-        # 2 MB of raw bytes -> > 1.5 MB limit
-        big = base64.b64encode(b"\x00" * (2 * 1024 * 1024)).decode()
+        # 6 MB of raw bytes -> > 5 MB limit
+        big = base64.b64encode(b"\x00" * (6 * 1024 * 1024)).decode()
         r = requests.post(
             f"{BASE_URL}/api/admin/audd/probe",
             json={"audio_base64": big},

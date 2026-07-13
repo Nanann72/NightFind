@@ -193,7 +193,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   iconBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   title: { color: colors.textPrimary, fontSize: 16, fontWeight: '900', flex: 1, textAlign: 'center', paddingHorizontal: 8 },
   scroll: { padding: spacing.lg, paddingBottom: 80 },
-  body: { color: colors.textSecondary, fontSize: 14, lineHeight: 22, whiteSpace: 'pre-wrap' as any },
+  body: { color: colors.textSecondary, fontSize: 14, lineHeight: 22, ...({ whiteSpace: 'pre-wrap' } as any) },
 });
 
 

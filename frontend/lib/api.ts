@@ -41,6 +41,11 @@ export type User = {
   created_at: string;
   username?: string | null;
   visibility?: 'always' | 'clubs_only' | 'hidden';
+  photos?: string[];
+  bio?: string;
+  city?: string;
+  dob?: string;
+  likes_received_count?: number;
   is_premium?: boolean;
   premium_expires_at?: string | null;
   is_admin?: boolean;

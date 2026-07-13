@@ -53,7 +53,7 @@ export const darkColors = {
   ...brand,
   tabBarBg: 'rgba(15, 15, 16, 0.82)',
   tabBarBorder: 'rgba(255, 255, 255, 0.08)',
-  statusBarStyle: 'light' as const,
+  statusBarStyle: 'light' as 'light' | 'dark',
 };
 
 // ─────────────────────────────────────────────────────────

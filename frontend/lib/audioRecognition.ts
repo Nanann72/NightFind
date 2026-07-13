@@ -17,8 +17,44 @@ import { api, Club } from './api';
 
 const DETECT_INTERVAL_MS = 90 * 1000; // 90s between detections
 const SESSION_DURATION_MS = 10 * 60 * 1000; // stop after 10 min
-const SAMPLE_DURATION_MS = 12000; // 12 seconds — Audd recommends 10-12s for noisy environments (clubs)
-const RETRY_SAMPLE_DURATION_MS = 15000; // Auto-retry uses a longer sample for better hit rate
+const SAMPLE_DURATION_MS = 10000; // 10 seconds — Audd recommends 8-12s
+const RETRY_SAMPLE_DURATION_MS = 12000; // Auto-retry uses a longer sample for better hit rate
+
+/**
+ * Optimized recording options for music recognition.
+ * Mono + AAC 64 kbps keeps a 10-12s sample around 80-100 KB (vs ~2 MB with
+ * the default HIGH_QUALITY preset on iOS which can fall back to near-PCM),
+ * which fixes the "Audio too large (1.5 MB)" backend rejection while staying
+ * well within Audd.io's sweet spot for recognition accuracy.
+ */
+function buildRecognitionRecordingOptions(ExpoAudio: any) {
+  return {
+    extension: '.m4a',
+    sampleRate: 44100,
+    numberOfChannels: 1,
+    bitRate: 64000,
+    android: {
+      outputFormat: 'mpeg4',
+      audioEncoder: 'aac',
+    },
+    ios: {
+      outputFormat: ExpoAudio?.IOSOutputFormat?.MPEG4AAC ?? 'aac ',
+      audioQuality: ExpoAudio?.AudioQuality?.HIGH ?? 96,
+      linearPCMBitDepth: 16,
+      linearPCMIsBigEndian: false,
+      linearPCMIsFloat: false,
+    },
+    web: {
+      mimeType: 'audio/webm',
+      bitsPerSecond: 64000,
+    },
+  };
+}
+
+// Hard client-side cap — backend accepts up to ~5 MB but anything above
+// ~2 MB means the codec fell back to uncompressed audio; fail fast with a
+// clear message instead of a server 413.
+const MAX_BASE64_LENGTH = 2_800_000; // ≈ 2.1 MB raw
 
 const sessions = new Map<string, ReturnType<typeof setInterval>>();
 
@@ -84,7 +120,7 @@ async function recordAndRecognise(
     if (!RecorderClass) {
       throw new Error('AudioRecorder class unavailable in expo-audio module');
     }
-    const recorder = new RecorderClass(ExpoAudio.RecordingPresets.HIGH_QUALITY);
+    const recorder = new RecorderClass(buildRecognitionRecordingOptions(ExpoAudio));
     await recorder.prepareToRecordAsync();
     recorder.record();
     await new Promise((r) => setTimeout(r, sampleDurationMs));
@@ -124,16 +160,25 @@ async function recordAndRecognise(
         errorMessage: 'Fichier audio vide.',
       };
     }
-    // Heuristic silence/short-buffer detection. 12s of m4a@128kbps is ~180-240 KB.
-    // base64 inflates by 33%, so a real sample should be > ~120KB encoded.
-    // If we got significantly less, the mic was muted or the recording was
-    // truncated by the OS → skip the API call to save quota and inform the user.
-    if (base64.length < 60_000) {
+    // Heuristic silence/short-buffer detection. 10s of mono AAC@64kbps is
+    // ~80 KB raw (~107 KB base64). Significantly less means the mic was muted
+    // or the recording was truncated → skip the API call to save quota.
+    if (base64.length < 30_000) {
       return {
         ok: false,
         reason: 'no-audio-recorded',
         errorMessage:
-          "Le micro n'a presque rien capté. Rapproche-toi des enceintes (~1m), augmente le volume et réessaie.",
+          "Le micro n'a presque rien capté. Rapproche ton téléphone de la source sonore et réessaie.",
+      };
+    }
+    // Oversized = codec fell back to uncompressed audio; sending it would
+    // waste bandwidth and get rejected. Clear actionable message instead.
+    if (base64.length > MAX_BASE64_LENGTH) {
+      return {
+        ok: false,
+        reason: 'error',
+        errorMessage:
+          "L'échantillon audio est trop volumineux. Réessaie — si le problème persiste, redémarre l'application.",
       };
     }
 
@@ -159,7 +204,7 @@ async function recordAndRecognise(
         reason: resp?.recognised ? undefined : 'audd-not-recognised',
         errorMessage: resp?.recognised
           ? undefined
-          : 'Aucune musique reconnue. Rapproche-toi des enceintes (~1m), augmente le volume et réessaie.',
+          : 'Aucune musique reconnue. Essaie de rapprocher ton téléphone de la source sonore.',
       };
     }
     return { ok: true };
@@ -173,7 +218,7 @@ async function recordAndRecognise(
 }
 
 /** One-shot Shazam-like scan with auto-retry on no-match.
- *  Strategy: 1st pass = 12s sample. If not recognised, retry once with a 15s
+ *  Strategy: 1st pass = 10s sample. If not recognised, retry once with a 12s
  *  sample for better hit rate in noisy environments (clubs). */
 export async function scanOnce(club: Club): Promise<ScanResult> {
   const first = await recordAndRecognise(club, true, SAMPLE_DURATION_MS);

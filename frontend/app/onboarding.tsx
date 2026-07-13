@@ -596,7 +596,7 @@ export default function Onboarding() {
       {/* Existing lines (already revealed) + current revealing line */}
       {!isFeature && (
       <View style={styles.linesBlock}>
-        {lines.slice(0, lineIdx + 1).map((l, i) => (
+        {lines.slice(0, lineIdx + 1).map((l: Line, i: number) => (
           <View key={`${screenIdx}-${i}`} style={styles.lineSlot}>
             {i === lineIdx ? (
               <WordLine

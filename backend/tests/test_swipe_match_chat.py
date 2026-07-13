@@ -99,8 +99,7 @@ class TestAuthRegister:
     def test_register_without_dob_returns_422(self):
         email = f"test_nodob_{uuid.uuid4().hex[:6]}@nightfinder.app"
         r = requests.post(f"{API}/auth/register", json={
-            "email": email, "password": "passw0rd!", "name": "NoDob"
-        })
+            "email": email, "password": "passw0rd!", "name": "NoDob"})
         assert r.status_code == 422, f"expected 422, got {r.status_code} body={r.text}"
 
     def test_register_dob_under_18_returns_400(self):

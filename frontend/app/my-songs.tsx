@@ -94,8 +94,8 @@ export default function MySongs() {
     }
     // Find nearest club within 500m (optional — scan still works without)
     let target: any = { club_id: 'manual_scan', name: 'Scan manuel' };
-    if (loc?.location) {
-      const me = { lat: loc.location.coords.latitude, lng: loc.location.coords.longitude };
+    if (loc.permission === 'granted' && !loc.loading) {
+      const me = { lat: loc.coords.lat, lng: loc.coords.lng };
       let nearest: { club: any; km: number } | null = null;
       for (const c of clubs) {
         const km = distanceKm(me, { lat: c.lat, lng: c.lng });
@@ -134,9 +134,8 @@ export default function MySongs() {
       load();
     } else {
       Alert.alert(
-        'Aucun morceau identifié',
-        result.errorMessage ||
-          'Approche-toi des enceintes (~1m), monte le volume et réessaie.',
+        'Aucune musique reconnue',
+        'Essaie de rapprocher ton téléphone de la source sonore.',
       );
     }
   };
@@ -196,6 +195,7 @@ export default function MySongs() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]} testID="my-songs-screen">
+      <ScanningOverlay visible={scanning} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} testID="songs-back-btn">
           <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
@@ -341,7 +341,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: 'rgba(224,26,79,0.25)',
+    backgroundColor: 'rgba(139,92,246,0.25)',
   },
   scanBtn: {
     width: 76,
@@ -442,3 +442,75 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
 // use `useThemeColors()`.
 const colors = darkColors;
 const styles = makeStyles(darkColors);
+
+/** Fullscreen elegant overlay shown while the mic listens (Shazam-like). */
+function ScanningOverlay({ visible }: { visible: boolean }) {
+  const ring1 = useSharedValue(0);
+  const ring2 = useSharedValue(0);
+
+  useEffect(() => {
+    if (visible) {
+      ring1.value = 0;
+      ring2.value = 0;
+      ring1.value = withRepeat(withTiming(1, { duration: 1800, easing: Easing.out(Easing.quad) }), -1);
+      ring2.value = withRepeat(
+        withSequence(withTiming(0, { duration: 900 }), withTiming(1, { duration: 1800, easing: Easing.out(Easing.quad) })),
+        -1,
+      );
+    }
+  }, [visible, ring1, ring2]);
+
+  const r1Style = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + ring1.value * 1.6 }],
+    opacity: 0.5 * (1 - ring1.value),
+  }));
+  const r2Style = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + ring2.value * 1.6 }],
+    opacity: 0.5 * (1 - ring2.value),
+  }));
+
+  if (!visible) return null;
+  return (
+    <View style={ovStyles.backdrop} pointerEvents="auto" testID="scanning-overlay">
+      <View style={ovStyles.center}>
+        <Animated.View style={[ovStyles.ring, r1Style]} />
+        <Animated.View style={[ovStyles.ring, r2Style]} />
+        <View style={ovStyles.core}>
+          <Ionicons name="musical-notes" size={30} color="#fff" />
+        </View>
+      </View>
+      <Text style={ovStyles.title}>Écoute en cours…</Text>
+      <Text style={ovStyles.sub}>Rapproche ton téléphone de la source sonore</Text>
+    </View>
+  );
+}
+
+const ovStyles = StyleSheet.create({
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(5,5,5,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    elevation: 1000,
+  },
+  center: { width: 200, height: 200, alignItems: 'center', justifyContent: 'center' },
+  ring: {
+    position: 'absolute',
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 2,
+    borderColor: '#8B5CF6',
+  },
+  core: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#8B5CF6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: { color: '#fff', fontSize: 20, fontWeight: '700', marginTop: 28 },
+  sub: { color: '#A1A1AA', fontSize: 14, marginTop: 8, textAlign: 'center', paddingHorizontal: 40 },
+});

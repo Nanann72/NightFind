@@ -60,7 +60,7 @@ export default function Profile() {
     let cancelled = false;
     (async () => {
       try {
-        const matches = await api.getMatches();
+        const matches = await api.listMatches();
         if (!cancelled) setMatchesCount(Array.isArray(matches) ? matches.length : 0);
       } catch {}
       const likes = (user as any)?.likes_received_count ?? 0;

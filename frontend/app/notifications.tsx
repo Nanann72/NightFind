@@ -25,10 +25,10 @@ const ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 };
 
 const COLOURS: Record<string, string> = {
-  event: colors.tertiary,
-  promo: colors.secondary,
-  nearby: colors.primary,
-  checkin: colors.tertiary,
+  event: darkColors.tertiary,
+  promo: darkColors.secondary,
+  nearby: darkColors.primary,
+  checkin: darkColors.tertiary,
 };
 
 const LABELS: Record<string, string> = {

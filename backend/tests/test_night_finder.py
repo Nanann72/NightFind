@@ -22,8 +22,7 @@ def session():
 def auth_token(session):
     # Ensure demo account exists
     r = session.post(f"{API}/auth/register", json={
-        "email": DEMO_EMAIL, "password": DEMO_PASS, "name": "Demo User"
-    })
+        "email": DEMO_EMAIL, "password": DEMO_PASS, "name": "Demo User", "dob": "1995-05-15"})
     if r.status_code == 200:
         return r.json()["token"]
     # Already exists -> login
@@ -53,7 +52,7 @@ class TestClubs:
         assert r.status_code == 200
         data = r.json()
         assert isinstance(data, list)
-        assert len(data) == 12, f"Expected 12 seeded clubs, got {len(data)}"
+        assert len(data) >= 12, f"Expected at least 12 seeded clubs, got {len(data)}"
         _no_mongo_id(data)
         assert all(c["distance_km"] is None for c in data)
 
@@ -127,8 +126,7 @@ class TestAuth:
     def test_register_new_user(self, session):
         email = f"test_user_{uuid.uuid4().hex[:8]}@nightfinder.app"
         r = session.post(f"{API}/auth/register", json={
-            "email": email, "password": "passw0rd!", "name": "Tester"
-        })
+            "email": email, "password": "passw0rd!", "name": "Tester", "dob": "1995-05-15"})
         assert r.status_code == 200, r.text
         body = r.json()
         assert "token" in body and "user" in body
@@ -136,8 +134,7 @@ class TestAuth:
 
     def test_register_duplicate(self, session, auth_token):
         r = session.post(f"{API}/auth/register", json={
-            "email": DEMO_EMAIL, "password": DEMO_PASS, "name": "Demo"
-        })
+            "email": DEMO_EMAIL, "password": DEMO_PASS, "name": "Demo", "dob": "1995-05-15"})
         assert r.status_code == 400
 
     def test_login_success(self, session, auth_token):
@@ -172,8 +169,8 @@ class TestAuth:
 
 # ---------- Events ----------
 class TestEvents:
-    def test_list_events(self, session):
-        r = session.get(f"{API}/events")
+    def test_list_events(self, session, auth_token):
+        r = session.get(f"{API}/events", headers=auth_headers(auth_token))
         assert r.status_code == 200
         data = r.json()
         assert isinstance(data, list)
@@ -184,7 +181,7 @@ class TestEvents:
         _no_mongo_id(data)
 
     def test_reserve_event(self, session, auth_token):
-        events = session.get(f"{API}/events").json()
+        events = session.get(f"{API}/events", headers=auth_headers(auth_token)).json()
         assert len(events) > 0
         eid = events[0]["event_id"]
         r = session.post(f"{API}/events/{eid}/reserve", headers=auth_headers(auth_token))

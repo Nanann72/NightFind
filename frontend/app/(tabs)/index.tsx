@@ -333,7 +333,7 @@ export default function Home() {
         refreshControl={
           <RefreshControl
             refreshing={loading}
-            onRefresh={() => refresh(loc.permission === 'granted' ? loc.coords : null)}
+            onRefresh={() => refresh()}
             tintColor={colors.primary}
           />
         }
