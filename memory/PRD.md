@@ -101,3 +101,14 @@ Build 128 : plus de crash (fix RevenueCat OK) mais écran 100% noir PERSISTANT, 
 4. **METRO_CACHE_ROOT déplacé vers /tmp/metro-cache** (.env) : le cache (160 Mo régénéré !) ne sera plus JAMAIS embarqué dans les zips de déploiement.
 Vérifié : export bundle iOS prod OK (contient les 2 filets), app OK en preview.
 👉 Au prochain build : si écran ROUGE avec texte = envoyer photo du texte (cause exacte) ; si app démarre = résolu ; si encore noir pur = le JS ne démarre pas du tout (problème natif profond → support Emergent avec cette info).
+
+## 🎨 REDESIGN PREMIUM iOS 26 (juillet 2026)
+- **Design System v3** : accent VIOLET unique #8B5CF6 (remplace le rose #E01A4F), fond #050505, surfaces #0F0F0F / cartes #141414, coins 24-30px (radius.xl=24, xxl=30), gradients violets. Tout dans `lib/theme.ts` (tokens propagés à tous les écrans via ThemeContext).
+- **TabBar v3** (`components/LiquidGlassTabBar.tsx`) : capsule flottante verre, 5 onglets avec labels : Accueil · Carte · Plus · Chats · Profil. Routes `swipe` et `events` masquées de la barre (HIDDEN_TABS) mais toujours navigables.
+- **Nouveau Home** (`(tabs)/index.tsx`) : Bonsoir {prénom} 👋, recherche, bannière "Explorer la carte", chips, sections horizontales Clubs proches / Tendance ce soir / Personnes près de toi (API /users/nearby) / Moments (API /moments/feed), liste Tous les clubs.
+- **Hub "Plus"** (`(tabs)/plus.tsx`) : Découverte, Moments, Sorties, Recherche + Amis/Favoris/Mes musiques/Demandes + bannière Premium.
+- **Onglet Chats** (`(tabs)/chats.tsx`) : liste conversations style iMessage. `/matches` redirige vers `/(tabs)/chats`.
+- **Nouveau Paywall** (`paywall.tsx`) : fond noir #050505, halo violet animé (respiration), 4 avantages, CTA blanc "Essayer Premium", prix sous le CTA, restaurer + liens légaux. Logique RevenueCat INCHANGÉE.
+- i18n : nouvelles clés `tabs.*`, `plusHub.*`, `home.*` (greeting, readyTonight, exploreMap, nearbyClubs, trending, peopleNearby, moments, allClubs, seeAll) dans fr.ts + en.ts (fallback fr pour les autres langues).
+- Testé frontend complet (iteration_24.json) : PASS — zéro trace de l'ancien rose, aucune régression navigation.
+- ⏳ EN ATTENTE (décision utilisateur) : migration RevenueCat → Stripe demandée mais reportée ("on verra pour RevenueCat après"). ⚠️ Rappel : Stripe in-app pour abonnements numériques = rejet App Store (Guideline 3.1.1).
