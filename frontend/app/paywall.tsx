@@ -1,3 +1,8 @@
+/**
+ * Night Finder Premium — luxury Apple-style paywall.
+ * Black background, subtle violet halo, 4 benefits, elegant white CTA.
+ * Purchase logic unchanged (RevenueCat via usePremium).
+ */
 import { useEffect, useState, useMemo } from 'react';
 import {
   View,
@@ -11,29 +16,42 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import Animated, {
+  FadeInDown,
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import { usePremium } from '../lib/premium';
 import { getLastOfferingsError, isRealMode } from '../lib/purchases';
 import { HapticButton } from '../components/ui/HapticButton';
-import { radius, spacing, shadows, type ThemeColors, darkColors } from '../lib/theme';
-import { useThemeColors } from '../lib/themeContext';
+import { radius, spacing } from '../lib/theme';
+
+// Fixed luxury palette — Premium is always deep black, regardless of theme.
+const P = {
+  bg: '#050505',
+  card: '#141414',
+  border: 'rgba(255,255,255,0.08)',
+  borderStrong: 'rgba(255,255,255,0.16)',
+  text: '#FFFFFF',
+  textDim: '#A1A1AA',
+  textFaint: '#5C5C64',
+  violet: '#8B5CF6',
+  violetSoft: 'rgba(139, 92, 246, 0.14)',
+};
 
 const BENEFITS = [
-  { icon: 'infinite' as const, title: 'Swipes illimités', desc: 'Plus de limite quotidienne' },
-  { icon: 'globe-outline' as const, title: 'Rayon étendu 200km', desc: 'Voir les soirées dans toute la région' },
-  { icon: 'eye' as const, title: 'Qui sera là ce soir ?', desc: 'Vois les autres utilisateurs présents au club' },
-  { icon: 'options' as const, title: 'Filtres avancés', desc: 'DJ, dress code, ambiance, prix VIP' },
-  { icon: 'flame' as const, title: 'Boost de profil', desc: 'Top user de la soirée' },
-  { icon: 'rocket' as const, title: 'Notifications anticipées', desc: 'Les meilleurs events avant tout le monde' },
-  { icon: 'bar-chart' as const, title: 'Statistiques perso', desc: 'Streak, clubs visités, soirées' },
-  { icon: 'close-circle-outline' as const, title: 'Sans publicité', desc: '100% premium, 0% pub' },
+  { icon: 'eye-outline' as const, title: 'Voir qui est là ce soir' },
+  { icon: 'infinite' as const, title: 'Swipes illimités' },
+  { icon: 'options-outline' as const, title: 'Filtres avancés' },
+  { icon: 'flash-outline' as const, title: 'Boost de profil' },
 ];
 
 export default function Paywall() {
-  const colors = useThemeColors();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const params = useLocalSearchParams<{ reason?: string }>();
   const insets = useSafeAreaInsets();
@@ -42,8 +60,18 @@ export default function Paywall() {
   const [busy, setBusy] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
+  // Slow-breathing halo
+  const haloScale = useSharedValue(1);
   useEffect(() => {
-    // Default-select annual if present (savings badge), else fall back
+    haloScale.value = withRepeat(
+      withTiming(1.12, { duration: 4200, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true,
+    );
+  }, [haloScale]);
+  const haloStyle = useAnimatedStyle(() => ({ transform: [{ scale: haloScale.value }] }));
+
+  useEffect(() => {
     const annual = offerings.find((p) => p.period === 'year');
     if (annual) setSelectedId(annual.identifier);
     else if (offerings.length > 0) setSelectedId(offerings[0].identifier);
@@ -51,7 +79,6 @@ export default function Paywall() {
 
   useEffect(() => {
     if (isPremium) {
-      // Auto-dismiss when entitlement becomes active
       const t = setTimeout(() => router.back(), 1200);
       return () => clearTimeout(t);
     }
@@ -64,15 +91,13 @@ export default function Paywall() {
     setBusy(true);
     try {
       const info = await buy(selectedPkg);
-      if (info.isPremium) {
-        if (Platform.OS !== 'web') {
-          Alert.alert(
-            '🎉 Bienvenue dans Premium !',
-            devMode
-              ? '(Mode DEV) Tu as accès à toutes les fonctionnalités Premium.'
-              : 'Tu as maintenant accès à toutes les fonctionnalités Premium.',
-          );
-        }
+      if (info.isPremium && Platform.OS !== 'web') {
+        Alert.alert(
+          'Bienvenue dans Premium ✨',
+          devMode
+            ? '(Mode DEV) Tu as accès à toutes les fonctionnalités Premium.'
+            : 'Tu as maintenant accès à toutes les fonctionnalités Premium.',
+        );
       }
     } catch (e: any) {
       if (!e?.userCancelled) {
@@ -99,102 +124,86 @@ export default function Paywall() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]} testID="paywall-screen">
-      <LinearGradient
-        colors={['#1a0a14', colors.bg, colors.bg]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: 200 }}
-        showsVerticalScrollIndicator={false}
-      >
+      {/* Subtle violet halo */}
+      <Animated.View pointerEvents="none" style={[styles.halo, haloStyle]} />
+      <Animated.View pointerEvents="none" style={styles.haloInner} />
+
+      <ScrollView contentContainerStyle={{ paddingBottom: 220 }} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.closeBtn}
-            testID="paywall-close-btn"
-          >
-            <Ionicons name="close" size={22} color={colors.textPrimary} />
+          <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} testID="paywall-close-btn">
+            <Ionicons name="close" size={20} color={P.text} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={onRestore} testID="paywall-restore-btn">
-            <Text style={styles.restoreLink}>Restaurer</Text>
+          <TouchableOpacity onPress={onRestore} testID="paywall-restore-btn" hitSlop={10}>
+            <Text style={styles.restoreLink}>Restaurer mes achats</Text>
           </TouchableOpacity>
         </View>
 
+        {/* Hero */}
         <Animated.View entering={FadeInDown.duration(500)} style={styles.hero}>
           <View style={styles.crownWrap}>
-            <Ionicons name="diamond" size={32} color="#FFD700" />
+            <MaterialCommunityIcons name="crown-outline" size={30} color={P.violet} />
           </View>
-          <Text style={styles.brand}>NIGHT FINDER</Text>
+          <Text style={styles.brand}>Night Finder</Text>
           <Text style={styles.brandPremium}>PREMIUM</Text>
-          <Text style={styles.subtitle}>
-            Débloque toutes les soirées qui comptent près de toi
-          </Text>
+          <Text style={styles.subtitle}>Passe au niveau supérieur.</Text>
           {params.reason ? (
             <View style={styles.reasonPill}>
-              <Ionicons name="lock-closed" size={11} color={colors.primary} />
+              <Ionicons name="lock-closed" size={11} color={P.violet} />
               <Text style={styles.reasonText}>{params.reason}</Text>
             </View>
           ) : null}
         </Animated.View>
 
+        {/* 4 benefits */}
         <View style={styles.benefitsList}>
           {BENEFITS.map((b, i) => (
             <Animated.View
-              entering={FadeInUp.delay(80 + i * 50).duration(380)}
+              entering={FadeInUp.delay(120 + i * 70).duration(380)}
               key={b.title}
               style={styles.benefitRow}
             >
               <View style={styles.benefitIcon}>
-                <Ionicons name={b.icon} size={18} color={colors.primary} />
+                <Ionicons name={b.icon} size={17} color={P.violet} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.benefitTitle}>{b.title}</Text>
-                <Text style={styles.benefitDesc}>{b.desc}</Text>
-              </View>
-              <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+              <Text style={styles.benefitTitle}>{b.title}</Text>
+              <Ionicons name="checkmark-circle" size={19} color={P.violet} />
             </Animated.View>
           ))}
         </View>
 
+        {/* Plans */}
         <View style={styles.plansWrap}>
           {loading ? (
-            <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />
+            <ActivityIndicator color={P.violet} style={{ marginTop: 20 }} />
           ) : offerings.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="alert-circle-outline" size={36} color="#F472B6" />
+              <Ionicons name="hourglass-outline" size={32} color={P.textDim} />
               <Text style={styles.emptyTitle}>Abonnements en cours de mise en ligne</Text>
               <Text style={styles.emptyText}>
                 Nos offres Premium sont en cours d&apos;approbation par l&apos;App Store.
-                Reviens dans quelques heures !
+                Reviens dans quelques heures.
               </Text>
               <TouchableOpacity
                 style={styles.retryBtn}
                 activeOpacity={0.8}
                 onPress={async () => {
                   setRetrying(true);
-                  try {
-                    await refreshOfferings();
-                  } finally {
-                    setRetrying(false);
-                  }
+                  try { await refreshOfferings(); } finally { setRetrying(false); }
                 }}
                 disabled={retrying}
                 testID="paywall-retry"
               >
                 {retrying ? (
-                  <ActivityIndicator color={colors.textPrimary} />
+                  <ActivityIndicator color={P.text} />
                 ) : (
                   <>
-                    <Ionicons name="refresh" size={16} color={colors.textPrimary} />
+                    <Ionicons name="refresh" size={15} color={P.text} />
                     <Text style={styles.retryBtnText}>Réessayer</Text>
                   </>
                 )}
               </TouchableOpacity>
               {isRealMode() && getLastOfferingsError() ? (
-                <Text style={styles.diagText}>
-                  ⓘ {getLastOfferingsError()}
-                </Text>
+                <Text style={styles.diagText}>ⓘ {getLastOfferingsError()}</Text>
               ) : null}
             </View>
           ) : (
@@ -213,10 +222,8 @@ export default function Paywall() {
                       <Text style={styles.badgeText}>{p.badge}</Text>
                     </View>
                   ) : null}
-                  <View style={styles.radio}>
-                    <View style={[styles.radioOuter, sel && styles.radioOuterSel]}>
-                      {sel ? <View style={styles.radioInner} /> : null}
-                    </View>
+                  <View style={[styles.radioOuter, sel && styles.radioOuterSel]}>
+                    {sel ? <View style={styles.radioInner} /> : null}
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.planTitle}>{p.title}</Text>
@@ -226,11 +233,9 @@ export default function Paywall() {
                       <Text style={styles.planDesc}>Renouvellement automatique</Text>
                     )}
                   </View>
-                  <View style={styles.priceWrap}>
+                  <View style={{ alignItems: 'flex-end' }}>
                     <Text style={styles.priceText}>{p.priceString}</Text>
-                    <Text style={styles.priceUnit}>
-                      /{p.period === 'year' ? 'an' : 'mois'}
-                    </Text>
+                    <Text style={styles.priceUnit}>/{p.period === 'year' ? 'an' : 'mois'}</Text>
                   </View>
                 </TouchableOpacity>
               );
@@ -239,48 +244,68 @@ export default function Paywall() {
         </View>
 
         <Text style={styles.footnote}>
-          Abonnement Night Finder Premium — {selectedPkg?.period === 'year' ? 'annuel (79,99 €/an)' : 'mensuel (4,99 €/mois)'}. Le paiement est prélevé sur ton compte Apple ID / Google Play au moment de la confirmation. L&apos;abonnement se renouvelle automatiquement (même prix, même durée) sauf si tu désactives le renouvellement au moins 24h avant la date d&apos;échéance, depuis les Réglages de ton store. Tu peux gérer ou annuler ton abonnement à tout moment.
+          Abonnement Night Finder Premium — {selectedPkg?.period === 'year' ? 'annuel (79,99 €/an)' : 'mensuel (4,99 €/mois)'}. Le paiement est prélevé sur ton compte Apple ID / Google Play au moment de la confirmation. L&apos;abonnement se renouvelle automatiquement sauf désactivation au moins 24h avant l&apos;échéance, depuis les Réglages de ton store.
         </Text>
         <View style={styles.legalLinksRow}>
           <TouchableOpacity onPress={() => router.push({ pathname: '/legal', params: { doc: 'cgu' } })}>
-            <Text style={styles.legalLink}>Conditions d&apos;utilisation</Text>
+            <Text style={styles.legalLink}>Conditions</Text>
           </TouchableOpacity>
           <Text style={styles.legalSep}>·</Text>
           <TouchableOpacity onPress={() => router.push({ pathname: '/legal', params: { doc: 'privacy' } })}>
-            <Text style={styles.legalLink}>Politique de confidentialité</Text>
+            <Text style={styles.legalLink}>Confidentialité</Text>
           </TouchableOpacity>
         </View>
         {__DEV__ && devMode ? (
-          <Text style={styles.devNote}>
-            ⚙️ Mode DEV — achat simulé sur web/Expo Go. Build natif requis pour vrais paiements.
-          </Text>
+          <Text style={styles.devNote}>⚙️ Mode DEV — achat simulé. Build natif requis pour vrais paiements.</Text>
         ) : null}
       </ScrollView>
 
+      {/* CTA */}
       <View style={[styles.ctaBar, { paddingBottom: insets.bottom + 12 }]}>
         <HapticButton
           haptic="medium"
           scale={0.97}
-          style={[styles.cta, busy && { opacity: 0.6 }, shadows.primaryGlow]}
+          style={[styles.cta, busy && { opacity: 0.6 }]}
           disabled={busy || !selectedPkg}
           onPress={onPurchase}
           testID="paywall-buy-btn"
         >
           {busy ? (
-            <ActivityIndicator color={colors.bg} />
+            <ActivityIndicator color="#050505" />
           ) : (
-            <Text style={styles.ctaText}>
-              Continuer pour {selectedPkg?.priceString || ''}
-            </Text>
+            <Text style={styles.ctaText}>Essayer Premium</Text>
           )}
         </HapticButton>
+        {selectedPkg ? (
+          <Text style={styles.ctaPrice}>
+            {selectedPkg.priceString} / {selectedPkg.period === 'year' ? 'an' : 'mois'}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
 }
 
-const makeStyles = (colors: ThemeColors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: P.bg },
+  halo: {
+    position: 'absolute',
+    top: -180,
+    alignSelf: 'center',
+    width: 460,
+    height: 460,
+    borderRadius: 230,
+    backgroundColor: 'rgba(139, 92, 246, 0.09)',
+  },
+  haloInner: {
+    position: 'absolute',
+    top: -60,
+    alignSelf: 'center',
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: 'rgba(139, 92, 246, 0.06)',
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -292,169 +317,143 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  restoreLink: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
-  hero: { alignItems: 'center', paddingHorizontal: spacing.lg, marginTop: 10 },
-  crownWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(255,215,0,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255,215,0,0.4)',
+    borderColor: P.border,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
   },
-  brand: {
-    color: colors.textPrimary,
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 4,
-    opacity: 0.7,
+  restoreLink: { color: P.textDim, fontSize: 13, fontWeight: '600' },
+  hero: { alignItems: 'center', paddingHorizontal: spacing.lg, marginTop: 28 },
+  crownWrap: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: P.violetSoft,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
   },
+  brand: { color: P.text, fontSize: 28, fontWeight: '700', letterSpacing: 0.3 },
   brandPremium: {
-    color: '#FFD700',
-    fontSize: 30,
-    fontWeight: '900',
-    letterSpacing: 2,
-    marginTop: 2,
+    color: P.violet,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 5,
+    marginTop: 6,
   },
-  subtitle: {
-    color: colors.textSecondary,
-    fontSize: 15,
-    textAlign: 'center',
-    marginTop: 12,
-    maxWidth: 320,
-    lineHeight: 21,
-  },
+  subtitle: { color: P.textDim, fontSize: 15, textAlign: 'center', marginTop: 14 },
   reasonPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 12,
-    backgroundColor: 'rgba(224,26,79,0.12)',
-    borderColor: 'rgba(224,26,79,0.4)',
+    marginTop: 14,
+    backgroundColor: P.violetSoft,
+    borderColor: 'rgba(139, 92, 246, 0.35)',
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
   },
-  reasonText: { color: colors.primary, fontSize: 12, fontWeight: '700' },
-
-  benefitsList: { paddingHorizontal: spacing.lg, marginTop: 24, gap: 10 },
+  reasonText: { color: P.violet, fontSize: 12, fontWeight: '700' },
+  benefitsList: { paddingHorizontal: spacing.lg, marginTop: 36, gap: 10 },
   benefitRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
+    gap: 14,
+    backgroundColor: P.card,
+    borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderColor: P.border,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
   },
   benefitIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(224,26,79,0.16)',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: P.violetSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  benefitTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '800' },
-  benefitDesc: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
-
-  plansWrap: { paddingHorizontal: spacing.lg, marginTop: 24, gap: 12 },
+  benefitTitle: { flex: 1, color: P.text, fontSize: 15, fontWeight: '600' },
+  plansWrap: { paddingHorizontal: spacing.lg, marginTop: 28, gap: 12 },
   planCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    gap: 14,
+    backgroundColor: P.card,
+    borderRadius: radius.xl,
     borderWidth: 1.5,
-    borderColor: colors.border,
-    padding: 16,
+    borderColor: P.border,
+    padding: 18,
     position: 'relative',
   },
-  planCardSelected: {
-    borderColor: colors.primary,
-    backgroundColor: 'rgba(224,26,79,0.08)',
-  },
+  planCardSelected: { borderColor: P.violet, backgroundColor: 'rgba(139, 92, 246, 0.07)' },
   badge: {
     position: 'absolute',
     top: -10,
-    right: 14,
-    backgroundColor: '#FFD700',
+    right: 16,
+    backgroundColor: P.violet,
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 999,
   },
-  badgeText: { color: '#0a0a0a', fontSize: 9, fontWeight: '900', letterSpacing: 1 },
-  radio: { width: 22, alignItems: 'center' },
+  badgeText: { color: '#fff', fontSize: 9, fontWeight: '800', letterSpacing: 1 },
   radioOuter: {
     width: 22,
     height: 22,
     borderRadius: 11,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: P.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radioOuterSel: { borderColor: colors.primary },
-  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
-  planTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: '800' },
-  planDesc: { color: colors.textTertiary, fontSize: 11, marginTop: 2 },
-  planSavings: { color: '#22c55e', fontSize: 11, fontWeight: '700', marginTop: 2 },
-  priceWrap: { alignItems: 'flex-end' },
-  priceText: { color: colors.textPrimary, fontSize: 18, fontWeight: '900' },
-  priceUnit: { color: colors.textTertiary, fontSize: 11, marginTop: -2 },
+  radioOuterSel: { borderColor: P.violet },
+  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: P.violet },
+  planTitle: { color: P.text, fontSize: 15, fontWeight: '700' },
+  planDesc: { color: P.textFaint, fontSize: 11, marginTop: 3 },
+  planSavings: { color: P.violet, fontSize: 11, fontWeight: '700', marginTop: 3 },
+  priceText: { color: P.text, fontSize: 18, fontWeight: '700' },
+  priceUnit: { color: P.textFaint, fontSize: 11, marginTop: -1 },
+  emptyState: { alignItems: 'center', paddingHorizontal: spacing.lg, gap: 8, marginTop: 8 },
+  emptyTitle: { color: P.text, fontSize: 15, fontWeight: '700', textAlign: 'center', marginTop: 6 },
+  emptyText: { color: P.textDim, fontSize: 13, textAlign: 'center', lineHeight: 19 },
   retryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    marginTop: 16,
+    marginTop: 14,
     paddingHorizontal: 18,
     paddingVertical: 10,
-    backgroundColor: colors.fill,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: colors.borderStrong,
+    borderColor: P.borderStrong,
   },
-  retryBtnText: { color: colors.textPrimary, fontWeight: '700', fontSize: 14 },
+  retryBtnText: { color: P.text, fontWeight: '700', fontSize: 14 },
   diagText: {
-    color: colors.textSecondary,
+    color: P.textDim,
     fontSize: 12,
     lineHeight: 18,
-    marginTop: 16,
-    textAlign: 'left',
+    marginTop: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: colors.surface,
+    backgroundColor: P.card,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
+    borderColor: P.border,
+    borderRadius: radius.lg,
   },
-
   footnote: {
-    color: colors.textTertiary,
+    color: P.textFaint,
     fontSize: 11,
     textAlign: 'center',
     paddingHorizontal: spacing.xl,
-    marginTop: 18,
+    marginTop: 24,
     lineHeight: 16,
-  },
-  devNote: {
-    color: '#FFD700',
-    fontSize: 11,
-    textAlign: 'center',
-    paddingHorizontal: spacing.xl,
-    marginTop: 8,
-    fontWeight: '700',
   },
   legalLinksRow: {
     flexDirection: 'row',
@@ -463,36 +462,33 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: 8,
     marginTop: 12,
   },
-  legalLink: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', textDecorationLine: 'underline' },
-  legalSep: { color: colors.textTertiary, fontSize: 11 },
-
+  legalLink: { color: P.textDim, fontSize: 11, fontWeight: '600', textDecorationLine: 'underline' },
+  legalSep: { color: P.textFaint, fontSize: 11 },
+  devNote: {
+    color: P.violet,
+    fontSize: 11,
+    textAlign: 'center',
+    paddingHorizontal: spacing.xl,
+    marginTop: 10,
+    fontWeight: '700',
+  },
   ctaBar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     paddingHorizontal: spacing.lg,
-    paddingTop: 12,
-    backgroundColor: 'rgba(9,9,11,0.95)',
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    paddingTop: 14,
+    backgroundColor: 'rgba(5,5,5,0.96)',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: P.border,
   },
   cta: {
-    backgroundColor: colors.primary,
+    backgroundColor: '#FFFFFF',
     paddingVertical: 16,
-    borderRadius: radius.lg,
+    borderRadius: radius.pill,
     alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
   },
-  ctaText: { color: colors.bg, fontWeight: '900', fontSize: 16, letterSpacing: 0.3 },
+  ctaText: { color: '#050505', fontWeight: '700', fontSize: 16, letterSpacing: 0.2 },
+  ctaPrice: { color: P.textDim, fontSize: 12, fontWeight: '600', textAlign: 'center', marginTop: 10 },
 });
-
-
-// Module-level fallback: sub-components that aren't theme-aware
-// keep rendering in dark mode until they're individually refactored to
-// use `useThemeColors()`.
-const colors = darkColors;
-const styles = makeStyles(darkColors);

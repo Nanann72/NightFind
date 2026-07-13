@@ -1,3 +1,8 @@
+/**
+ * Accueil — premium home screen (iOS 26 style).
+ * Header → Recherche → Explorer la carte → Clubs proches →
+ * Tendance ce soir → Personnes près de toi → Moments → Tous les clubs.
+ */
 import { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -9,18 +14,21 @@ import {
   ActivityIndicator,
   TextInput,
   ScrollView,
+  FlatList,
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Club } from '../../lib/api';
+import { api, Club, FeedMoment, NearbyUser } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
 import { useClubs } from '../../lib/clubs';
 import { useLocation } from '../../lib/useLocation';
 import { useTabBarScroll } from '../../lib/tabBarScroll';
 import { useUnreadNotifications } from '../../lib/useUnreadNotifications';
 import { SafeImage } from '../../components/SafeImage';
-import { radius, spacing, type ThemeColors, darkColors } from '../../lib/theme';
+import { HapticButton } from '../../components/ui/HapticButton';
+import { radius, spacing, type ThemeColors } from '../../lib/theme';
 import { useThemeColors } from '../../lib/themeContext';
 import { useTranslation } from '../../lib/i18n';
 
@@ -31,23 +39,37 @@ const QUICK_FILTERS: { key: string; label: string; emoji: string }[] = [
   { key: 'terrasse', label: 'Terrasse', emoji: '🌿' },
 ];
 
-export default function Discover() {
+export default function Home() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const { user } = useAuth();
   const { clubs, loading, favorites, refresh, toggleFavorite, filters, setFilters, setCoords } = useClubs();
   const loc = useLocation();
   const { onScroll: onScrollHide } = useTabBarScroll();
   const { unread } = useUnreadNotifications();
   const [search, setSearch] = useState('');
   const [active, setActive] = useState('all');
+  const [people, setPeople] = useState<NearbyUser[]>([]);
+  const [moments, setMoments] = useState<FeedMoment[]>([]);
 
   useEffect(() => {
     if (loc.loading) return;
     setCoords(loc.permission === 'granted' ? loc.coords : null);
   }, [loc.loading, loc.permission, loc.coords.lat, loc.coords.lng, setCoords]);
+
+  // People nearby + moments (best effort, silent failures)
+  useEffect(() => {
+    if (loc.loading) return;
+    api.usersNearby(loc.coords.lat, loc.coords.lng, 25)
+      .then((r) => setPeople((r.users || []).slice(0, 12)))
+      .catch(() => {});
+    api.momentsFeed(10)
+      .then((r) => setMoments(r.moments || []))
+      .catch(() => {});
+  }, [loc.loading, loc.coords.lat, loc.coords.lng]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -60,6 +82,20 @@ export default function Discover() {
     );
   }, [clubs, search]);
 
+  const nearby = useMemo(
+    () =>
+      [...filtered]
+        .filter((c) => c.distance_km !== null && c.distance_km !== undefined)
+        .sort((a, b) => (a.distance_km ?? 99) - (b.distance_km ?? 99))
+        .slice(0, 8),
+    [filtered],
+  );
+
+  const trending = useMemo(
+    () => [...filtered].sort((a, b) => b.rating - a.rating).slice(0, 8),
+    [filtered],
+  );
+
   const onQuickFilter = (k: string) => {
     setActive(k);
     if (k === 'all') setFilters({ ...filters, open_now: false, vip: false, terrasse: false });
@@ -68,23 +104,19 @@ export default function Discover() {
     if (k === 'terrasse') setFilters({ ...filters, terrasse: true, open_now: false, vip: false });
   };
 
-  return (
-    <View style={[styles.container, { paddingTop: insets.top }]} testID="discover-screen">
+  const firstName = (user?.name || '').split(' ')[0];
+
+  const Header = (
+    <View>
+      {/* ── Header ─────────────────────────────── */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.brand}>NIGHT FINDER</Text>
-          <Text style={styles.h1}>
-            {t('home.todayIn', { city: loc.city || 'Paris' })}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.h1} numberOfLines={1}>
+            {firstName ? t('home.greeting', { name: firstName }) : 'Night Finder'}
           </Text>
+          <Text style={styles.subtitle}>{t('home.readyTonight')}</Text>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={() => router.push('/feed')}
-            testID="open-feed-btn"
-          >
-            <Ionicons name="flame" size={20} color={colors.primary} />
-          </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => router.push('/notifications')}
@@ -109,6 +141,7 @@ export default function Discover() {
         </View>
       </View>
 
+      {/* ── Search ─────────────────────────────── */}
       <View style={styles.searchBox}>
         <Ionicons name="search-outline" size={18} color={colors.textSecondary} />
         <TextInput
@@ -121,45 +154,182 @@ export default function Discover() {
         />
       </View>
 
-      <View style={styles.chipsWrap}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsRow}
-        >
-          {QUICK_FILTERS.map((item) => {
-            const isActive = active === item.key;
-            return (
-              <TouchableOpacity
-                key={item.key}
-                style={[styles.chip, isActive && styles.chipActive]}
-                onPress={() => onQuickFilter(item.key)}
-                testID={`chip-${item.key}`}
-                activeOpacity={0.85}
+      {/* ── Explore map banner ─────────────────── */}
+      <HapticButton
+        haptic="light"
+        scale={0.98}
+        style={styles.exploreBanner}
+        onPress={() => router.push('/(tabs)/map')}
+        testID="explore-map-banner"
+      >
+        <View style={styles.exploreIcon}>
+          <Ionicons name="map" size={20} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.exploreTitle}>{t('home.exploreMap')}</Text>
+          <Text style={styles.exploreSub}>{t('home.exploreMapSub')}</Text>
+        </View>
+        <View style={styles.exploreArrow}>
+          <Ionicons name="arrow-forward" size={16} color="#fff" />
+        </View>
+      </HapticButton>
+
+      {/* ── Quick filters ──────────────────────── */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipsRow}
+        style={{ marginTop: spacing.md }}
+      >
+        {QUICK_FILTERS.map((item) => {
+          const isActive = active === item.key;
+          return (
+            <TouchableOpacity
+              key={item.key}
+              style={[styles.chip, isActive && styles.chipActive]}
+              onPress={() => onQuickFilter(item.key)}
+              testID={`chip-${item.key}`}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.chipEmoji} allowFontScaling={false}>{item.emoji}</Text>
+              <Text
+                style={[styles.chipText, isActive && styles.chipTextActive]}
+                numberOfLines={1}
+                allowFontScaling={false}
               >
-                <Text style={styles.chipEmoji} allowFontScaling={false}>
-                  {item.emoji}
-                </Text>
-                <Text
-                  style={[styles.chipText, isActive && styles.chipTextActive]}
-                  numberOfLines={1}
-                  allowFontScaling={false}
-                >
-                  {item.label}
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* ── Clubs proches ──────────────────────── */}
+      {nearby.length > 0 && (
+        <View>
+          <SectionHeader
+            title={t('home.nearbyClubs')}
+            action={t('home.seeAll')}
+            onAction={() => router.push('/(tabs)/map')}
+            colors={colors}
+          />
+          <FlatList
+            horizontal
+            data={nearby}
+            keyExtractor={(c) => `near-${c.club_id}`}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.hList}
+            renderItem={({ item }) => (
+              <MiniClubCard club={item} onPress={() => router.push(`/club/${item.club_id}` as any)} />
+            )}
+          />
+        </View>
+      )}
+
+      {/* ── Tendance ce soir ───────────────────── */}
+      {trending.length > 0 && (
+        <View>
+          <SectionHeader title={t('home.trending')} colors={colors} />
+          <FlatList
+            horizontal
+            data={trending}
+            keyExtractor={(c) => `trend-${c.club_id}`}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.hList}
+            renderItem={({ item }) => (
+              <TrendCard club={item} onPress={() => router.push(`/club/${item.club_id}` as any)} />
+            )}
+          />
+        </View>
+      )}
+
+      {/* ── Personnes près de toi ──────────────── */}
+      {people.length > 0 && (
+        <View>
+          <SectionHeader
+            title={t('home.peopleNearby')}
+            action={t('home.seeAll')}
+            onAction={() => router.push('/(tabs)/swipe')}
+            colors={colors}
+          />
+          <FlatList
+            horizontal
+            data={people}
+            keyExtractor={(p) => `p-${p.user_id}`}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.hList}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.person}
+                activeOpacity={0.85}
+                onPress={() => router.push('/(tabs)/swipe')}
+                testID={`person-${item.user_id}`}
+              >
+                {item.picture ? (
+                  <Image source={{ uri: item.picture }} style={styles.personAvatar} />
+                ) : (
+                  <View style={[styles.personAvatar, styles.personFb]}>
+                    <Ionicons name="person" size={26} color={colors.textTertiary} />
+                  </View>
+                )}
+                <Text style={styles.personName} numberOfLines={1}>
+                  {item.name.split(' ')[0]}{item.age ? `, ${item.age}` : ''}
                 </Text>
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
+            )}
+          />
+        </View>
+      )}
 
+      {/* ── Moments ────────────────────────────── */}
+      {moments.length > 0 && (
+        <View>
+          <SectionHeader
+            title={t('home.moments')}
+            action={t('home.seeAll')}
+            onAction={() => router.push('/feed')}
+            colors={colors}
+          />
+          <FlatList
+            horizontal
+            data={moments}
+            keyExtractor={(m) => m.moment_id}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.hList}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.momentCard}
+                activeOpacity={0.9}
+                onPress={() => router.push('/feed')}
+                testID={`home-moment-${item.moment_id}`}
+              >
+                <SafeImage uri={item.image} style={styles.momentImage} />
+                <View style={styles.momentOverlay} />
+                <View style={styles.momentInfo}>
+                  <Text style={styles.momentClub} numberOfLines={1}>
+                    {item.club_name || item.user_name}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
+          />
+        </View>
+      )}
+
+      <SectionHeader title={t('home.allClubs')} colors={colors} />
+    </View>
+  );
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]} testID="discover-screen">
       <Animated.FlatList
         data={filtered}
         keyExtractor={(c) => c.club_id}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140 }}
+        contentContainerStyle={{ paddingBottom: 140 }}
         scrollEventThrottle={16}
         onScroll={(e) => onScrollHide(e.nativeEvent.contentOffset.y)}
+        ListHeaderComponent={Header}
         refreshControl={
           <RefreshControl
             refreshing={loading}
@@ -175,7 +345,7 @@ export default function Discover() {
           )
         }
         renderItem={({ item, index }) => (
-          <Animated.View entering={FadeInDown.delay(index * 40).springify().damping(18)}>
+          <Animated.View entering={FadeInDown.delay(Math.min(index, 8) * 40).springify().damping(18)}>
             <ClubCard
               club={item}
               isFav={favorites.has(item.club_id)}
@@ -186,6 +356,81 @@ export default function Discover() {
         )}
       />
     </View>
+  );
+}
+
+/* ────────────────────────────── Sub-components ── */
+
+function SectionHeader({
+  title,
+  action,
+  onAction,
+  colors,
+}: {
+  title: string;
+  action?: string;
+  onAction?: () => void;
+  colors: ThemeColors;
+}) {
+  return (
+    <View style={sectionStyles.row}>
+      <Text style={[sectionStyles.title, { color: colors.textPrimary }]}>{title}</Text>
+      {action && onAction ? (
+        <TouchableOpacity onPress={onAction} hitSlop={10}>
+          <Text style={[sectionStyles.action, { color: colors.textSecondary }]}>{action}</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+}
+
+const sectionStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm + 4,
+  },
+  title: { fontSize: 20, fontWeight: '700', letterSpacing: 0.2 },
+  action: { fontSize: 13, fontWeight: '600' },
+});
+
+function MiniClubCard({ club, onPress }: { club: Club; onPress: () => void }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  return (
+    <TouchableOpacity style={styles.miniCard} activeOpacity={0.9} onPress={onPress} testID={`near-card-${club.club_id}`}>
+      <SafeImage uri={club.photos?.[0]} style={styles.miniImage} />
+      <View style={styles.miniBody}>
+        <Text style={styles.miniName} numberOfLines={1}>{club.name}</Text>
+        <Text style={styles.miniMeta} numberOfLines={1}>
+          {club.distance_km != null ? `${club.distance_km.toFixed(1)} km · ` : ''}
+          {club.music_styles?.[0] || ''}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function TrendCard({ club, onPress }: { club: Club; onPress: () => void }) {
+  const colors = useThemeColors();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  return (
+    <TouchableOpacity style={styles.trendCard} activeOpacity={0.9} onPress={onPress} testID={`trend-card-${club.club_id}`}>
+      <SafeImage uri={club.photos?.[0]} style={styles.trendImage} />
+      <View style={styles.trendOverlay} />
+      <View style={styles.trendBody}>
+        <Text style={styles.trendName} numberOfLines={1}>{club.name}</Text>
+        <View style={styles.trendMetaRow}>
+          <Ionicons name="star" size={12} color={colors.secondary} />
+          <Text style={styles.trendMeta}>{club.rating.toFixed(1)}</Text>
+          <Text style={styles.trendMeta}>·</Text>
+          <Text style={styles.trendMeta} numberOfLines={1}>{club.music_styles?.slice(0, 2).join(' / ')}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -205,7 +450,7 @@ function ClubCard({
   return (
     <TouchableOpacity
       style={styles.card}
-      activeOpacity={0.9}
+      activeOpacity={0.92}
       onPress={onPress}
       testID={`club-card-${club.club_id}`}
     >
@@ -221,12 +466,12 @@ function ClubCard({
           <Ionicons
             name={isFav ? 'heart' : 'heart-outline'}
             size={20}
-            color={isFav ? colors.primary : colors.textPrimary}
+            color={isFav ? colors.primary : '#fff'}
           />
         </TouchableOpacity>
         {club.distance_km !== null && club.distance_km !== undefined && (
           <View style={styles.distanceBadge}>
-            <Ionicons name="navigate" size={11} color={colors.tertiary} />
+            <Ionicons name="navigate" size={11} color="#fff" />
             <Text style={styles.distanceText}>{club.distance_km.toFixed(1)} km</Text>
           </View>
         )}
@@ -248,6 +493,8 @@ function ClubCard({
   );
 }
 
+/* ────────────────────────────── Styles ── */
+
 const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: {
@@ -256,26 +503,25 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  brand: {
-    color: colors.primary,
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 3,
-    marginBottom: 4,
+    gap: 12,
   },
   h1: {
     color: colors.textPrimary,
     fontSize: 26,
-    fontWeight: '900',
-    letterSpacing: -0.5,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  subtitle: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    marginTop: 3,
   },
   headerActions: { flexDirection: 'row', gap: 10 },
   iconBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -295,77 +541,130 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '900',
-    lineHeight: 12,
-  },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: '800', lineHeight: 12 },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceElevated,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.full,
+    borderRadius: radius.pill,
     paddingHorizontal: 16,
     marginHorizontal: spacing.lg,
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
   },
-  search: {
-    flex: 1,
-    color: colors.textPrimary,
-    paddingVertical: 12,
-    fontSize: 14,
-  },
-  chipsWrap: {
-    width: '100%',
-    paddingVertical: spacing.md,
-  },
-  chipsRow: {
-    paddingHorizontal: spacing.lg,
-    gap: 10,
+  search: { flex: 1, color: colors.textPrimary, paddingVertical: 13, fontSize: 15 },
+  exploreBanner: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 14,
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.25)',
+    borderRadius: radius.xl,
+    padding: 16,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
   },
+  exploreIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(139, 92, 246, 0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exploreTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '700' },
+  exploreSub: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
+  exploreArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chipsRow: { paddingHorizontal: spacing.lg, gap: 10, alignItems: 'center' },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 16,
-    paddingVertical: 11,
-    borderRadius: radius.full,
-    backgroundColor: colors.surface,
+    paddingVertical: 10,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceElevated,
     borderWidth: 1,
     borderColor: colors.border,
-    minWidth: 92,
     minHeight: 40,
     justifyContent: 'center',
-    overflow: 'visible',
   },
-  chipActive: { backgroundColor: colors.tertiary, borderColor: colors.tertiary },
-  chipEmoji: { fontSize: 15, lineHeight: 20, includeFontPadding: false, textAlignVertical: 'center' },
-  chipText: {
-    color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipEmoji: { fontSize: 14, lineHeight: 18 },
+  chipText: { color: colors.textPrimary, fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  chipTextActive: { color: '#fff', fontWeight: '700' },
+  hList: { paddingHorizontal: spacing.lg, gap: 12 },
+  // Mini club card (Clubs proches)
+  miniCard: {
+    width: 190,
+    borderRadius: radius.xl,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
   },
-  chipTextActive: { color: colors.bg, fontWeight: '800' },
-  card: {
-    marginBottom: spacing.md,
+  miniImage: { width: '100%', height: 110 },
+  miniBody: { padding: 12 },
+  miniName: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
+  miniMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 3 },
+  // Trend card
+  trendCard: {
+    width: 250,
+    height: 150,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceElevated,
+  },
+  trendImage: { width: '100%', height: '100%' },
+  trendOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(5,5,5,0.32)' },
+  trendBody: { position: 'absolute', left: 14, right: 14, bottom: 12 },
+  trendName: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  trendMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
+  trendMeta: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600' },
+  // People
+  person: { alignItems: 'center', width: 76 },
+  personAvatar: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    borderWidth: 2,
+    borderColor: colors.primary,
+  },
+  personFb: { backgroundColor: colors.surfaceElevated, alignItems: 'center', justifyContent: 'center' },
+  personName: { color: colors.textSecondary, fontSize: 12, fontWeight: '600', marginTop: 6, maxWidth: 76, textAlign: 'center' },
+  // Moments
+  momentCard: {
+    width: 130,
+    height: 180,
     borderRadius: radius.lg,
     overflow: 'hidden',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceElevated,
   },
-  cardImageWrap: { height: 180, position: 'relative' },
+  momentImage: { width: '100%', height: '100%' },
+  momentOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(5,5,5,0.25)' },
+  momentInfo: { position: 'absolute', left: 10, right: 10, bottom: 10 },
+  momentClub: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  // Main vertical card
+  card: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceElevated,
+  },
+  cardImageWrap: { height: 200, position: 'relative' },
   cardImage: { width: '100%', height: '100%' },
-  cardOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(9,9,11,0.35)',
-  },
+  cardOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(5,5,5,0.35)' },
   favBtn: {
     position: 'absolute',
     top: 14,
@@ -373,11 +672,11 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'rgba(9,9,11,0.6)',
+    backgroundColor: 'rgba(5,5,5,0.55)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.borderStrong,
+    borderColor: 'rgba(255,255,255,0.16)',
   },
   distanceBadge: {
     position: 'absolute',
@@ -388,41 +687,15 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: radius.full,
-    backgroundColor: 'rgba(9,9,11,0.7)',
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(5,5,5,0.6)',
     borderWidth: 1,
-    borderColor: 'rgba(0,240,255,0.4)',
+    borderColor: 'rgba(255,255,255,0.14)',
   },
-  distanceText: {
-    color: colors.tertiary,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  cardContent: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 14,
-  },
-  cardName: {
-    color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-    marginBottom: 6,
-  },
+  distanceText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  cardContent: { position: 'absolute', left: 16, right: 16, bottom: 14 },
+  cardName: { color: '#fff', fontSize: 21, fontWeight: '700', letterSpacing: -0.3, marginBottom: 6 },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  cardMetaText: { color: colors.textPrimary, fontSize: 13, fontWeight: '600' },
-  empty: {
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 60,
-  },
+  cardMetaText: { color: 'rgba(255,255,255,0.92)', fontSize: 13, fontWeight: '600' },
+  empty: { color: colors.textSecondary, textAlign: 'center', marginTop: 60 },
 });
-
-
-// Module-level fallback: sub-components that aren't theme-aware
-// keep rendering in dark mode until they're individually refactored to
-// use `useThemeColors()`.
-const colors = darkColors;
-const styles = makeStyles(darkColors);

@@ -1,0 +1,58 @@
+{
+  "summary": "Frontend-only redesign validation for the iOS 26 premium re-skin. Login OK with apple.reviewer credentials. All 5 tabs render with the correct testIDs (tab-discover, tab-map, tab-plus, tab-chats, tab-profile); hidden tabs tab-swipe & tab-events are NOT present in the bar — confirmed via HIDDEN_TABS filter. Home renders discover-screen with header, notifications btn, filters btn, search input, explore-map banner (navigates to /map), all 4 quick-filter chips (chip-all/open_now/vip/terrasse), 'Tendance ce soir' with 8 trend-card-*, and 40 club-card-* with fav-btn-*. 'Clubs proches' section is empty in preview (nearCards=0) because location permission not granted → distance_km null (expected). Plus hub renders plus-hub-screen with all 4 main cards (discover/moments/events/search), 4 rows (friends/favorites/mysongs/requests) and plus-premium-banner. plus-card-discover navigates to /swipe correctly. Chats tab renders chats-screen with 2 match rows (Lucas & Emma) and goto-requests btn. Legacy /matches route redirects to /chats (chats-screen visible after). Paywall (/paywall) shows the luxury layout: 'Night Finder' + 'PREMIUM', 4 benefits (Voir qui est là ce soir, Swipes illimités, Filtres avancés, Boost de profil), 'Essayer Premium' (paywall-buy-btn), Restaurer link, Conditions/Confidentialité links, offerings loaded (Mensuel 4,99 € & Annuel 79,99 € with MEILLEURE OFFRE badge). Violet halo present. Grep on paywall DOM finds ZERO traces of the old rose #E01A4F. No page crashes on Home, Plus, Chats, Profile, Map, Swipe or Paywall.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "i18n locale detection (Home/Plus/Chats/Tabs)",
+        "issue": "Task specification requires FRENCH labels (Accueil, Carte, Plus, Chats, Profil / 'Bonsoir {prénom} 👋' / 'Explorer la carte' / 'Tendance ce soir' / etc.) but the app auto-detects the browser locale via expo-localization/detectFromDevice() and falls back to English on the web preview. Actual rendered labels: tabs='Home,Map,More,Chats,Profile'; home header='Good evening A...' + 'Ready to go out tonight?'; banner='Explore the map' + 'See what happens around you'; sections='Trending tonight', 'People near you', 'All clubs'. Only hard-coded strings stay in FR (chips 'Tous/Ouvert/VIP/Terrasse'). Behavior is functionally correct (i18n works) but reviewers/Apple-review flow will see English by default. Reference: /app/frontend/lib/i18n.ts:52-58 (detectFromDevice snaps to the first supported languageCode reported by the browser). If the reviewer copy must always be French on preview/web, consider forcing i18n.locale='fr' on web (Platform.OS==='web') until the user changes it in Settings.",
+        "testID": "tab-discover / tab-map / tab-plus / tab-chats / tab-profile",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "plus.tsx premium banner visibility for premium reviewer",
+        "issue": "The Apple Reviewer account is documented as Premium (see /app/memory/test_credentials.md) yet plus-premium-banner is still visible on the Plus hub, because usePremium().isPremium reads client-side RevenueCat state which is not populated on web preview. The task itself notes this is acceptable ('peut être absente car le reviewer est premium'). No fix required if you rely on the native build for the actual review, but on web the server-side premium flag on the user is currently not consulted as a fallback. Reference: /app/frontend/app/(tabs)/plus.tsx:47.",
+        "testID": "plus-premium-banner",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Home / (tabs)/index",
+        "issues": [
+          "'Clubs proches' section not rendered in web preview (nearCards=0) because location.permission!='granted' → all clubs have distance_km=null → nearby.length=0. Expected fallback behavior, not a bug. Consider showing the section anyway with a 'Autorise la localisation' CTA if you want reviewers to see it on web."
+        ]
+      },
+      {
+        "screen": "Paywall",
+        "issues": [
+          "Layout matches the luxury spec (black bg #050505, violet halo, crown icon, brand + PREMIUM eyebrow, 4 benefits cards, plan cards with radio + MEILLEURE OFFRE badge, sticky CTA bar). No traces of old #E01A4F rose color detected via computed-style scan."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_24.json"
+  ],
+  "action_items": [
+    "(Optional / Reviewer copy) If Apple-review testing must always show French labels regardless of the reviewer's device locale, hard-lock i18n.locale='fr' when Platform.OS==='web' OR when no explicit user override is present (currently detectFromDevice runs first and picks the browser locale). File: /app/frontend/lib/i18n.ts around detectFromDevice()/initI18n().",
+    "(Optional) Hide plus-premium-banner on the Plus hub for users flagged premium server-side (not only via RevenueCat client state), so premium reviewers on web preview don't see the upsell. File: /app/frontend/app/(tabs)/plus.tsx (isPremium OR user.is_premium).",
+    "(Optional) Consider showing 'Clubs proches' section even when distance is unknown (empty state 'Active la localisation' CTA) so the horizontal section is discoverable in web preview.",
+    "No action required for the core redesign: 5-tab bar, hidden swipe/events, Plus hub, Chats tab, /matches → /chats redirect, luxury paywall — all validated and violet #8B5CF6 is applied throughout with no rose/red #E01A4F leaks."
+  ],
+  "critical_code_review_comments": [
+    "LiquidGlassTabBar correctly hides `swipe` and `events` via HIDDEN_TABS set while keeping them navigable — clean, minimal solution.",
+    "Paywall uses a fixed premium palette (P.bg #050505 / P.violet #8B5CF6) independent from the theme — right choice for a luxury/branded surface.",
+    "/matches has been reduced to a one-line Expo Router <Redirect> to /(tabs)/chats — clean legacy migration.",
+    "Home vertical FlatList reuses ListHeaderComponent for the horizontal sections instead of nested ScrollView — good for performance."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A (skipped per request)", "frontend": "100% of redesign acceptance items visible & interactive; 2 non-blocking observations (i18n & premium banner)" },
+  "seed_data_creation": "None. Used pre-seeded reviewer data (Emma & Lucas matches, 3 swipe profiles).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Redesign is validated on web preview at https://fan-culture-app.preview.emergentagent.com. All required testIDs are present: tab-discover, tab-map, tab-plus, tab-chats, tab-profile, discover-screen, open-notifications-btn, open-filters-btn, discover-search-input, explore-map-banner, chip-all/open_now/vip/terrasse, near-card-* (only when geoloc granted), trend-card-*, club-card-*, fav-btn-*, plus-hub-screen, plus-card-discover/moments/events/search, plus-row-friends/favorites/mysongs/requests, plus-premium-banner, chats-screen, match-row-*, goto-requests, paywall-screen, paywall-buy-btn, paywall-restore-btn, paywall-close-btn, paywall-plan-<id>, paywall-retry. Legacy /matches → /chats redirect works. Only two follow-up items worth noting are: (1) i18n auto-picks browser locale on web (test env showed English labels), (2) plus-premium-banner still visible for the premium reviewer on web because RevenueCat state is empty in preview.",
+  "rca_of_issue": "N/A — no bugs to root-cause. Two informational observations documented under action_items."
+}

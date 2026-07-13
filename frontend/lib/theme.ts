@@ -16,12 +16,12 @@ import { Platform } from 'react-native';
 // ─────────────────────────────────────────────────────────
 
 const brand = {
-  primary: '#E01A4F',
-  primaryHover: '#F0285F',
-  primaryPressed: '#C8163F',
-  primarySoft: 'rgba(224, 26, 79, 0.14)',
-  secondary: '#F2C94C',
-  tertiary: '#00F0FF',
+  primary: '#8B5CF6',
+  primaryHover: '#9D71F8',
+  primaryPressed: '#7C4DE8',
+  primarySoft: 'rgba(139, 92, 246, 0.14)',
+  secondary: '#E6C15A',
+  tertiary: '#A78BFA',
   success: '#34C759',
   warning: '#FF9F0A',
   danger: '#FF3B30',
@@ -33,16 +33,16 @@ const brand = {
 // ─────────────────────────────────────────────────────────
 
 export const darkColors = {
-  bg: '#000000',
-  surface: '#0C0C0F',
-  surfaceElevated: '#1C1C1F',
-  surfaceHigher: '#2C2C2F',
-  glass: 'rgba(20, 20, 22, 0.72)',
-  glassStrong: 'rgba(20, 20, 22, 0.92)',
-  glassThin: 'rgba(20, 20, 22, 0.42)',
+  bg: '#050505',
+  surface: '#0F0F0F',
+  surfaceElevated: '#141414',
+  surfaceHigher: '#1F1F22',
+  glass: 'rgba(18, 18, 20, 0.72)',
+  glassStrong: 'rgba(18, 18, 20, 0.92)',
+  glassThin: 'rgba(18, 18, 20, 0.42)',
   textPrimary: '#FFFFFF',
-  textSecondary: '#9E9EA7',
-  textTertiary: '#56565E',
+  textSecondary: '#A1A1AA',
+  textTertiary: '#5C5C64',
   textQuaternary: '#3A3A40',
   border: 'rgba(255, 255, 255, 0.08)',
   borderStrong: 'rgba(255, 255, 255, 0.16)',
@@ -51,7 +51,7 @@ export const darkColors = {
   fillStrong: 'rgba(120, 120, 128, 0.24)',
   fillSubtle: 'rgba(120, 120, 128, 0.08)',
   ...brand,
-  tabBarBg: 'rgba(16, 16, 18, 0.78)',
+  tabBarBg: 'rgba(15, 15, 16, 0.82)',
   tabBarBorder: 'rgba(255, 255, 255, 0.08)',
   statusBarStyle: 'light' as const,
 };
@@ -115,8 +115,8 @@ export const radius = {
   sm: 8,
   md: 12,
   lg: 16,
-  xl: 22,
-  xxl: 28,
+  xl: 24,
+  xxl: 30,
   pill: 999,
   full: 999,
 } as const;
@@ -191,9 +191,9 @@ export const motion = {
 // ─────────────────────────────────────────────────────────
 
 export const gradients = {
-  primary: ['#E01A4F', '#F2295F'] as const,
-  primarySunset: ['#E01A4F', '#F2C94C'] as const,
-  cyanGlow: ['#00F0FF', '#0A84FF'] as const,
+  primary: ['#8B5CF6', '#7C4DE8'] as const,
+  primarySunset: ['#8B5CF6', '#6D28D9'] as const,
+  cyanGlow: ['#A78BFA', '#8B5CF6'] as const,
   darkOverlay: ['rgba(0,0,0,0)', 'rgba(0,0,0,0.85)'] as const,
   darkOverlayStrong: ['rgba(0,0,0,0)', 'rgba(0,0,0,0.95)'] as const,
   topFade: ['rgba(0,0,0,0.55)', 'rgba(0,0,0,0)'] as const,
