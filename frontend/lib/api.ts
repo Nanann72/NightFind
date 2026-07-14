@@ -485,6 +485,11 @@ export const api = {
     }>('/profile/songs'),
   deleteProfileSong: (song_id: string) =>
     request<{ ok: boolean }>(`/profile/songs/${song_id}`, { method: 'DELETE' }),
+  moveSong: (song_id: string, club_id: string) =>
+    request<{ ok: boolean; club_id: string; club_name: string }>(
+      `/profile/songs/${song_id}/club`,
+      { method: 'PATCH', body: JSON.stringify({ club_id }) },
+    ),
 
   // Friends
   setUsername: (username: string) =>

@@ -1,0 +1,30 @@
+{
+  "summary": "Tested 2 new frontend features on Night Finder web preview with reviewer account. Both features work correctly. Feature 1 (Move song): opened my-songs, expanded Club Rex, tapped 'Everybody Wants To Rule The World', modal opened with correct title 'Déplacer « ... »', search input, Cancel button, 'Actuel' tag on Club Rex (opacity 0.45 + aria-disabled=true). Searched 'Concrete' → tapped Concrete row → modal closed, song appeared under Concrete group. Then restored: searched 'Rex' → tapped Club Rex → song is back under Club Rex. Regression: my-songs screen loads without crash (Modal-is-not-defined bug is fixed), songs-back-btn works. Feature 2 (Swipe back): opened Découverte from Plus hub → swipe-people-screen loaded with new round back button (swipe-back-btn) at x=24,y=9.5, 40x40. Header alignment verified: back-btn to the left of 'Découvre du monde' title (title x=76), vertically overlapping. All header elements (SWIPE brand, 'Découvre du monde', 'Swipes illimités · Premium 💎', Partout/Dans mon club toggle) visible and properly aligned. Tapping back returns to Plus hub. Reviewer song state RESTORED to Club Rex at the end.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "swipe (swipe-back-btn)", "issues": ["Touch target is 40x40 (below Apple HIG 44x44 minimum). hitSlop=8 partially compensates (effective ~56x56), so acceptable but tight. Consider bumping width/height to 44."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "OPTIONAL (design polish): bump swipe-back-btn from 40x40 to 44x44 to meet Apple HIG minimum touch target. hitSlop=8 already compensates, so this is minor.",
+    "No other action items — both new features work as specified."
+  ],
+  "critical_code_review_comments": [
+    "my-songs.tsx: 'Modal' now correctly imported from 'react-native' — earlier 'Modal is not defined' crash is fixed.",
+    "swipe.tsx: goBack() falls back to router.replace('/(tabs)/plus') when canGoBack() is false — good defensive behaviour.",
+    "Move flow: current club row is correctly disabled (opacity 0.45 + disabled=true), and 'Actuel' tag renders. Search input filters results by name (case-insensitive), 40-row cap prevents huge list.",
+    "Minor: after moving a song, the modal closes optimistically and load() refetches — brief flicker acceptable."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (frontend-only session)", "frontend": "100%" },
+  "seed_data_creation": "None. Reviewer song 'Everybody Wants To Rule The World' was RESTORED to Club Rex (club_6c802df155) at the end of the test as instructed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login button on /login is labelled 'Sign in' (EN), not 'Se connecter'. Reliable way to click it in Playwright: page.get_by_text('Sign in', exact=True).first — pressing Enter on the password input is unreliable. Reviewer song ID: song-sng_248c411878 in Club Rex (club_6c802df155). Beware: tapping the club-header of an already-expanded group COLLAPSES it — verification code should check the group state before toggling. Long-press on a song deletes it — avoid long-press.",
+  "rca_of_issue": "N/A — no bugs found in the two new features. Both work end-to-end via UI + backend PATCH /api/profile/songs/{id}/club."
+}

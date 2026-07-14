@@ -2136,6 +2136,27 @@ async def delete_user_song(song_id: str, user: dict = Depends(get_current_user))
     return {"ok": True}
 
 
+class MoveSongBody(BaseModel):
+    club_id: str
+
+
+@api_router.patch("/profile/songs/{song_id}/club")
+async def move_user_song(
+    song_id: str, body: MoveSongBody, user: dict = Depends(get_current_user)
+):
+    """Re-attach a detected song to another club chosen by the user."""
+    club = await db.clubs.find_one({"club_id": body.club_id}, {"_id": 0, "name": 1})
+    if not club:
+        raise HTTPException(status_code=404, detail="Club introuvable")
+    res = await db.user_songs.update_one(
+        {"song_id": song_id, "user_id": user["user_id"]},
+        {"$set": {"club_id": body.club_id, "club_name": club["name"]}},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Song not found")
+    return {"ok": True, "club_id": body.club_id, "club_name": club["name"]}
+
+
 # ---------------------------------------------------------------------------
 # Friends — username search + friend requests
 # ---------------------------------------------------------------------------

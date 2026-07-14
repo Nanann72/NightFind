@@ -146,10 +146,15 @@ export default function SwipePeople() {
     opacity: interpolate(tx.value, [-SWIPE_THRESHOLD, 0], [1, 0], Extrapolation.CLAMP),
   }));
 
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/(tabs)/plus'));
+
   // Profile incomplete state
   if (!profileComplete) {
     return (
       <View style={[styles.center, { paddingTop: insets.top + 40 }]} testID="swipe-incomplete-banner">
+        <TouchableOpacity style={[styles.backBtn, styles.backBtnFloating, { top: insets.top + 8 }]} onPress={goBack} hitSlop={8}>
+          <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
+        </TouchableOpacity>
         <Ionicons name="person-circle" size={72} color={colors.tertiary} />
         <Text style={styles.bigTitle}>Complète ton profil pour swiper</Text>
         <Text style={styles.sub}>
@@ -177,6 +182,9 @@ export default function SwipePeople() {
   if (deck.length === 0) {
     return (
       <View style={[styles.center, { paddingTop: insets.top + 40 }]}>
+        <TouchableOpacity style={[styles.backBtn, styles.backBtnFloating, { top: insets.top + 8 }]} onPress={goBack} hitSlop={8}>
+          <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
+        </TouchableOpacity>
         <Ionicons name="sparkles" size={64} color={colors.tertiary} />
         <Text style={styles.bigTitle}>Plus personne à découvrir</Text>
         <Text style={styles.sub}>Repasse demain ou invite tes amis sur Night Finder.</Text>
@@ -202,8 +210,20 @@ export default function SwipePeople() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + 8 }]} testID="swipe-people-screen">
       <View style={styles.header}>
-        <Text style={styles.brand}>SWIPE</Text>
-        <Text style={styles.title}>Découvre du monde</Text>
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity
+            onPress={goBack}
+            style={styles.backBtn}
+            testID="swipe-back-btn"
+            hitSlop={8}
+          >
+            <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.brand}>SWIPE</Text>
+            <Text style={styles.title}>Découvre du monde</Text>
+          </View>
+        </View>
         <View style={styles.quotaRow}>
           <Ionicons name="flash" size={14} color={colors.primary} />
           <Text style={styles.quotaText}>
@@ -410,6 +430,18 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', backgroundColor: colors.bg, padding: 24 },
   header: { width: '100%', paddingHorizontal: spacing.lg, marginBottom: 12, alignSelf: 'flex-start' },
+  headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  backBtnFloating: { position: 'absolute', left: spacing.lg, zIndex: 10 },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   brand: { color: colors.primary, fontWeight: '900', fontSize: 11, letterSpacing: 3 },
   title: { color: colors.textPrimary, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
   quotaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },

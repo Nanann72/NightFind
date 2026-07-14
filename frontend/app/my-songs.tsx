@@ -9,6 +9,8 @@ import {
   RefreshControl,
   Alert,
   Platform,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -58,6 +60,10 @@ export default function MySongs() {
   const insets = useSafeAreaInsets();
   const loc = useLocation();
   const { clubs } = useClubs();
+  // "Move song to club" modal state
+  const [moveTarget, setMoveTarget] = useState<{ song_id: string; title: string; club_id: string } | null>(null);
+  const [clubSearch, setClubSearch] = useState('');
+  const [moving, setMoving] = useState(false);
   const [data, setData] = useState<ClubGroup[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -283,6 +289,9 @@ export default function MySongs() {
                       <TouchableOpacity
                         key={s.song_id}
                         style={styles.songRow}
+                        onPress={() =>
+                          setMoveTarget({ song_id: s.song_id, title: s.title, club_id: group.club_id })
+                        }
                         onLongPress={() => handleDelete(s.song_id)}
                         testID={`song-${s.song_id}`}
                       >
@@ -303,6 +312,7 @@ export default function MySongs() {
                             <Text style={styles.autoText}>AUTO</Text>
                           </View>
                         ) : null}
+                        <Ionicons name="swap-horizontal" size={14} color={colors.textTertiary} style={{ marginLeft: 6 }} />
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -312,6 +322,83 @@ export default function MySongs() {
           })
         )}
       </ScrollView>
+
+      {/* ── Move song to another club ─────────────────── */}
+      <Modal
+        visible={!!moveTarget}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setMoveTarget(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle} numberOfLines={1}>
+              Déplacer « {moveTarget?.title} »
+            </Text>
+            <Text style={styles.modalSub}>Choisis la boîte de nuit où enregistrer ce morceau</Text>
+            <View style={styles.modalSearchBox}>
+              <Ionicons name="search-outline" size={16} color={colors.textSecondary} />
+              <TextInput
+                value={clubSearch}
+                onChangeText={setClubSearch}
+                placeholder="Rechercher un club…"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.modalSearchInput}
+                testID="move-club-search"
+              />
+            </View>
+            <ScrollView style={{ maxHeight: 340 }} keyboardShouldPersistTaps="handled">
+              {clubs
+                .filter((c) => c.name.toLowerCase().includes(clubSearch.trim().toLowerCase()))
+                .slice(0, 40)
+                .map((c) => {
+                  const isCurrent = c.club_id === moveTarget?.club_id;
+                  return (
+                    <TouchableOpacity
+                      key={c.club_id}
+                      style={[styles.modalClubRow, isCurrent && styles.modalClubRowCurrent]}
+                      disabled={isCurrent || moving}
+                      onPress={async () => {
+                        if (!moveTarget) return;
+                        setMoving(true);
+                        try {
+                          await api.moveSong(moveTarget.song_id, c.club_id);
+                          setMoveTarget(null);
+                          setClubSearch('');
+                          await load();
+                        } catch (e: any) {
+                          Alert.alert('Erreur', e?.message || 'Impossible de déplacer le morceau.');
+                        } finally {
+                          setMoving(false);
+                        }
+                      }}
+                      testID={`move-to-${c.club_id}`}
+                    >
+                      <View style={styles.modalClubIcon}>
+                        <Ionicons name="business" size={15} color={colors.primary} />
+                      </View>
+                      <Text style={styles.modalClubName} numberOfLines={1}>{c.name}</Text>
+                      {isCurrent ? (
+                        <Text style={styles.modalCurrentTag}>Actuel</Text>
+                      ) : (
+                        <Ionicons name="chevron-forward" size={15} color={colors.textTertiary} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+            </ScrollView>
+            {moving ? <ActivityIndicator color={colors.primary} style={{ marginTop: 10 }} /> : null}
+            <TouchableOpacity
+              style={styles.modalCancel}
+              onPress={() => { setMoveTarget(null); setClubSearch(''); }}
+              testID="move-cancel"
+            >
+              <Text style={styles.modalCancelText}>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -326,6 +413,64 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingVertical: 12,
   },
   iconBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: colors.surfaceElevated,
+    borderTopLeftRadius: radius.xxl,
+    borderTopRightRadius: radius.xxl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.textQuaternary,
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+  modalTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '700' },
+  modalSub: { color: colors.textSecondary, fontSize: 13, marginTop: 4, marginBottom: 14 },
+  modalSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    marginBottom: 10,
+  },
+  modalSearchInput: { flex: 1, color: colors.textPrimary, paddingVertical: 10, fontSize: 14 },
+  modalClubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  modalClubRowCurrent: { opacity: 0.45 },
+  modalClubIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalClubName: { flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: '500' },
+  modalCurrentTag: { color: colors.textTertiary, fontSize: 12, fontWeight: '600' },
+  modalCancel: { alignItems: 'center', paddingVertical: 14, marginTop: 4 },
+  modalCancelText: { color: colors.textSecondary, fontSize: 15, fontWeight: '600' },
   title: { color: colors.textPrimary, fontSize: 18, fontWeight: '900', textAlign: 'center' },
   subtitle: { color: colors.textTertiary, fontSize: 12, marginTop: 2, textAlign: 'center' },
 
