@@ -3925,7 +3925,6 @@ async def delete_message(message_id: str, user: dict = Depends(get_current_user)
     return {"ok": True}
 
 
-app.include_router(api_router)
 app.include_router(legal_pages.router)
 
 # ================== ADMIN ROUTES (require_admin) ================== #

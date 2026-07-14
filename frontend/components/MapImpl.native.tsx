@@ -31,6 +31,7 @@ export default function MapImpl() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [friends, setFriends] = useState<ActiveFriend[]>([]);
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
+  const [browseWithoutLocation, setBrowseWithoutLocation] = useState(false);
   const mapRef = useRef<MapView | null>(null);
 
   useEffect(() => {
@@ -93,6 +94,12 @@ export default function MapImpl() {
       mapRef.current.animateToRegion(initialRegion, 400);
     }
   }, [initialRegion]);
+
+  // Apple-compliant denied state (Guideline 5.1.1/5.1.5): elegant screen with
+  // "Ouvrir Réglages" — never a dead-end, user can still browse without location.
+  if (loc.permission === 'denied' && !browseWithoutLocation) {
+    return <LocationRequired onContinueWithout={() => setBrowseWithoutLocation(true)} />;
+  }
 
   return (
     <View style={styles.container} testID="map-screen">

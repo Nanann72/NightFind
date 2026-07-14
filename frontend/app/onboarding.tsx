@@ -264,15 +264,14 @@ const SCREENS: Screen[] = [
     kind: 'location',
     lines: [
       { text: 'Une dernière étape.', endHaptic: 'none', pause: 1000 },
-      { text: 'Autorise ta localisation.', endHaptic: 'light', pause: 700 },
       {
-        text: 'Pour découvrir les meilleures soirées dans un rayon de 50 km.',
-        hapticWords: ['50', 'km'],
+        text: 'Night Finder utilise ta position pour afficher les clubs, événements et utilisateurs proches de toi.',
+        hapticWords: ['clubs', 'proches'],
         endHaptic: 'medium',
         pause: 1200,
       },
     ],
-    cta: 'Autoriser la localisation',
+    cta: 'Continuer',
   },
   {
     kind: 'notifications',
@@ -860,9 +859,13 @@ export default function Onboarding() {
         <View style={styles.progressTrack}>
           <Animated.View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
         </View>
-        <TouchableOpacity onPress={skip} testID="onboarding-skip-btn">
-          <Text style={styles.skipText}>Passer</Text>
-        </TouchableOpacity>
+        {screen.kind === 'location' ? (
+          <View style={{ width: 44 }} />
+        ) : (
+          <TouchableOpacity onPress={skip} testID="onboarding-skip-btn">
+            <Text style={styles.skipText}>Passer</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {Content}

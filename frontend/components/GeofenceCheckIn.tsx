@@ -242,7 +242,7 @@ export function GeofenceCheckIn() {
             <Text style={styles.q}>Tu es bien à {candidate.name} ?</Text>
             <Text style={styles.qSub}>
               On a détecté ta position dans le club. Confirme pour qu'on lance
-              l'écoute musicale en arrière-plan et qu'on capture la vibe.
+              l'écoute musicale et qu'on capture la vibe.
             </Text>
 
             <View style={styles.bullets}>

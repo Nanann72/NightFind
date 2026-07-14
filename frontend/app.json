@@ -13,17 +13,14 @@
       "bundleIdentifier": "com.nightfinder.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Te montrer les clubs et soirées à proximité.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Détecter automatiquement ton arrivée en club pour confirmer ta soirée.",
-        "NSLocationAlwaysUsageDescription": "Détecter automatiquement ton arrivée en club pour confirmer ta soirée.",
         "NSUserNotificationUsageDescription": "Te prévenir des matches et des soirées qui arrivent.",
-        "NSMicrophoneUsageDescription": "Identifier la musique qui passe au club (échantillon 5s, jamais conservé).",
+        "NSMicrophoneUsageDescription": "Identifier la musique qui passe au club (échantillon court, jamais conservé).",
         "NSCalendarsUsageDescription": "Ajouter tes soirées à ton agenda iOS.",
         "NSCalendarsFullAccessUsageDescription": "Ajouter tes soirées à ton agenda iOS.",
         "NSContactsUsageDescription": "Retrouver tes amis déjà sur Night Finder (hash uniquement).",
         "NSPhotoLibraryUsageDescription": "Choisir tes photos de profil pour le swipe.",
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
-          "location",
           "fetch",
           "remote-notification"
         ]
@@ -196,11 +193,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Trouver les soirées autour de toi",
-          "locationAlwaysAndWhenInUsePermission": "Detecter ton arrivée en club pour confirmer la soirée",
-          "locationAlwaysPermission": "Detecter ton arrivée en club pour confirmer la soirée",
-          "isAndroidBackgroundLocationEnabled": true,
-          "isAndroidForegroundServiceEnabled": true
+          "locationWhenInUsePermission": "Trouver les soirées autour de toi"
         }
       ],
       [

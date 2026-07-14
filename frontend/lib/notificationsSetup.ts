@@ -2,10 +2,8 @@ import { Platform, Linking } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import {
-  BG_LOCATION_TASK,
   NOTIF_ACTION_NO,
   NOTIF_ACTION_YES,
-  handleBackgroundLocation,
   registerNotifCategories,
 } from './backgroundLocation';
 import { api } from './api';
@@ -41,30 +39,9 @@ if (Platform.OS === 'android') {
   }
 }
 
-// Register the background location task ONCE at module load on native.
-// We use a sync require so the OS can find it when waking the app.
-if (Platform.OS !== 'web') {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const TaskManager = require('expo-task-manager');
-    if (!TaskManager.isTaskDefined(BG_LOCATION_TASK)) {
-      TaskManager.defineTask(BG_LOCATION_TASK, async ({ data, error }: any) => {
-        if (error) return;
-        const payload = data as
-          | { locations?: Array<{ coords: { latitude: number; longitude: number } }> }
-          | undefined;
-        const loc = payload?.locations?.[0];
-        if (!loc?.coords) return;
-        await handleBackgroundLocation({
-          lat: loc.coords.latitude,
-          lng: loc.coords.longitude,
-        });
-      });
-    }
-  } catch {
-    // ignore (web or task-manager unavailable)
-  }
-}
+// NOTE (App Store Guideline 2.5.4): the legacy background-location TaskManager
+// task was removed — geofence detection is now foreground-only and handled by
+// GeofenceCheckIn.tsx while the app is active.
 
 let actionsSubscription: { remove: () => void } | null = null;
 

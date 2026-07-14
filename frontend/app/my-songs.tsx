@@ -233,7 +233,7 @@ export default function MySongs() {
         </Text>
         <Text style={styles.scanHelper}>
           {scanning
-            ? '5 secondes d\'enregistrement, garde la main près des enceintes'
+            ? "10 secondes d'écoute, rapproche ton téléphone de la source sonore"
             : 'Auto quand tu es détecté en boîte · ou tape pour scanner maintenant'}
         </Text>
       </View>

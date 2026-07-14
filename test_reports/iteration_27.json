@@ -1,0 +1,34 @@
+{
+  "summary": "Frontend regression testing for App Store compliance changes. Onboarding location screen verified: CTA is 'Continuer' and the 'Passer' button is correctly ABSENT on that screen only (present on all others). Location text 'Night Finder utilise ta position pour afficher les clubs, événements et utilisateurs proches de toi' is in code at onboarding.tsx:268. Login smoke passed with apple.reviewer credentials (discover-screen loads, 4 tabs navigable, no red screen). Clubs list loads on Home (Concrete, Le Syndicat, Trending tonight sections visible — the sections literally named 'Clubs proches'/'Tous les clubs' are on /clubs list page, not home; home 'discover-screen' uses 'Trending tonight' and 'People near you' — no regression, data loads fine). Settings 'Détection en club' row rendered correctly with new FR subtitle in code (fr.ts:162-163); reviewer account uses English so label displays as 'Club detection' with 'While the app is open, we'll prompt you to confirm your night when you arrive at a club' — same fix, correctly translated. Toggle on web does NOT crash; switch stays off (Alert 'Disponible sur mobile uniquement' path triggered — RN Alert on web is silent but functional). Paywall renders with black bg, 4 benefits (Voir qui est là ce soir / Swipes illimités / Filtres avancés / Boost de profil), 4,99€ mensuel / 79,99€ annuel, 'Essayer Premium' CTA, 'Restaurer mes achats', and both links Conditions → /legal?doc=cgu and Confidentialité → /legal?doc=privacy work. My-songs screen loads correctly; the '10 secondes d'écoute, rapproche ton téléphone…' helper text is CONDITIONAL (shown only during scanning at my-songs.tsx:236) — default idle text is 'Auto quand tu es détecté en boîte · ou tape pour scanner maintenant'. Code review confirms all requested App Store cleanup is in place. No React Native red-screen errors, no deprecated packages introduced by these changes.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/tmp/onb_location.png (onboarding location screen)",
+    "/tmp/home.png (home discover after login)",
+    "/tmp/paywall.png (paywall)",
+    "/tmp/my_songs.png (my-songs default state)",
+    "/tmp/settings_scrolled.png (settings Club detection row + switch off after web tap)"
+  ],
+  "action_items": [
+    "OPTIONAL: '10 secondes' helper text on /my-songs only appears while scanning is active. If the reviewer expects to see it in the idle state, consider merging both messages (e.g., 'Auto quand tu es en boîte · tape pour scanner maintenant (10 sec d\\'écoute)'). Currently the text exists conditionally at my-songs.tsx:236 which matches spec but is invisible when idle.",
+    "INFO: Reviewer account language is English → Settings row displays 'Club detection' (en.ts:96) instead of 'Détection en club' (fr.ts:162). Both translations updated identically. If Apple review expects French label, switch reviewer account language to Français."
+  ],
+  "critical_code_review_comments": [
+    "onboarding.tsx:862-868 correctly conditionally hides skip button on location screen using `screen.kind === 'location'` guard. Clean implementation.",
+    "settings.tsx toggleBg (line 150-190) correctly handles web fallback: startBackgroundLocation returns {ok:false, reason:'web'} → Alert 'Disponible sur mobile uniquement' + reset switch to off.",
+    "backgroundLocation.ts foreground-only refactor confirmed — no TaskManager references remain (grep confirmed). app.json no longer declares 'location' UIBackgroundMode.",
+    "Note: purchases.ts logs added but web preview uses mocked plans (4,99€/79,99€) as expected — cannot exercise RevenueCat on web."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not tested this iteration)", "frontend": "100% (all requested regression checks pass)"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "App Store compliance changes verified end-to-end on web preview. LocationRequired.tsx + native background-location behavior are NOT testable on web (native only). Reviewer account currently defaults to English UI — if any test expects FR labels, either switch language via Settings → Langue → Français, or seed the reviewer with lang='fr' at register.",
+  "rca_of_issue": "N/A — no issues found. All App Store rejection remediations are correctly wired on the web preview."
+}

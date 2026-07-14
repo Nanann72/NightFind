@@ -7,7 +7,6 @@ import React, {
   useState,
 } from 'react';
 import { api, Club } from './api';
-import { cacheClubsForBackground } from './backgroundLocation';
 
 type FiltersState = {
   music?: string;
@@ -62,11 +61,6 @@ export function ClubsProvider({ children }: { children: React.ReactNode }) {
         // Drop stale responses
         if (myId !== reqIdRef.current) return;
         setClubs(list);
-        // Refresh background-task cache with all clubs (no filters)
-        // so the geofence check always considers every place.
-        if (!f.music && !f.max_price && !f.vip && !f.terrasse && !f.open_now) {
-          cacheClubsForBackground(list);
-        }
       } catch {
         if (myId !== reqIdRef.current) return;
         setClubs([]);

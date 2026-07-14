@@ -303,6 +303,27 @@ SUPPORT_HTML = f"""<!DOCTYPE html>
     Nous répondons sous 48h ouvrées.
   </p>
 
+  <h2 class="section">❓ FAQ — Questions fréquentes</h2>
+  <p><strong>Comment fonctionne Night Finder ?</strong><br>
+  Night Finder te montre les clubs, soirées et personnes autour de toi.
+  Active ta localisation pour découvrir la vie nocturne à proximité.</p>
+  <p><strong>Comment matcher avec quelqu'un ?</strong><br>
+  Ouvre la Découverte (onglet Plus), swipe à droite pour liker.
+  Si la personne te like aussi, c'est un match — vous pouvez discuter.</p>
+  <p><strong>Comment fonctionne la reconnaissance musicale ?</strong><br>
+  Dans « Mes musiques », appuie sur le bouton scanner : l'app écoute
+  ~10 secondes et identifie le morceau joué. L'échantillon audio n'est
+  jamais conservé.</p>
+  <p><strong>Comment supprimer mon compte ?</strong><br>
+  Profil → Réglages → Zone danger → « Supprimer mon compte ».
+  La suppression est définitive (données effacées sous 30 jours).</p>
+  <p><strong>Comment restaurer mes achats ?</strong><br>
+  Ouvre l'écran Premium et appuie sur « Restaurer mes achats »,
+  ou Réglages → Abonnement.</p>
+  <p><strong>Comment bloquer ou signaler quelqu'un ?</strong><br>
+  Depuis une conversation ou un profil, ouvre le menu ⋯ puis
+  « Bloquer » ou « Signaler ». Notre équipe modère sous 24h.</p>
+
   <h2 class="section">🐛 Signaler un bug</h2>
   <p>
     Décris-nous le problème en précisant :

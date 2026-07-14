@@ -157,8 +157,8 @@ export default function Settings() {
           await storage.set(BG_PREF_KEY, '1');
           if (res.mode === 'foreground') {
             Alert.alert(
-              'Activé en mode foreground',
-              "L'arrière-plan nécessite un build natif. Pour l'instant, la détection fonctionne quand l'app est ouverte.",
+              'Détection activée',
+              "La détection d'arrivée en club fonctionne quand l'app est ouverte.",
             );
           }
           return;

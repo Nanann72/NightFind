@@ -44,6 +44,15 @@ let realModeAvailable = false;
 let Purchases: any = null;
 let lastOfferingsError: string | null = null;
 
+/** Detailed diagnostics logger — every StoreKit/RevenueCat step is traced
+ *  with the [purchases] prefix so issues are identifiable in device logs
+ *  (Xcode console / `npx expo run` / Sentry breadcrumbs). */
+function plog(...args: any[]) {
+  try {
+    console.log('[purchases]', ...args);
+  } catch {}
+}
+
 export function getLastOfferingsError(): string | null {
   return lastOfferingsError;
 }
@@ -71,16 +80,24 @@ export async function configurePurchases(): Promise<void> {
   if (configured) return;
   configured = true;
   realModeAvailable = isRealRevenueCatConfigured();
+  plog('configure: platform=', Platform.OS, 'realMode=', realModeAvailable,
+    'keyPrefix=', (Platform.OS === 'ios' ? RC_IOS_KEY : RC_ANDROID_KEY).slice(0, 5) || '(none)');
   if (!realModeAvailable) return;
   try {
     // Lazy import so web bundle never loads the native module
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('react-native-purchases');
     Purchases = mod.default || mod;
+    try {
+      // Verbose SDK logs to diagnose StoreKit issues during App Review / sandbox
+      Purchases.setLogLevel(mod.LOG_LEVEL?.DEBUG ?? 'DEBUG');
+    } catch {}
     const apiKey = Platform.OS === 'ios' ? RC_IOS_KEY : RC_ANDROID_KEY;
     Purchases.configure({ apiKey });
-  } catch (e) {
+    plog('configure: RevenueCat SDK configured OK');
+  } catch (e: any) {
     // SDK not available (e.g. Expo Go) — fall back to dev mode
+    plog('configure: SDK load FAILED →', e?.message || e);
     realModeAvailable = false;
     Purchases = null;
   }
@@ -125,6 +142,9 @@ export async function getOfferings(): Promise<PremiumPackage[]> {
   if (realModeAvailable && Purchases) {
     try {
       const offerings = await Purchases.getOfferings();
+      plog('getOfferings: current=', offerings?.current?.identifier || null,
+        'currentPackages=', offerings?.current?.availablePackages?.length ?? 0,
+        'allOfferings=', Object.keys(offerings?.all || {}));
       // Try .current first, then any other offering with packages.
       const candidate =
         offerings?.current?.availablePackages?.length
@@ -194,17 +214,29 @@ export async function getOfferings(): Promise<PremiumPackage[]> {
 }
 
 export async function purchasePackage(pkg: PremiumPackage): Promise<CustomerInfoLite> {
+  plog('purchase: start product=', pkg.productId, 'pkg=', pkg.identifier,
+    'realMode=', realModeAvailable, 'hasRawPackage=', !!pkg.rawPackage);
   if (realModeAvailable && Purchases && pkg.rawPackage) {
     // ✅ Real RevenueCat purchase — triggers the native Apple/Google payment sheet.
-    const { customerInfo } = await Purchases.purchasePackage(pkg.rawPackage);
-    const ent = customerInfo?.entitlements?.active?.[PREMIUM_ENTITLEMENT_ID];
-    return {
-      isPremium: !!ent,
-      expirationDate: ent?.expirationDate || null,
-      willRenew: ent?.willRenew ?? null,
-      productIdentifier: ent?.productIdentifier || null,
-      source: 'real',
-    };
+    try {
+      const { customerInfo } = await Purchases.purchasePackage(pkg.rawPackage);
+      const ent = customerInfo?.entitlements?.active?.[PREMIUM_ENTITLEMENT_ID];
+      plog('purchase: SUCCESS entitlementActive=', !!ent,
+        'product=', ent?.productIdentifier || null,
+        'expires=', ent?.expirationDate || null);
+      return {
+        isPremium: !!ent,
+        expirationDate: ent?.expirationDate || null,
+        willRenew: ent?.willRenew ?? null,
+        productIdentifier: ent?.productIdentifier || null,
+        source: 'real',
+      };
+    } catch (e: any) {
+      plog('purchase: FAILED code=', e?.code, 'message=', e?.message,
+        'userCancelled=', e?.userCancelled,
+        'underlyingError=', e?.underlyingErrorMessage || e?.userInfo?.NSUnderlyingError || null);
+      throw e;
+    }
   }
   // PRODUCTION SAFETY: if real RC is configured but no rawPackage was attached
   // (i.e. RevenueCat dashboard has no Offering / no products mapped), refuse
@@ -241,10 +273,12 @@ export async function purchasePackage(pkg: PremiumPackage): Promise<CustomerInfo
 }
 
 export async function restorePurchases(): Promise<CustomerInfoLite> {
+  plog('restore: start realMode=', realModeAvailable);
   if (realModeAvailable && Purchases) {
     try {
       const info = await Purchases.restorePurchases();
       const ent = info?.entitlements?.active?.[PREMIUM_ENTITLEMENT_ID];
+      plog('restore: done entitlementActive=', !!ent, 'product=', ent?.productIdentifier || null);
       return {
         isPremium: !!ent,
         expirationDate: ent?.expirationDate || null,
@@ -252,7 +286,8 @@ export async function restorePurchases(): Promise<CustomerInfoLite> {
         productIdentifier: ent?.productIdentifier || null,
         source: 'real',
       };
-    } catch {
+    } catch (e: any) {
+      plog('restore: FAILED code=', e?.code, 'message=', e?.message);
       // fallthrough
     }
   }
