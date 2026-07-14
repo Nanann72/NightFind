@@ -2118,6 +2118,9 @@ async def list_user_songs(user: dict = Depends(get_current_user)):
                 "artist": s.get("artist"),
                 "detected_at": s.get("detected_at"),
                 "source": s.get("source"),
+                "spotify": s.get("spotify"),
+                "deezer": s.get("deezer"),
+                "apple_music": s.get("apple_music"),
             }
         )
     return {

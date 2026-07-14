@@ -155,3 +155,9 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - **480 clubs Google Places** pré-importés dans `db.places` via `backend/seed_city_clubs.py` (20 grandes villes FR : Paris, Marseille, Lyon, Toulouse, Nice, Nantes, Montpellier, Strasbourg, Bordeaux, Lille, Rennes, Reims, Toulon, Grenoble, Dijon, Angers, Le Mans, Aix, La Rochelle, Cannes — ~18-20 clubs/ville). Réutilise le pipeline places_service (schéma standard, photos, dédup, cache TTL). Relançable à volonté.
 - **Genres musicaux unifiés** : nouveau module partagé `frontend/lib/musicGenres.ts` (18 genres avec emoji : techno, house, afro-house, électro, edm, minimal, hip-hop/rap, rnb, latin, reggaeton, disco, funk, soul, jazz, pop, rock, indie, lounge — IDs alignés sur les music_styles des clubs). Consommé par : filters.tsx (filtres clubs), search.tsx (recherche de personnes — corrige l'incohérence 'r&b'/'afro' vs 'rnb'/'afro-house'), settings.tsx (préférences musicales), onboarding.tsx (12 premiers genres).
 - Vérifié : capture écran filtres OK (18 chips emoji), lint clean.
+
+## 👥🎧 STAT ABONNÉS + LIENS STREAMING (juillet 2026)
+- **Profil** : stat "Photos" remplacée par "Abonnés" (nombre d'amis via api.listFriends().friends.length, testID stat-followers) dans (tabs)/profile.tsx.
+- **Backend** : /api/profile/songs expose désormais spotify/deezer/apple_music (stockés à la reconnaissance Audd).
+- **my-songs.tsx** : 2 boutons ronds par morceau — Spotify (#1ED760, FontAwesome5 'spotify') et Deezer (violet, FontAwesome5 'deezer') → Linking.openURL vers le lien direct, fallback URL de recherche (open.spotify.com/search / deezer.com/search) si lien absent. Helper openStream. Tap ligne = déplacer (modal), long-press = supprimer (inchangés).
+- Vérifié : screenshot OK (stat Abonnés + boutons visibles), lint clean, backend serialization testée.

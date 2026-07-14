@@ -42,7 +42,7 @@ export default function Profile() {
   // Instagram-style stats — fetched from backend
   const [matchesCount, setMatchesCount] = useState(0);
   const [likesReceived, setLikesReceived] = useState(0);
-  const photosCount = (user?.photos?.length || 0) as number;
+  const [friendsCount, setFriendsCount] = useState(0);
 
   // Instagram-style Highlights + Tabs
   const [myMoments, setMyMoments] = useState<any[]>([]);
@@ -62,6 +62,11 @@ export default function Profile() {
       try {
         const matches = await api.listMatches();
         if (!cancelled) setMatchesCount(Array.isArray(matches) ? matches.length : 0);
+      } catch {}
+      try {
+        const fr: any = await api.listFriends();
+        const list = Array.isArray(fr) ? fr : fr?.friends || [];
+        if (!cancelled) setFriendsCount(list.length);
       } catch {}
       const likes = (user as any)?.likes_received_count ?? 0;
       if (!cancelled) setLikesReceived(likes);
@@ -141,7 +146,7 @@ export default function Profile() {
 
         {/* STATS */}
         <View style={styles.statsRow}>
-          <Stat label="Photos" value={photosCount} testID="stat-photos" styles={styles} />
+          <Stat label="Abonnés" value={friendsCount} testID="stat-followers" styles={styles} />
           <Stat label="Likes reçus" value={likesReceived} testID="stat-likes" styles={styles} />
           <Stat label="Matches" value={matchesCount} testID="stat-matches" styles={styles} />
         </View>

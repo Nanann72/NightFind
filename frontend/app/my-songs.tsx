@@ -11,10 +11,11 @@ import {
   Platform,
   Modal,
   TextInput,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -184,6 +185,17 @@ export default function MySongs() {
     ]);
   };
 
+  /** Open the song on Spotify or Deezer — uses the direct link stored at
+   *  recognition time, falls back to a search URL so the tap always works. */
+  const openStream = (s: any, platform: 'spotify' | 'deezer') => {
+    const q = encodeURIComponent(`${s.artist || ''} ${s.title || ''}`.trim());
+    const url =
+      platform === 'spotify'
+        ? s.spotify || `https://open.spotify.com/search/${q}`
+        : s.deezer || `https://www.deezer.com/search/${q}`;
+    Linking.openURL(url).catch(() => {});
+  };
+
   const formatWhen = (iso?: string) => {
     if (!iso) return '';
     try {
@@ -306,6 +318,22 @@ export default function MySongs() {
                             {s.artist || 'Artiste inconnu'} · {formatWhen(s.detected_at)}
                           </Text>
                         </View>
+                        <TouchableOpacity
+                          style={[styles.streamBtn, { backgroundColor: 'rgba(30,215,96,0.15)' }]}
+                          onPress={() => openStream(s, 'spotify')}
+                          hitSlop={6}
+                          testID={`spotify-${s.song_id}`}
+                        >
+                          <FontAwesome5 name="spotify" size={16} color="#1ED760" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.streamBtn, { backgroundColor: 'rgba(161,139,250,0.15)' }]}
+                          onPress={() => openStream(s, 'deezer')}
+                          hitSlop={6}
+                          testID={`deezer-${s.song_id}`}
+                        >
+                          <FontAwesome5 name="deezer" size={13} color="#A78BFA" />
+                        </TouchableOpacity>
                         {s.source === 'auto' ? (
                           <View style={styles.autoBadge}>
                             <Ionicons name="radio" size={9} color={colors.tertiary} />
@@ -565,6 +593,14 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   songTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
   songArtist: { color: colors.textSecondary, fontSize: 11, marginTop: 2 },
+  streamBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
+  },
   autoBadge: {
     flexDirection: 'row',
     alignItems: 'center',
