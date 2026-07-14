@@ -132,3 +132,10 @@ Vérifié : export bundle iOS prod OK (contient les 2 filets), app OK en preview
 - Tests backend : 207/207 PASS (tests obsolètes mis à jour : dob obligatoire, ≥12 clubs, /events auth, probe 5MB).
 ### Audit frontend (iteration_25.json) : 14/14 flux OK
 Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, carte (fallback web), Plus hub, paramètres, notifications, my-songs.
+
+## 🎵 DÉPLACEMENT DE MUSIQUES + RETOUR SWIPE (juillet 2026)
+- **Backend** : `PATCH /api/profile/songs/{song_id}/club` body `{club_id}` — ré-attache un morceau à un autre club (valide club existant, 404 sinon).
+- **Frontend api.ts** : `api.moveSong(song_id, club_id)`.
+- **my-songs.tsx** : tap sur un morceau → bottom-sheet modal (recherche + liste des clubs, club actuel désactivé "Actuel", testIDs: move-club-search, move-to-{club_id}, move-cancel). Long-press = supprimer (inchangé). Icône swap-horizontal sur chaque rangée.
+- **swipe.tsx** : bouton retour rond (swipe-back-btn) dans le header (+ états profil-incomplet et deck-vide via backBtnFloating). `router.canGoBack() ? back : replace('/(tabs)/plus')`.
+- Testé : iteration_26.json — PASS complet, état reviewer restauré (morceau dans Club Rex).
