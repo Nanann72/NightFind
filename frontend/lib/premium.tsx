@@ -83,7 +83,9 @@ export const PremiumProvider: React.FC<{ children: React.ReactNode }> = ({ child
   return (
     <PremiumCtx.Provider
       value={{
-        isPremium,
+        // Server flag fallback: backend grants (admin, promo, web) count as
+        // premium even when the store entitlement isn't visible on this device.
+        isPremium: isPremium || Boolean(user?.is_premium),
         loading,
         customerInfo,
         offerings,

@@ -112,3 +112,23 @@ Vérifié : export bundle iOS prod OK (contient les 2 filets), app OK en preview
 - i18n : nouvelles clés `tabs.*`, `plusHub.*`, `home.*` (greeting, readyTonight, exploreMap, nearbyClubs, trending, peopleNearby, moments, allClubs, seeAll) dans fr.ts + en.ts (fallback fr pour les autres langues).
 - Testé frontend complet (iteration_24.json) : PASS — zéro trace de l'ancien rose, aucune régression navigation.
 - ⏳ EN ATTENTE (décision utilisateur) : migration RevenueCat → Stripe demandée mais reportée ("on verra pour RevenueCat après"). ⚠️ Rappel : Stripe in-app pour abonnements numériques = rejet App Store (Guideline 3.1.1).
+
+## 🔍 AUDIT COMPLET + CORRECTIFS (juillet 2026)
+### Bugs corrigés
+1. **Audio AudD "Audio too large (1.5MB)"** : enregistrement passait en quasi-PCM sur iOS (preset HIGH_QUALITY stéréo). Fix : options custom mono AAC 64kbps 44.1kHz (`buildRecognitionRecordingOptions` dans `lib/audioRecognition.ts`), durées 10s/12s retry, garde-fou taille client, limite backend 1.5MB→5MB (2 endpoints).
+2. **⚠️ TOKEN AUDD INVALIDE (erreur 900)** : l'abonnement/trial audd.io est INACTIF → AUCUNE reconnaissance possible tant que l'utilisateur ne réactive pas sur dashboard.audd.io. Backend mappe désormais les erreurs 900/901 en messages français clairs.
+3. **Crash TDZ notifications.tsx** : `colors` utilisé au niveau module avant déclaration (ligne 417) → ReferenceError potentiel (écran noir). Fix : `darkColors` direct dans COLOURS.
+4. **profile.tsx** : `api.getMatches()` inexistant → stats matchs toujours 0. Fix : `api.listMatches()`.
+5. **Événements tous expirés** (36 events datés juin 2026) → écran Sorties vide. Fix : script `backend/refresh_events.py` (re-date les events passés sur 30 jours). API `/events` renvoie désormais `club_name/club_photo: null` cohérents pour les events utilisateurs.
+6. **usePremium** : fallback serveur `user.is_premium` (les premium accordés côté backend sont reconnus même sans entitlement RevenueCat visible).
+7. **my-songs.tsx** : `loc.location` inexistant → détection du club le plus proche ne marchait jamais. Fix : `loc.coords`/`loc.permission`.
+8. **TypeScript 0 erreur** (hors résolution plateforme MapImpl) : types User enrichis (photos, bio, city, dob, likes_received_count), statusBarStyle union, onboarding typé.
+### UI ajoutée
+- Overlay d'écoute élégant (ScanningOverlay, anneaux pulsés violets) pendant le scan + message "Aucune musique reconnue. Essaie de rapprocher ton téléphone de la source sonore."
+- Paramètres : carte profil iOS (avatar/nom/email/badge PREMIUM), "Gérer mon abonnement" (lien store natif), "Contacter le support", "Signaler un problème".
+### Seeds/scripts
+- `backend/seed_moments.py` : 3 moments bots (Léa/Maxime/Chloé, photos Unsplash, users bots créés, expire 7j).
+- `backend/refresh_events.py` : re-date les événements passés.
+- Tests backend : 207/207 PASS (tests obsolètes mis à jour : dob obligatoire, ≥12 clubs, /events auth, probe 5MB).
+### Audit frontend (iteration_25.json) : 14/14 flux OK
+Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, carte (fallback web), Plus hub, paramètres, notifications, my-songs.

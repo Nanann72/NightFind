@@ -15,11 +15,12 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
-# 1x1 violet PNG placeholder (valid base64 image)
-TINY_PNG = (
-    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
-    "AAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-)
+# Real nightlife photos (Unsplash CDN) so the demo feed looks premium
+IMAGES = [
+    "https://images.unsplash.com/photo-1566737236500-c8ac43014a67?w=800&q=70",
+    "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=800&q=70",
+    "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&q=70",
+]
 
 BOTS = [
     ("seedbot_lea", "Léa"),
@@ -78,7 +79,7 @@ async def main():
             "user_picture": None,
             "club_id": club["club_id"],
             "checkin_id": f"seedci_{uuid.uuid4().hex[:10]}",
-            "image": TINY_PNG,
+            "image": IMAGES[i % len(IMAGES)],
             "selfie": None,
             "caption": CAPTIONS[i % len(CAPTIONS)],
             "is_premium_author": False,
