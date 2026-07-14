@@ -216,16 +216,18 @@ export default function UserSearch() {
           {/* Music */}
           <Text style={styles.filterLabel}>Musiques</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            {MUSIC_TAGS.map((m) => {
-              const on = selectedMusic.has(m);
+            {MUSIC_GENRES.map((g) => {
+              const on = selectedMusic.has(g.id);
               return (
                 <TouchableOpacity
-                  key={m}
+                  key={g.id}
                   style={[styles.chip, on && styles.chipOn]}
-                  onPress={() => toggleMusic(m)}
-                  testID={`filter-music-${m}`}
+                  onPress={() => toggleMusic(g.id)}
+                  testID={`filter-music-${g.id}`}
                 >
-                  <Text style={[styles.chipText, on && styles.chipTextOn]}>{m}</Text>
+                  <Text style={[styles.chipText, on && styles.chipTextOn]}>
+                    {g.emoji} {g.label}
+                  </Text>
                 </TouchableOpacity>
               );
             })}

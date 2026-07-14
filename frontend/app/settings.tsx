@@ -31,18 +31,7 @@ import { radius, spacing, typography } from '../lib/theme';
 
 const BG_PREF_KEY = 'nf_bg_location_enabled';
 
-const MUSIC_OPTIONS: { id: string; label: string; emoji: string }[] = [
-  { id: 'techno', label: 'Techno', emoji: '⚡️' },
-  { id: 'house', label: 'House', emoji: '🏠' },
-  { id: 'hip-hop', label: 'Hip-Hop', emoji: '🎤' },
-  { id: 'rnb', label: 'RnB', emoji: '💜' },
-  { id: 'afro-house', label: 'Afro', emoji: '🥁' },
-  { id: 'latin', label: 'Latin', emoji: '💃' },
-  { id: 'disco', label: 'Disco', emoji: '🕺' },
-  { id: 'electronic', label: 'Électro', emoji: '🌌' },
-  { id: 'jazz', label: 'Jazz', emoji: '🎷' },
-  { id: 'soul', label: 'Soul', emoji: '🎶' },
-];
+import { MUSIC_GENRES as MUSIC_OPTIONS } from '../lib/musicGenres';
 
 type IoniconName = keyof typeof Ionicons.glyphMap;
 

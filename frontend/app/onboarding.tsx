@@ -31,6 +31,7 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { saveOnboarding } from '../lib/onboardingStore';
+import { MUSIC_GENRES } from '../lib/musicGenres';
 import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
 
@@ -313,14 +314,8 @@ const SCREENS: Screen[] = [
   },
 ];
 
-const MUSIC_OPTS = [
-  { id: 'techno', label: 'Techno', emoji: '⚡️' },
-  { id: 'house', label: 'House', emoji: '🏠' },
-  { id: 'afro-house', label: 'Afro', emoji: '🥁' },
-  { id: 'hip-hop', label: 'Rap', emoji: '🎤' },
-  { id: 'latin', label: 'Reggaeton', emoji: '💃' },
-  { id: 'electronic', label: 'EDM', emoji: '🌌' },
-];
+// Shared catalogue — onboarding shows the 12 most popular genres
+const MUSIC_OPTS = MUSIC_GENRES.slice(0, 12);
 
 function vibrate(kind: HapticKind) {
   if (Platform.OS === 'web' || kind === 'none') return;

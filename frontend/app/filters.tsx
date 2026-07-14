@@ -18,10 +18,8 @@ import { radius, spacing, shadows, type ThemeColors, darkColors } from '../lib/t
 import { useThemeColors } from '../lib/themeContext';
 import { useTranslation } from '../lib/i18n';
 
-const MUSIC_GENRES = [
-  'techno', 'house', 'electronic', 'hip-hop', 'rnb', 'disco',
-  'afro-house', 'latin', 'jazz', 'soul', 'rock', 'indie',
-];
+import { MUSIC_GENRES } from '../lib/musicGenres';
+
 const RADIUS_OPTIONS = [5, 10, 25, 50];
 const RADIUS_PREMIUM = 200;
 
@@ -133,15 +131,17 @@ export default function Filters() {
         <Section title={t('filters.musicStyle')}>
           <View style={styles.tagsRow}>
             {MUSIC_GENRES.map((g) => {
-              const active = music === g;
+              const active = music === g.id;
               return (
                 <TouchableOpacity
-                  key={g}
+                  key={g.id}
                   style={[styles.tag, active && styles.tagActive]}
-                  onPress={() => setMusic(active ? undefined : g)}
-                  testID={`music-${g}`}
+                  onPress={() => setMusic(active ? undefined : g.id)}
+                  testID={`music-${g.id}`}
                 >
-                  <Text style={[styles.tagText, active && styles.tagTextActive]}>{g}</Text>
+                  <Text style={[styles.tagText, active && styles.tagTextActive]}>
+                    {g.emoji} {g.label}
+                  </Text>
                 </TouchableOpacity>
               );
             })}

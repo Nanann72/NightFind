@@ -150,3 +150,8 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 7. Nettoyage : double app.include_router(api_router) supprimé (server.py), libellés "arrière-plan" retirés (settings i18n "Détection en club", GeofenceCheckIn), NSMicrophoneUsageDescription corrigé ("échantillon court").
 - Tests : backend 207/207 PASS, frontend régression iteration_27 PASS (onboarding, tabs, paywall+liens légaux, settings, my-songs).
 - Rappel RevenueCat : l'erreur d'achat vue par Apple = abonnements pas encore approuvés/attachés à la version. Cocher les 2 abonnements dans la section "Achats intégrés" de la nouvelle version lors de la soumission.
+
+## 🏙️ CLUBS + GENRES MUSICAUX (juillet 2026)
+- **480 clubs Google Places** pré-importés dans `db.places` via `backend/seed_city_clubs.py` (20 grandes villes FR : Paris, Marseille, Lyon, Toulouse, Nice, Nantes, Montpellier, Strasbourg, Bordeaux, Lille, Rennes, Reims, Toulon, Grenoble, Dijon, Angers, Le Mans, Aix, La Rochelle, Cannes — ~18-20 clubs/ville). Réutilise le pipeline places_service (schéma standard, photos, dédup, cache TTL). Relançable à volonté.
+- **Genres musicaux unifiés** : nouveau module partagé `frontend/lib/musicGenres.ts` (18 genres avec emoji : techno, house, afro-house, électro, edm, minimal, hip-hop/rap, rnb, latin, reggaeton, disco, funk, soul, jazz, pop, rock, indie, lounge — IDs alignés sur les music_styles des clubs). Consommé par : filters.tsx (filtres clubs), search.tsx (recherche de personnes — corrige l'incohérence 'r&b'/'afro' vs 'rnb'/'afro-house'), settings.tsx (préférences musicales), onboarding.tsx (12 premiers genres).
+- Vérifié : capture écran filtres OK (18 chips emoji), lint clean.
