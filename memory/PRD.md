@@ -139,3 +139,14 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - **my-songs.tsx** : tap sur un morceau → bottom-sheet modal (recherche + liste des clubs, club actuel désactivé "Actuel", testIDs: move-club-search, move-to-{club_id}, move-cancel). Long-press = supprimer (inchangé). Icône swap-horizontal sur chaque rangée.
 - **swipe.tsx** : bouton retour rond (swipe-back-btn) dans le header (+ états profil-incomplet et deck-vide via backBtnFloating). `router.canGoBack() ? back : replace('/(tabs)/plus')`.
 - Testé : iteration_26.json — PASS complet, état reviewer restauré (morceau dans Club Rex).
+
+## 🍎 CONFORMITÉ APP STORE — corrections post-rejet (juillet 2026)
+1. **UIBackgroundModes "location" SUPPRIMÉ** (app.json) + suppression NSLocationAlways* + plugin expo-location réduit à when-in-use uniquement (Guideline 2.5.4).
+2. **Background location supprimé du code** : backgroundLocation.ts réécrit foreground-only (startBackgroundLocation = requestForegroundPermissionsAsync seulement, stopBackgroundLocation garde le cleanup de la tâche legacy). Tâche TaskManager retirée de notificationsSetup.ts. cacheClubsForBackground + chaîne morte supprimées (clubs.tsx nettoyé). Geofence = polling foreground dans GeofenceCheckIn.tsx (inchangé).
+3. **Flux localisation onboarding conforme (5.1.1/5.1.5)** : texte "Night Finder utilise ta position pour afficher les clubs, événements et utilisateurs proches de toi", CTA "Continuer" → popup native immédiate, bouton "Passer" MASQUÉ sur l'écran localisation uniquement.
+4. **Écran refus élégant** : components/LocationRequired.tsx ("La localisation est nécessaire..." + bouton "Ouvrir Réglages" via Linking.openSettings + "Continuer sans localisation") intégré dans MapImpl.native quand permission denied.
+5. **Support URL** : pages publiques déjà servies par legal_pages.py → /api/legal/support (enrichie d'une section FAQ 6 questions), /api/legal/privacy, /api/legal/terms — toutes 200 OK. ⚠️ ACTION UTILISATEUR : dans App Store Connect, remplacer https://nightfinder.app/support par https://<domaine-deployé>/api/legal/support (ou configurer le DNS de nightfinder.app).
+6. **Logs StoreKit/RevenueCat détaillés** : purchases.ts trace [purchases] configure/getOfferings/purchase/restore avec codes d'erreur + Purchases.setLogLevel(DEBUG).
+7. Nettoyage : double app.include_router(api_router) supprimé (server.py), libellés "arrière-plan" retirés (settings i18n "Détection en club", GeofenceCheckIn), NSMicrophoneUsageDescription corrigé ("échantillon court").
+- Tests : backend 207/207 PASS, frontend régression iteration_27 PASS (onboarding, tabs, paywall+liens légaux, settings, my-songs).
+- Rappel RevenueCat : l'erreur d'achat vue par Apple = abonnements pas encore approuvés/attachés à la version. Cocher les 2 abonnements dans la section "Achats intégrés" de la nouvelle version lors de la soumission.
