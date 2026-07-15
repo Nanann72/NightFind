@@ -16,7 +16,8 @@ import { radius, spacing, type ThemeColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
 
 const TABS = [
-  { key: 'pending_review', label: 'À valider' },
+  { key: 'requested', label: 'À valider' },
+  { key: 'approved_awaiting_payment', label: 'Paiement' },
   { key: 'active', label: 'Actives' },
   { key: 'rejected', label: 'Refusées' },
 ] as const;
@@ -26,7 +27,7 @@ export default function AdminPromotions() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState<string>('pending_review');
+  const [tab, setTab] = useState<string>('requested');
   const [promos, setPromos] = useState<Promotion[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -111,7 +112,7 @@ export default function AdminPromotions() {
             testID={`ptab-${t.key}`}
           >
             <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>
-              {t.label}{t.key === 'pending_review' && pendingCount > 0 ? ` (${pendingCount})` : ''}
+              {t.label}{t.key === 'requested' && pendingCount > 0 ? ` (${pendingCount})` : ''}
             </Text>
           </TouchableOpacity>
         ))}
@@ -137,14 +138,13 @@ export default function AdminPromotions() {
                     {p.plan_label} · {p.amount.toFixed(2).replace('.', ',')} € · {fmtDate(p.created_at)}
                   </Text>
                   <Text style={[styles.payState, {
-                    color: p.payment_status === 'paid' ? '#22C55E'
-                      : p.payment_status === 'refunded' ? '#F59E0B' : colors.textTertiary,
+                    color: p.status === 'active' ? '#22C55E'
+                      : p.status === 'approved_awaiting_payment' ? '#F59E0B' : colors.textTertiary,
                   }]}>
-                    {p.payment_status === 'paid' ? '💳 Payé'
-                      : p.payment_status === 'refunded' ? '↩️ Remboursé'
-                        : p.payment_status === 'refund_failed' ? '⚠️ Remboursement échoué'
-                          : 'Paiement en attente'}
-                    {p.status === 'active' && p.ends_at ? ` · jusqu'au ${fmtDate(p.ends_at)}` : ''}
+                    {p.status === 'active' ? `💳 Payé · jusqu'au ${fmtDate(p.ends_at)}`
+                      : p.status === 'approved_awaiting_payment' ? '⏳ Validée — en attente du paiement Apple du propriétaire'
+                        : p.status === 'requested' ? 'Demande gratuite — aucun paiement effectué'
+                          : p.status === 'expired' ? 'Terminée' : ''}
                   </Text>
                   {p.status === 'rejected' && !!p.rejection_reason && (
                     <Text style={styles.cardSub}>Motif : {p.rejection_reason}</Text>
@@ -152,12 +152,12 @@ export default function AdminPromotions() {
                 </View>
               </View>
 
-              {p.status === 'pending_review' && (
+              {p.status === 'requested' && (
                 rejectFor === p.promo_id ? (
                   <View style={{ marginTop: spacing.sm }}>
                     <TextInput
                       style={styles.reasonInput}
-                      placeholder="Motif du refus (remboursement auto)…"
+                      placeholder="Motif du refus (aucun paiement à rembourser)…"
                       placeholderTextColor={colors.textTertiary}
                       value={reason}
                       onChangeText={setReason}
@@ -171,7 +171,7 @@ export default function AdminPromotions() {
                         testID="promo-confirm-reject"
                       >
                         {busy === p.promo_id ? <ActivityIndicator color="#fff" /> : (
-                          <Text style={styles.btnText}>Refuser + rembourser</Text>
+                          <Text style={styles.btnText}>Confirmer le refus</Text>
                         )}
                       </TouchableOpacity>
                       <TouchableOpacity
@@ -202,7 +202,7 @@ export default function AdminPromotions() {
                       {busy === p.promo_id ? <ActivityIndicator color="#fff" /> : (
                         <>
                           <Ionicons name="checkmark" size={15} color="#fff" />
-                          <Text style={styles.btnText}>Activer</Text>
+                          <Text style={styles.btnText}>Valider</Text>
                         </>
                       )}
                     </TouchableOpacity>

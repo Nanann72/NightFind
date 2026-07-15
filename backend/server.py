@@ -42,6 +42,7 @@ import push_service  # noqa: E402
 import legal_pages  # noqa: E402
 import email_service  # noqa: E402
 import admin_service  # noqa: E402
+import claim_verification  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -3262,6 +3263,14 @@ async def _apply_rc_event(payload: dict) -> bool:
     if not app_user_id:
         return False
 
+    # ⭐ Achat d'une mise en avant de bar (produit consommable promo_bar_*)
+    # → active la promotion, ne touche PAS au statut premium.
+    rc_product = event.get("product_id") or ""
+    if rc_product in PROMO_PRODUCTS and event_type in (
+        "NON_RENEWING_PURCHASE", "INITIAL_PURCHASE", "PURCHASE_REDEEMED",
+    ):
+        return await _handle_promo_purchase_event(app_user_id, rc_product)
+
     # Idempotency: skip if we already processed this event_id for this user
     if event_id:
         existing = await db.users.find_one(
@@ -4021,6 +4030,38 @@ def _partner_landing_url(request: Request, code: str) -> str:
     return f"{proto}://{host}/api/partner/r?code={code}"
 
 
+def _origin_base(request: Request) -> str:
+    host = request.headers.get("x-forwarded-host") or request.url.netloc
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    return f"{proto}://{host}"
+
+
+async def _find_club_by_partner_code(code: str) -> Optional[dict]:
+    """Bar vérifié possédant ce code -10% individuel."""
+    c = (code or "").strip().upper()
+    if not c:
+        return None
+    club = await db.places.find_one({"partner_code": c, "verified": True}, {"_id": 0})
+    if not club:
+        club = await db.clubs.find_one({"partner_code": c, "verified": True}, {"_id": 0})
+    return club
+
+
+async def _gen_unique_bar_code() -> str:
+    """Code -10% unique (jamais en collision avec le bar officiel ni un autre bar)."""
+    cfg = await db.partner_bar.find_one({"_id": PARTNER_CFG_ID})
+    for _ in range(20):
+        code = _gen_partner_code()
+        if cfg and code == cfg.get("partner_code"):
+            continue
+        if await db.places.find_one({"partner_code": code}, {"_id": 1}):
+            continue
+        if await db.clubs.find_one({"partner_code": code}, {"_id": 1}):
+            continue
+        return code
+    return _gen_partner_code(8)
+
+
 class PartnerBarBody(BaseModel):
     club_id: str
     active: bool = True
@@ -4085,14 +4126,25 @@ async def admin_disable_partner_bar(admin: dict = Depends(require_admin)):
 
 
 @api_router.get("/partner/qr")
-async def partner_qr(request: Request):
-    """Public PNG QR code pointing to the partner landing page."""
+async def partner_qr(request: Request, code: str = ""):
+    """Public PNG QR code — bar officiel (sans code) ou code -10% d'un bar vérifié."""
+    target = None
     cfg = await _partner_config()
-    if not cfg:
-        raise HTTPException(status_code=404, detail="Aucun bar partenaire configuré")
+    if code:
+        code_up = code.strip().upper()
+        if cfg and code_up == cfg.get("partner_code", "").upper():
+            target = cfg["partner_code"]
+        else:
+            club = await _find_club_by_partner_code(code_up)
+            if club:
+                target = club["partner_code"]
+    elif cfg:
+        target = cfg.get("partner_code")
+    if not target:
+        raise HTTPException(status_code=404, detail="Code partenaire introuvable")
     import qrcode
 
-    img = qrcode.make(_partner_landing_url(request, cfg["partner_code"]))
+    img = qrcode.make(_partner_landing_url(request, target))
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return Response(content=buf.getvalue(), media_type="image/png")
@@ -4103,8 +4155,16 @@ async def partner_landing(code: str = ""):
     """Landing page opened by the QR / link. Tries to open the app with the
     partner code; otherwise shows the code to enter at signup."""
     cfg = await _partner_config()
-    valid = bool(cfg and cfg.get("active") and code.upper() == cfg.get("partner_code", "").upper())
+    code_up = code.upper()
+    valid = bool(cfg and cfg.get("active") and code_up == cfg.get("partner_code", "").upper())
+    display_code = cfg.get("partner_code") if valid else ""
     club_name = cfg.get("club_name") if valid else ""
+    if not valid:
+        bar = await _find_club_by_partner_code(code_up)
+        if bar:
+            valid = True
+            club_name = bar.get("name")
+            display_code = bar.get("partner_code")
     app_link = f"nightfinder://partner?code={code}"
     body = f"""<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -4118,7 +4178,7 @@ p{{color:#A1A1AA;line-height:1.5}}</style></head><body><div class="card">"""
         body += f"""<div class="pct">-10%</div>
 <h2>🎉 {club_name} vous offre -10%</h2>
 <p>Ouvre Night Finder pour débloquer ton coupon automatiquement, ou entre ce code lors de ton inscription :</p>
-<div class="code">{cfg['partner_code']}</div><br>
+<div class="code">{display_code}</div><br>
 <a class="btn" href="{app_link}">Ouvrir Night Finder</a>
 <p style="font-size:13px;margin-top:18px">Pas encore l'app ? Télécharge Night Finder sur l'App Store puis entre le code à l'inscription.</p>"""
     else:
@@ -4129,17 +4189,28 @@ p{{color:#A1A1AA;line-height:1.5}}</style></head><body><div class="card">"""
 
 @api_router.get("/partner/info")
 async def partner_info(code: str = ""):
-    """Public validation of a partner code (used by the signup screen)."""
+    """Public validation of a partner code (used by the signup screen).
+
+    Supporte le bar partenaire officiel (config singleton) ET les codes
+    -10% individuels des bars vérifiés (stockés sur le club)."""
+    code_up = code.strip().upper()
     cfg = await _partner_config()
-    valid = bool(cfg and cfg.get("active") and code.strip().upper() == cfg.get("partner_code", "").upper())
-    if not valid:
-        return {"valid": False}
-    return {
-        "valid": True,
-        "club_name": cfg.get("club_name"),
-        "club_photo": cfg.get("club_photo"),
-        "discount_pct": cfg.get("discount_pct", 10),
-    }
+    if cfg and cfg.get("active") and code_up == cfg.get("partner_code", "").upper():
+        return {
+            "valid": True,
+            "club_name": cfg.get("club_name"),
+            "club_photo": cfg.get("club_photo"),
+            "discount_pct": cfg.get("discount_pct", 10),
+        }
+    club = await _find_club_by_partner_code(code_up)
+    if club:
+        return {
+            "valid": True,
+            "club_name": club.get("name"),
+            "club_photo": (club.get("photos") or [None])[0],
+            "discount_pct": 10,
+        }
+    return {"valid": False}
 
 
 class PartnerClaimBody(BaseModel):
@@ -4148,14 +4219,32 @@ class PartnerClaimBody(BaseModel):
 
 @api_router.post("/partner/claim")
 async def partner_claim(body: PartnerClaimBody, user: dict = Depends(get_current_user)):
-    """Create the user's unique -10% coupon (one per user, one use)."""
+    """Create the user's unique -10% coupon (one per user, one use).
+
+    Fonctionne avec le bar partenaire officiel ET les codes -10% des bars vérifiés."""
+    code_up = body.code.strip().upper()
     cfg = await _partner_config()
-    if not cfg or not cfg.get("active"):
-        raise HTTPException(status_code=404, detail="Aucune offre partenaire active")
-    if body.code.strip().upper() != cfg.get("partner_code", "").upper():
+    target = None  # {club_id, club_name, club_photo, expires_days}
+    if cfg and cfg.get("active") and code_up == cfg.get("partner_code", "").upper():
+        target = {
+            "club_id": cfg["club_id"],
+            "club_name": cfg.get("club_name"),
+            "club_photo": cfg.get("club_photo"),
+            "expires_days": cfg.get("expires_days", 30),
+        }
+    else:
+        bar = await _find_club_by_partner_code(code_up)
+        if bar:
+            target = {
+                "club_id": bar["club_id"],
+                "club_name": bar.get("name"),
+                "club_photo": (bar.get("photos") or [None])[0],
+                "expires_days": 30,
+            }
+    if not target:
         raise HTTPException(status_code=400, detail="Code partenaire invalide")
     existing = await db.partner_coupons.find_one(
-        {"user_id": user["user_id"], "club_id": cfg["club_id"]}, {"_id": 0}
+        {"user_id": user["user_id"], "club_id": target["club_id"]}, {"_id": 0}
     )
     if existing:
         return {"coupon": existing, "new": False}
@@ -4163,14 +4252,14 @@ async def partner_claim(body: PartnerClaimBody, user: dict = Depends(get_current
     coupon = {
         "coupon_id": f"cpn_{uuid.uuid4().hex[:12]}",
         "user_id": user["user_id"],
-        "club_id": cfg["club_id"],
-        "club_name": cfg.get("club_name"),
-        "club_photo": cfg.get("club_photo"),
+        "club_id": target["club_id"],
+        "club_name": target["club_name"],
+        "club_photo": target["club_photo"],
         "code": _gen_user_coupon_code(),
-        "discount_pct": cfg.get("discount_pct", 10),
+        "discount_pct": 10,
         "status": "available",
         "created_at": now,
-        "expires_at": now + timedelta(days=cfg.get("expires_days", 30)),
+        "expires_at": now + timedelta(days=target["expires_days"]),
         "used_at": None,
     }
     await db.partner_coupons.insert_one({**coupon})
@@ -4243,7 +4332,7 @@ def _claim_public(claim: dict) -> dict:
 
 
 @api_router.post("/bars/claim", status_code=201)
-async def submit_bar_claim(body: BarClaimBody, user: dict = Depends(get_current_user)):
+async def submit_bar_claim(body: BarClaimBody, request: Request, user: dict = Depends(get_current_user)):
     role = body.role.strip().lower()
     if role not in CLAIM_ROLES:
         raise HTTPException(status_code=400, detail="Rôle invalide (propriétaire, gérant ou manager)")
@@ -4287,9 +4376,133 @@ async def submit_bar_claim(body: BarClaimBody, user: dict = Depends(get_current_
         "created_at": now,
         "reviewed_at": None,
         "reviewed_by": None,
+        "origin_base": _origin_base(request),
+        "ai_verdict": None,  # rempli par le robot de vérification
     }
     await db.bar_claims.insert_one({**claim})
+    # Email 1 — confirmation de réception (documents + délai)
+    _asyncio.create_task(email_service.send_claim_received(
+        claim["email"], claim["owner_name"], claim["club_name"] or "ton établissement"
+    ))
+    # 🤖 Vérification automatique en arrière-plan
+    _asyncio.create_task(_run_ai_verification(claim["claim_id"]))
     return {"ok": True, "claim": _claim_public(claim)}
+
+
+async def _approve_claim_internal(claim: dict, reviewer_id: str) -> dict:
+    """Approuve une claim : badge Vérifié, propriétaire, code -10% individuel,
+    auto-rejet des autres demandes, notification + email avec QR code.
+    Utilisé par le robot IA ET par l'admin."""
+    now = datetime.now(timezone.utc)
+    await db.bar_claims.update_one(
+        {"claim_id": claim["claim_id"]},
+        {"$set": {"status": "approved", "reviewed_at": now, "reviewed_by": reviewer_id}},
+    )
+    # Code -10% individuel du bar (conservé s'il en avait déjà un)
+    existing_full = await db.places.find_one({"club_id": claim["club_id"]}, {"partner_code": 1}) \
+        or await db.clubs.find_one({"club_id": claim["club_id"]}, {"partner_code": 1}) or {}
+    partner_code = existing_full.get("partner_code") or await _gen_unique_bar_code()
+    club_update = {"$set": {
+        "verified": True, "owner_user_id": claim["user_id"], "verified_at": now,
+        "partner_code": partner_code,
+    }}
+    await db.places.update_one({"club_id": claim["club_id"]}, club_update)
+    await db.clubs.update_one({"club_id": claim["club_id"]}, club_update)
+    await db.users.update_one(
+        {"user_id": claim["user_id"]},
+        {"$set": {"is_bar_owner": True, "owned_club_id": claim["club_id"]}},
+    )
+    await db.bar_claims.update_many(
+        {"club_id": claim["club_id"], "status": "pending", "claim_id": {"$ne": claim["claim_id"]}},
+        {"$set": {
+            "status": "rejected",
+            "rejection_reason": "Un autre propriétaire a été validé pour cet établissement",
+            "reviewed_at": now,
+            "reviewed_by": reviewer_id,
+        }},
+    )
+    await db.notifications.insert_one({
+        "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+        "user_id": claim["user_id"],
+        "title": "Établissement vérifié ✅",
+        "body": f"Ta demande pour {claim.get('club_name')} a été approuvée. "
+                f"Ton code -10% invités : {partner_code}",
+        "type": "bar_claim_approved",
+        "data": {"club_id": claim["club_id"], "claim_id": claim["claim_id"], "partner_code": partner_code},
+        "created_at": now,
+    })
+    await db.admin_actions.insert_one({
+        "admin_id": reviewer_id, "action": "approve_bar_claim",
+        "details": {"claim_id": claim["claim_id"], "club_id": claim["club_id"],
+                    "user_id": claim["user_id"], "partner_code": partner_code},
+        "at": now,
+    })
+    # Email 2 — félicitations + code -10% + QR code
+    base = claim.get("origin_base") or os.environ.get("APP_PUBLIC_URL", "https://nightfinder.app")
+    qr_url = f"{base}/api/partner/qr?code={partner_code}"
+    landing_url = f"{base}/api/partner/r?code={partner_code}"
+    _asyncio.create_task(email_service.send_claim_approved(
+        claim["email"], claim["owner_name"], claim.get("club_name") or "Ton établissement",
+        partner_code, qr_url, landing_url,
+    ))
+    return {"partner_code": partner_code}
+
+
+async def _run_ai_verification(claim_id: str) -> None:
+    """🤖 Robot de validation : analyse les documents et statue.
+
+    - approve=True  → approbation automatique (reviewed_by='ai_bot')
+    - approve=False ET confiance ≥ 0.7 → refus automatique motivé
+    - sinon → reste en attente d'examen manuel (24h max, admin console)"""
+    try:
+        claim = await db.bar_claims.find_one({"claim_id": claim_id})
+        if not claim or claim["status"] != "pending":
+            return
+        verdict = await claim_verification.verify_claim_documents(
+            owner_name=claim["owner_name"],
+            club_name=claim.get("club_name") or "",
+            role=claim.get("role") or "",
+            id_document=claim.get("id_document") or "",
+            kbis_document=claim.get("kbis_document") or "",
+        )
+        await db.bar_claims.update_one(
+            {"claim_id": claim_id},
+            {"$set": {
+                "ai_verdict": {k: verdict.get(k) for k in ("approve", "confidence", "notes", "checks", "fail_open")},
+                "ai_checked_at": datetime.now(timezone.utc),
+            }},
+        )
+        claim = await db.bar_claims.find_one({"claim_id": claim_id})
+        if not claim or claim["status"] != "pending":
+            return
+        if verdict.get("approve") is True:
+            await _approve_claim_internal(claim, reviewer_id="ai_bot")
+            logging.info("Claim %s auto-approuvée par le robot IA", claim_id)
+        elif verdict.get("approve") is False and float(verdict.get("confidence") or 0) >= 0.7:
+            reason = verdict.get("notes") or "Documents non conformes (vérification automatique)"
+            now = datetime.now(timezone.utc)
+            await db.bar_claims.update_one(
+                {"claim_id": claim_id},
+                {"$set": {"status": "rejected", "rejection_reason": reason,
+                          "reviewed_at": now, "reviewed_by": "ai_bot"}},
+            )
+            await db.notifications.insert_one({
+                "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+                "user_id": claim["user_id"],
+                "title": "Demande refusée",
+                "body": f"Ta demande pour {claim.get('club_name')} a été refusée : {reason}",
+                "type": "bar_claim_rejected",
+                "data": {"club_id": claim["club_id"], "claim_id": claim_id},
+                "created_at": now,
+            })
+            _asyncio.create_task(email_service.send_claim_rejected(
+                claim["email"], claim["owner_name"], claim.get("club_name") or "ton établissement", reason,
+            ))
+            logging.info("Claim %s auto-refusée par le robot IA: %s", claim_id, reason)
+        else:
+            logging.info("Claim %s → examen manuel (verdict incertain)", claim_id)
+    except Exception as exc:  # noqa: BLE001
+        logging.error("Robot IA claim %s: %s", claim_id, exc)
 
 
 @api_router.get("/me/bar-claims")
@@ -4328,45 +4541,8 @@ async def admin_approve_bar_claim(claim_id: str, admin: dict = Depends(require_a
         raise HTTPException(status_code=404, detail="Demande introuvable")
     if claim["status"] != "pending":
         raise HTTPException(status_code=409, detail="Demande déjà traitée")
-    now = datetime.now(timezone.utc)
-    await db.bar_claims.update_one(
-        {"claim_id": claim_id},
-        {"$set": {"status": "approved", "reviewed_at": now, "reviewed_by": admin["user_id"]}},
-    )
-    # Badge "Vérifié" + rattachement du propriétaire à l'établissement
-    club_update = {"$set": {"verified": True, "owner_user_id": claim["user_id"], "verified_at": now}}
-    await db.places.update_one({"club_id": claim["club_id"]}, club_update)
-    await db.clubs.update_one({"club_id": claim["club_id"]}, club_update)
-    # Statut propriétaire sur le user
-    await db.users.update_one(
-        {"user_id": claim["user_id"]},
-        {"$set": {"is_bar_owner": True, "owned_club_id": claim["club_id"]}},
-    )
-    # Rejeter automatiquement les autres demandes en attente pour ce club
-    await db.bar_claims.update_many(
-        {"club_id": claim["club_id"], "status": "pending", "claim_id": {"$ne": claim_id}},
-        {"$set": {
-            "status": "rejected",
-            "rejection_reason": "Un autre propriétaire a été validé pour cet établissement",
-            "reviewed_at": now,
-            "reviewed_by": admin["user_id"],
-        }},
-    )
-    await db.notifications.insert_one({
-        "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
-        "user_id": claim["user_id"],
-        "title": "Établissement vérifié ✅",
-        "body": f"Ta demande pour {claim.get('club_name')} a été approuvée. Ton bar est maintenant Vérifié !",
-        "type": "bar_claim_approved",
-        "data": {"club_id": claim["club_id"], "claim_id": claim_id},
-        "created_at": now,
-    })
-    await db.admin_actions.insert_one({
-        "admin_id": admin["user_id"], "action": "approve_bar_claim",
-        "details": {"claim_id": claim_id, "club_id": claim["club_id"], "user_id": claim["user_id"]},
-        "at": now,
-    })
-    return {"ok": True}
+    result = await _approve_claim_internal(claim, reviewer_id=admin["user_id"])
+    return {"ok": True, **result}
 
 
 class RejectClaimBody(BaseModel):
@@ -4398,6 +4574,9 @@ async def admin_reject_bar_claim(
         "data": {"club_id": claim["club_id"], "claim_id": claim_id},
         "created_at": now,
     })
+    _asyncio.create_task(email_service.send_claim_rejected(
+        claim["email"], claim["owner_name"], claim.get("club_name") or "ton établissement", reason,
+    ))
     await db.admin_actions.insert_one({
         "admin_id": admin["user_id"], "action": "reject_bar_claim",
         "details": {"claim_id": claim_id, "reason": reason},
@@ -4406,42 +4585,73 @@ async def admin_reject_bar_claim(
     return {"ok": True}
 
 
+# -------------- Propriétaire — code -10% invités + coupons -------------- #
+
+
+@api_router.get("/owner/partner")
+async def owner_partner_info(request: Request, user: dict = Depends(get_current_user)):
+    """Code -10% du bar du propriétaire + QR + stats coupons."""
+    club = await _get_owned_club(user)
+    if not club.get("verified"):
+        raise HTTPException(status_code=403, detail="Établissement non vérifié")
+    partner_code = club.get("partner_code")
+    if not partner_code:
+        # Bars vérifiés avant l'introduction des codes individuels
+        partner_code = await _gen_unique_bar_code()
+        await _update_owned_club(club["club_id"], {"$set": {"partner_code": partner_code}})
+    base = _origin_base(request)
+    issued = await db.partner_coupons.count_documents({"club_id": club["club_id"]})
+    used = await db.partner_coupons.count_documents({"club_id": club["club_id"], "status": "used"})
+    return {
+        "partner_code": partner_code,
+        "qr_url": f"{base}/api/partner/qr?code={partner_code}",
+        "landing_url": f"{base}/api/partner/r?code={partner_code}",
+        "discount_pct": 10,
+        "stats": {"issued": issued, "used": used},
+    }
+
+
+class OwnerRedeemBody(BaseModel):
+    code: str
+
+
+@api_router.post("/owner/coupons/redeem")
+async def owner_redeem_coupon(body: OwnerRedeemBody, user: dict = Depends(get_current_user)):
+    """Le propriétaire valide un coupon -10% présenté par un invité (son bar uniquement)."""
+    club = await _get_owned_club(user)
+    coupon = await db.partner_coupons.find_one({"code": body.code.strip().upper()})
+    if not coupon or coupon.get("club_id") != club["club_id"]:
+        raise HTTPException(status_code=404, detail="Coupon introuvable pour ton établissement")
+    if coupon["status"] == "used":
+        raise HTTPException(status_code=409, detail="Coupon déjà utilisé")
+    now = datetime.now(timezone.utc)
+    exp = coupon.get("expires_at")
+    if exp and (exp.replace(tzinfo=timezone.utc) if exp.tzinfo is None else exp) < now:
+        await db.partner_coupons.update_one({"coupon_id": coupon["coupon_id"]}, {"$set": {"status": "expired"}})
+        raise HTTPException(status_code=410, detail="Coupon expiré")
+    await db.partner_coupons.update_one(
+        {"coupon_id": coupon["coupon_id"]},
+        {"$set": {"status": "used", "used_at": now, "redeemed_by": user["user_id"]}},
+    )
+    return {"ok": True, "coupon_id": coupon["coupon_id"], "discount_pct": coupon.get("discount_pct", 10)}
+
+
 
 # ============================================================
-# MISE EN AVANT PAYANTE — Stripe (Phase 3)
+# MISE EN AVANT PAYANTE — RevenueCat IAP (Phase 3)
+# Flux : demande gratuite → validation admin → paiement in-app
+# (Apple) → activation immédiate. Aucun remboursement à gérer.
 # + TABLEAU DE BORD PROPRIÉTAIRE (Phase 5)
 # ============================================================
 import asyncio as _asyncio
-import stripe as stripe_sdk
-
-STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
-stripe_sdk.api_key = STRIPE_API_KEY
-if "sk_test_emergent" in STRIPE_API_KEY:
-    # Emergent test proxy (round-robins several Stripe test accounts)
-    stripe_sdk.api_base = "https://integrations.emergentagent.com/stripe"
 
 # SECURITY: amounts are defined server-side only — never accepted from client.
 PROMO_PLANS = {
-    "7d": {"amount": 19.99, "days": 7, "label": "Mise en avant 7 jours"},
-    "30d": {"amount": 49.99, "days": 30, "label": "Mise en avant 30 jours"},
+    "7d": {"amount": 19.99, "days": 7, "label": "Mise en avant 7 jours", "product_id": "promo_bar_7d"},
+    "30d": {"amount": 49.99, "days": 30, "label": "Mise en avant 30 jours", "product_id": "promo_bar_30d"},
 }
-
-
-async def _stripe_call(fn, *args, attempts: int = 12, **kwargs):
-    """Run a sync Stripe SDK call in a thread. The Emergent test proxy
-    round-robins multiple accounts, so read/refund calls can land on the
-    wrong account ("No such ...") — retry until routed correctly.
-    With a real Stripe key this succeeds on the first attempt."""
-    last: Optional[Exception] = None
-    for _ in range(attempts):
-        try:
-            return await _asyncio.to_thread(fn, *args, **kwargs)
-        except stripe_sdk.error.InvalidRequestError as e:
-            if "No such" in str(e):
-                last = e
-                continue
-            raise
-    raise last  # type: ignore[misc]
+# RevenueCat product_id -> plan
+PROMO_PRODUCTS = {v["product_id"]: k for k, v in PROMO_PLANS.items()}
 
 
 async def _get_owned_club(user: dict) -> dict:
@@ -4484,13 +4694,14 @@ async def _active_promo_club_ids() -> set:
     return {r["club_id"] for r in rows}
 
 
-class PromoCheckoutBody(BaseModel):
+class PromoRequestBody(BaseModel):
     plan: str  # "7d" | "30d"
-    origin_url: str  # frontend origin for success/cancel redirect
 
 
-@api_router.post("/owner/promotions/checkout")
-async def owner_promo_checkout(body: PromoCheckoutBody, request: Request, user: dict = Depends(get_current_user)):
+@api_router.post("/owner/promotions/request", status_code=201)
+async def owner_promo_request(body: PromoRequestBody, user: dict = Depends(get_current_user)):
+    """Demande de mise en avant GRATUITE — l'admin valide d'abord,
+    le paiement (achat intégré RevenueCat) n'intervient qu'après."""
     plan = PROMO_PLANS.get(body.plan)
     if not plan:
         raise HTTPException(status_code=400, detail="Formule invalide")
@@ -4499,43 +4710,13 @@ async def owner_promo_checkout(body: PromoCheckoutBody, request: Request, user: 
         raise HTTPException(status_code=403, detail="Seuls les bars vérifiés peuvent être mis en avant")
     existing = await db.promotions.find_one({
         "club_id": club["club_id"],
-        "status": {"$in": ["awaiting_payment", "pending_review", "active"]},
+        "status": {"$in": ["requested", "approved_awaiting_payment", "active"]},
     })
-    if existing and existing["status"] != "awaiting_payment":
-        raise HTTPException(status_code=409, detail="Une mise en avant est déjà en cours ou en attente de validation")
-
-    origin = body.origin_url.rstrip("/")
-    promo_id = f"prm_{uuid.uuid4().hex[:12]}"
-    webhook_url = _partner_landing_url(request, "").split("/api/")[0] + "/api/webhooks/stripe"
-    try:
-        session = await _asyncio.to_thread(
-            stripe_sdk.checkout.Session.create,
-            payment_method_types=["card"],
-            line_items=[{
-                "price_data": {
-                    "currency": "eur",
-                    "product_data": {"name": f"Night Finder — {plan['label']} ({club.get('name')})"},
-                    "unit_amount": int(round(plan["amount"] * 100)),
-                },
-                "quantity": 1,
-            }],
-            mode="payment",
-            success_url=f"{origin}/promotion-status?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{origin}/promotion-status?cancelled=1",
-            metadata={
-                "promo_id": promo_id,
-                "club_id": club["club_id"],
-                "type": "bar_promotion",
-                "webhook_url": webhook_url,
-            },
-        )
-    except Exception as e:  # noqa: BLE001
-        logging.error("Stripe session create failed: %s", e)
-        raise HTTPException(status_code=502, detail="Paiement momentanément indisponible, réessaie plus tard")
-
+    if existing:
+        raise HTTPException(status_code=409, detail="Une mise en avant est déjà en cours ou en attente")
     now = datetime.now(timezone.utc)
     promo = {
-        "promo_id": promo_id,
+        "promo_id": f"prm_{uuid.uuid4().hex[:12]}",
         "user_id": user["user_id"],
         "club_id": club["club_id"],
         "club_name": club.get("name"),
@@ -4545,40 +4726,19 @@ async def owner_promo_checkout(body: PromoCheckoutBody, request: Request, user: 
         "days": plan["days"],
         "amount": plan["amount"],
         "currency": "eur",
-        "session_id": session["id"],
-        "payment_intent": None,
-        "payment_status": "pending",  # pending | paid | refunded | refund_failed
-        "status": "awaiting_payment",  # awaiting_payment | pending_review | active | rejected | expired
+        "product_id": plan["product_id"],
+        # requested | approved_awaiting_payment | active | rejected | expired
+        "status": "requested",
         "rejection_reason": None,
         "created_at": now,
         "starts_at": None,
         "ends_at": None,
+        "paid_at": None,
         "reviewed_at": None,
         "reviewed_by": None,
     }
     await db.promotions.insert_one({**promo})
-    return {"url": session["url"], "session_id": session["id"], "promo_id": promo_id}
-
-
-async def _sync_promo_payment(promo: dict) -> dict:
-    """Verify payment status straight from Stripe (source of truth) and
-    transition awaiting_payment → pending_review when paid."""
-    if promo.get("payment_status") == "pending":
-        try:
-            sess = await _stripe_call(stripe_sdk.checkout.Session.retrieve, promo["session_id"])
-        except Exception as e:  # noqa: BLE001
-            logging.warning("Stripe status check failed for %s: %s", promo["promo_id"], e)
-            return promo
-        if sess["payment_status"] == "paid":
-            update = {
-                "payment_status": "paid",
-                "payment_intent": sess["payment_intent"],
-                "status": "pending_review" if promo["status"] == "awaiting_payment" else promo["status"],
-                "paid_at": datetime.now(timezone.utc),
-            }
-            await db.promotions.update_one({"promo_id": promo["promo_id"]}, {"$set": update})
-            promo = {**promo, **update}
-    return promo
+    return {"ok": True, "promo": _promo_public(promo)}
 
 
 @api_router.get("/owner/promotions")
@@ -4588,30 +4748,64 @@ async def owner_list_promotions(user: dict = Depends(get_current_user)):
     return {"promotions": items, "plans": PROMO_PLANS}
 
 
-@api_router.get("/owner/promotions/status/{session_id}")
-async def owner_promo_status(session_id: str, user: dict = Depends(get_current_user)):
-    promo = await db.promotions.find_one({"session_id": session_id}, {"_id": 0})
-    if not promo or (promo["user_id"] != user["user_id"] and not user.get("is_admin")):
-        raise HTTPException(status_code=404, detail="Paiement introuvable")
-    promo = await _sync_promo_payment(promo)
-    return _promo_public(promo)
+async def _activate_promotion(promo: dict, *, source: str) -> bool:
+    """Active une promo payée (webhook RevenueCat ou confirmation client)."""
+    if promo["status"] != "approved_awaiting_payment":
+        return False
+    now = datetime.now(timezone.utc)
+    ends = now + timedelta(days=promo["days"])
+    res = await db.promotions.update_one(
+        {"promo_id": promo["promo_id"], "status": "approved_awaiting_payment"},
+        {"$set": {"status": "active", "starts_at": now, "ends_at": ends,
+                  "paid_at": now, "payment_source": source}},
+    )
+    if res.modified_count == 0:
+        return False
+    await _update_owned_club(promo["club_id"], {"$set": {"promoted": True, "promoted_until": ends}})
+    await db.notifications.insert_one({
+        "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+        "user_id": promo["user_id"],
+        "title": "Mise en avant activée ⭐",
+        "body": f"Paiement confirmé — {promo.get('club_name')} est à la une pendant {promo['days']} jours !",
+        "type": "promotion_active",
+        "data": {"club_id": promo["club_id"], "promo_id": promo["promo_id"]},
+        "created_at": now,
+    })
+    logging.info("Promotion %s activée via %s", promo["promo_id"], source)
+    return True
 
 
-@api_router.post("/webhooks/stripe")
-async def stripe_webhook(request: Request):
-    """Stripe webhook — used only as a TRIGGER: the payload session id is
-    re-verified against the Stripe API (never trusted as-is)."""
-    try:
-        payload = await request.json()
-        obj = (payload.get("data") or {}).get("object") or {}
-        session_id = obj.get("id") if str(obj.get("object")) == "checkout.session" else None
-        if session_id:
-            promo = await db.promotions.find_one({"session_id": session_id}, {"_id": 0})
-            if promo:
-                await _sync_promo_payment(promo)
-    except Exception as e:  # noqa: BLE001
-        logging.warning("Stripe webhook parse error: %s", e)
-    return {"received": True}
+async def _handle_promo_purchase_event(app_user_id: str, product_id: str) -> bool:
+    """Appelé par le webhook RevenueCat quand un produit promo_bar_* est acheté."""
+    plan = PROMO_PRODUCTS.get(product_id)
+    if not plan:
+        return False
+    promo = await db.promotions.find_one({
+        "user_id": app_user_id,
+        "plan": plan,
+        "status": "approved_awaiting_payment",
+    })
+    if not promo:
+        logging.warning("Achat %s reçu pour %s sans promo en attente", product_id, app_user_id)
+        return True  # produit promo consommé, ne pas toucher au premium
+    await _activate_promotion(promo, source="revenuecat_webhook")
+    return True
+
+
+@api_router.post("/owner/promotions/{promo_id}/confirm-purchase")
+async def owner_confirm_promo_purchase(promo_id: str, user: dict = Depends(get_current_user)):
+    """Fallback appelé par l'app juste après un achat réussi (le webhook
+    RevenueCat activera de toute façon la promo de manière idempotente)."""
+    promo = await db.promotions.find_one({"promo_id": promo_id})
+    if not promo or promo["user_id"] != user["user_id"]:
+        raise HTTPException(status_code=404, detail="Demande introuvable")
+    if promo["status"] == "active":
+        return {"ok": True, "status": "active"}
+    activated = await _activate_promotion(promo, source="client_confirm")
+    if not activated:
+        raise HTTPException(status_code=409, detail="Demande non validée ou déjà traitée")
+    fresh = await db.promotions.find_one({"promo_id": promo_id}, {"_id": 0})
+    return {"ok": True, "status": "active", "ends_at": fresh.get("ends_at")}
 
 
 @api_router.get("/promotions/featured")
@@ -4638,34 +4832,31 @@ async def admin_list_promotions(status: Optional[str] = None, _admin: dict = Dep
     if status:
         query["status"] = status
     items = await db.promotions.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
-    # Sync any pending payments so the admin sees fresh states
-    for i, p in enumerate(items):
-        if p["payment_status"] == "pending" and p["status"] == "awaiting_payment":
-            items[i] = await _sync_promo_payment(p)
-    pending = await db.promotions.count_documents({"status": "pending_review"})
+    pending = await db.promotions.count_documents({"status": "requested"})
     return {"promotions": items, "pending_count": pending}
 
 
 @api_router.post("/admin/promotions/{promo_id}/approve")
 async def admin_approve_promotion(promo_id: str, admin: dict = Depends(require_admin)):
+    """Valide la demande — le propriétaire peut alors payer dans l'app
+    (achat intégré). L'activation se fait automatiquement après paiement."""
     promo = await db.promotions.find_one({"promo_id": promo_id})
     if not promo:
         raise HTTPException(status_code=404, detail="Demande introuvable")
-    if promo["status"] != "pending_review":
-        raise HTTPException(status_code=409, detail="Demande déjà traitée ou paiement non confirmé")
+    if promo["status"] != "requested":
+        raise HTTPException(status_code=409, detail="Demande déjà traitée")
     now = datetime.now(timezone.utc)
-    ends = now + timedelta(days=promo["days"])
     await db.promotions.update_one(
         {"promo_id": promo_id},
-        {"$set": {"status": "active", "starts_at": now, "ends_at": ends,
+        {"$set": {"status": "approved_awaiting_payment",
                   "reviewed_at": now, "reviewed_by": admin["user_id"]}},
     )
-    await _update_owned_club(promo["club_id"], {"$set": {"promoted": True, "promoted_until": ends}})
     await db.notifications.insert_one({
         "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
         "user_id": promo["user_id"],
-        "title": "Mise en avant activée ⭐",
-        "body": f"{promo.get('club_name')} est maintenant à la une pendant {promo['days']} jours !",
+        "title": "Mise en avant validée ✅",
+        "body": f"Ta demande pour {promo.get('club_name')} est validée ! "
+                f"Procède au paiement ({promo['amount']:.2f}€) dans l'app pour l'activer.",
         "type": "promotion_approved",
         "data": {"club_id": promo["club_id"], "promo_id": promo_id},
         "created_at": now,
@@ -4674,7 +4865,7 @@ async def admin_approve_promotion(promo_id: str, admin: dict = Depends(require_a
         "admin_id": admin["user_id"], "action": "approve_promotion",
         "details": {"promo_id": promo_id, "club_id": promo["club_id"]}, "at": now,
     })
-    return {"ok": True, "ends_at": ends}
+    return {"ok": True}
 
 
 class RejectPromoBody(BaseModel):
@@ -4683,41 +4874,14 @@ class RejectPromoBody(BaseModel):
 
 @api_router.post("/admin/promotions/{promo_id}/reject")
 async def admin_reject_promotion(promo_id: str, body: RejectPromoBody, admin: dict = Depends(require_admin)):
+    """Refuse la demande AVANT paiement — aucun remboursement à gérer."""
     promo = await db.promotions.find_one({"promo_id": promo_id})
     if not promo:
         raise HTTPException(status_code=404, detail="Demande introuvable")
-    if promo["status"] not in ("pending_review", "awaiting_payment"):
+    if promo["status"] not in ("requested", "approved_awaiting_payment"):
         raise HTTPException(status_code=409, detail="Demande déjà traitée")
     now = datetime.now(timezone.utc)
     reason = body.reason.strip() or "Demande non conforme"
-
-    # Automatic FULL refund if the payment went through
-    refund_status = "not_needed"
-    if promo.get("payment_status") == "paid":
-        try:
-            pi = promo.get("payment_intent")
-            if not pi:
-                sess = await _stripe_call(stripe_sdk.checkout.Session.retrieve, promo["session_id"])
-                pi = sess["payment_intent"]
-            if not pi:
-                raise RuntimeError("PaymentIntent introuvable")
-            refund = await _stripe_call(
-                stripe_sdk.Refund.create,
-                payment_intent=pi,
-                metadata={"promo_id": promo_id, "reason": "promotion_rejected"},
-            )
-            refund_status = "refunded"
-            await db.promotions.update_one(
-                {"promo_id": promo_id},
-                {"$set": {"payment_status": "refunded", "refund_id": refund["id"]}},
-            )
-        except Exception as e:  # noqa: BLE001
-            logging.error("Refund failed for %s: %s", promo_id, e)
-            refund_status = "refund_failed"
-            await db.promotions.update_one(
-                {"promo_id": promo_id}, {"$set": {"payment_status": "refund_failed"}}
-            )
-
     await db.promotions.update_one(
         {"promo_id": promo_id},
         {"$set": {"status": "rejected", "rejection_reason": reason,
@@ -4727,17 +4891,16 @@ async def admin_reject_promotion(promo_id: str, body: RejectPromoBody, admin: di
         "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
         "user_id": promo["user_id"],
         "title": "Mise en avant refusée",
-        "body": f"Ta demande pour {promo.get('club_name')} a été refusée : {reason}."
-                + (" Tu as été intégralement remboursé." if refund_status == "refunded" else ""),
+        "body": f"Ta demande pour {promo.get('club_name')} a été refusée : {reason}. Aucun paiement n'a été effectué.",
         "type": "promotion_rejected",
         "data": {"club_id": promo["club_id"], "promo_id": promo_id},
         "created_at": now,
     })
     await db.admin_actions.insert_one({
         "admin_id": admin["user_id"], "action": "reject_promotion",
-        "details": {"promo_id": promo_id, "reason": reason, "refund": refund_status}, "at": now,
+        "details": {"promo_id": promo_id, "reason": reason}, "at": now,
     })
-    return {"ok": True, "refund": refund_status}
+    return {"ok": True}
 
 
 # -------------- Phase 5 — Tableau de bord propriétaire -------------- #
@@ -4866,7 +5029,7 @@ async def owner_stats(user: dict = Depends(get_current_user)):
 async def admin_overview(_admin: dict = Depends(require_admin)):
     await _expire_promotions()
     pending_claims = await db.bar_claims.count_documents({"status": "pending"})
-    pending_promotions = await db.promotions.count_documents({"status": "pending_review"})
+    pending_promotions = await db.promotions.count_documents({"status": "requested"})
     active_promotions = await db.promotions.count_documents({"status": "active"})
     verified_places = await db.places.count_documents({"verified": True})
     verified_clubs = await db.clubs.count_documents({"verified": True})
@@ -4886,7 +5049,7 @@ async def admin_revoke_verified(club_id: str, admin: dict = Depends(require_admi
         raise HTTPException(status_code=404, detail="Établissement introuvable")
     now = datetime.now(timezone.utc)
     owner = await db.users.find_one({"owned_club_id": club_id}, {"_id": 0, "user_id": 1})
-    await _update_owned_club(club_id, {"$unset": {"verified": "", "owner_user_id": "", "verified_at": "", "promoted": "", "promoted_until": ""}})
+    await _update_owned_club(club_id, {"$unset": {"verified": "", "owner_user_id": "", "verified_at": "", "promoted": "", "promoted_until": "", "partner_code": ""}})
     if owner:
         await db.users.update_one(
             {"user_id": owner["user_id"]}, {"$unset": {"is_bar_owner": "", "owned_club_id": ""}}

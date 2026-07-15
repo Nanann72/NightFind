@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as Clipboard from 'expo-clipboard';
 import { api, Club, MenuItem, NFEvent } from '../lib/api';
 import { MUSIC_GENRES } from '../lib/musicGenres';
 import { radius, spacing, type ThemeColors } from '../lib/theme';
@@ -45,6 +46,8 @@ export default function OwnerDashboard() {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [newItem, setNewItem] = useState({ name: '', price: '', category: '' });
   const [events, setEvents] = useState<NFEvent[]>([]);
+  const [partner, setPartner] = useState<any>(null);
+  const [redeemCode, setRedeemCode] = useState('');
 
   // Event modal
   const [evtModal, setEvtModal] = useState(false);
@@ -71,6 +74,7 @@ export default function OwnerDashboard() {
       setHours(h);
       const full = await api.getClub(c.club_id);
       setEvents(full.events || []);
+      api.ownerPartner().then(setPartner).catch(() => {});
     } catch (e: any) {
       if (e?.status === 403) {
         Alert.alert('Accès réservé', 'Cette page est réservée aux propriétaires de bars vérifiés.');
@@ -192,8 +196,23 @@ export default function OwnerDashboard() {
     ]);
   };
 
-  const StatCard = ({ icon, value, label }: { icon: any; value: number; label: string }) => (
-    <View style={styles.statCard}>
+  const redeemGuestCoupon = async () => {
+    const code = redeemCode.trim();
+    if (!code) return;
+    setSaving('redeem');
+    try {
+      const r = await api.ownerRedeemCoupon(code);
+      setRedeemCode('');
+      Alert.alert('✅ Coupon valide', `Applique -${r.discount_pct}% à l'addition de ton invité.`);
+      api.ownerPartner().then(setPartner).catch(() => {});
+    } catch (e: any) {
+      Alert.alert('Coupon refusé', e?.message || 'Coupon invalide');
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const StatCard = ({ icon, value, label }: { icon: any; value: number; label: string }) => (    <View style={styles.statCard}>
       <Ionicons name={icon} size={18} color={colors.primary} />
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
@@ -254,6 +273,57 @@ export default function OwnerDashboard() {
               <StatCard icon="location-outline" value={stats?.checkins ?? 0} label="Check-ins" />
               <StatCard icon="musical-notes-outline" value={stats?.songs ?? 0} label="Musiques" />
             </View>
+
+            {/* Code -10% invités */}
+            {partner && (
+              <>
+                <Text style={styles.sectionTitle}>Mon code -10% invités 🎟️</Text>
+                <View style={styles.partnerCard}>
+                  <Image source={{ uri: partner.qr_url }} style={styles.qrImage} />
+                  <Text style={styles.partnerCode} testID="owner-partner-code">{partner.partner_code}</Text>
+                  <Text style={styles.partnerHint}>
+                    {"Affiche ce QR code dans ton bar : toute personne qui s'inscrit avec reçoit un coupon -10% chez toi."}
+                  </Text>
+                  <View style={styles.partnerStatsRow}>
+                    <Text style={styles.partnerStat}>{partner.stats?.issued ?? 0} coupons émis</Text>
+                    <Text style={styles.partnerStat}>{partner.stats?.used ?? 0} utilisés</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.copyBtn}
+                    onPress={async () => {
+                      await Clipboard.setStringAsync(partner.landing_url);
+                      Alert.alert('Copié !', 'Lien de parrainage copié dans le presse-papier.');
+                    }}
+                    testID="owner-copy-link"
+                  >
+                    <Ionicons name="copy-outline" size={15} color={colors.primary} />
+                    <Text style={styles.copyText}>Copier le lien de parrainage</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.subLabel}>{"Valider le coupon d'un invité"}</Text>
+                <View style={styles.addItemRow}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                    placeholder="Code coupon (ex : NF-AB12CD)"
+                    placeholderTextColor={colors.textTertiary}
+                    value={redeemCode}
+                    onChangeText={setRedeemCode}
+                    autoCapitalize="characters"
+                    testID="owner-redeem-input"
+                  />
+                  <TouchableOpacity
+                    style={[styles.addBtn, saving === 'redeem' && { opacity: 0.6 }]}
+                    onPress={redeemGuestCoupon}
+                    disabled={!!saving}
+                    testID="owner-redeem-btn"
+                  >
+                    {saving === 'redeem' ? <ActivityIndicator color="#fff" size="small" /> : (
+                      <Ionicons name="checkmark" size={20} color="#fff" />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
 
             {/* Infos */}
             <Text style={styles.sectionTitle}>Informations</Text>
@@ -525,6 +595,18 @@ const makeStyles = (colors: ThemeColors) =>
     },
     statValue: { color: colors.textPrimary, fontSize: 18, fontWeight: '900' },
     statLabel: { color: colors.textTertiary, fontSize: 10.5, fontWeight: '600' },
+    partnerCard: {
+      backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.lg,
+      alignItems: 'center', gap: 8, borderWidth: 1, borderColor: colors.border,
+      marginBottom: spacing.sm,
+    },
+    qrImage: { width: 170, height: 170, borderRadius: radius.md, backgroundColor: '#fff' },
+    partnerCode: { color: colors.primary, fontSize: 22, fontWeight: '900', letterSpacing: 4 },
+    partnerHint: { color: colors.textSecondary, fontSize: 12.5, textAlign: 'center', lineHeight: 18 },
+    partnerStatsRow: { flexDirection: 'row', gap: spacing.lg },
+    partnerStat: { color: colors.textTertiary, fontSize: 12, fontWeight: '700' },
+    copyBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 6 },
+    copyText: { color: colors.primary, fontSize: 13, fontWeight: '700' },
     input: {
       backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1,
       borderColor: colors.border, color: colors.textPrimary, fontSize: 14.5,

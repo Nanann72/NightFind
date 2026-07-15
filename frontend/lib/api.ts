@@ -18,6 +18,34 @@ export type Club = {
   distance_km?: number | null;
   events?: NFEvent[];
   verified?: boolean;
+  promoted?: boolean;
+  menu?: MenuItem[];
+};
+
+export type MenuItem = {
+  name: string;
+  price: number;
+  category?: string;
+};
+
+export type Promotion = {
+  promo_id: string;
+  user_id: string;
+  club_id: string;
+  club_name?: string | null;
+  club_photo?: string | null;
+  plan: '7d' | '30d';
+  plan_label: string;
+  days: number;
+  amount: number;
+  currency: string;
+  product_id: string;
+  status: 'requested' | 'approved_awaiting_payment' | 'active' | 'rejected' | 'expired';
+  rejection_reason?: string | null;
+  created_at: string;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  paid_at?: string | null;
 };
 
 export type BarClaim = {
@@ -38,6 +66,13 @@ export type BarClaim = {
   reviewed_at?: string | null;
   id_document?: string;
   kbis_document?: string;
+  ai_verdict?: {
+    approve: boolean | null;
+    confidence: number;
+    notes: string;
+    checks?: Record<string, boolean>;
+    fail_open?: boolean;
+  } | null;
 };
 
 export type NFEvent = {
@@ -556,18 +591,20 @@ export const api = {
       body: JSON.stringify({ reason }),
     }),
 
-  // Promotions payantes — Phase 3
-  createPromoCheckout: (plan: '7d' | '30d', originUrl: string) =>
-    request<{ url: string; session_id: string; promo_id: string }>('/owner/promotions/checkout', {
+  // Promotions payantes — Phase 3 (RevenueCat : validation admin PUIS paiement in-app)
+  requestPromotion: (plan: '7d' | '30d') =>
+    request<{ ok: boolean; promo: Promotion }>('/owner/promotions/request', {
       method: 'POST',
-      body: JSON.stringify({ plan, origin_url: originUrl }),
+      body: JSON.stringify({ plan }),
     }),
   myPromotions: () =>
-    request<{ promotions: Promotion[]; plans: Record<string, { amount: number; days: number; label: string }> }>(
+    request<{ promotions: Promotion[]; plans: Record<string, { amount: number; days: number; label: string; product_id: string }> }>(
       '/owner/promotions',
     ),
-  promoStatus: (sessionId: string) =>
-    request<Promotion>(`/owner/promotions/status/${sessionId}`),
+  confirmPromoPurchase: (promoId: string) =>
+    request<{ ok: boolean; status: string; ends_at?: string }>(`/owner/promotions/${promoId}/confirm-purchase`, {
+      method: 'POST',
+    }),
   featuredPromotions: () => request<{ clubs: Club[] }>('/promotions/featured'),
   adminListPromotions: (status?: string) =>
     request<{ promotions: Promotion[]; pending_count: number }>(
@@ -614,6 +651,19 @@ export const api = {
       songs: number;
       active_promotion?: { ends_at: string; plan_label: string } | null;
     }>('/owner/stats'),
+  ownerPartner: () =>
+    request<{
+      partner_code: string;
+      qr_url: string;
+      landing_url: string;
+      discount_pct: number;
+      stats: { issued: number; used: number };
+    }>('/owner/partner'),
+  ownerRedeemCoupon: (code: string) =>
+    request<{ ok: boolean; discount_pct: number }>('/owner/coupons/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
 
   // Admin — Phase 4
   adminOverview: () =>

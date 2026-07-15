@@ -10,6 +10,7 @@ import { api, ActiveFriend, NearbyUser } from '../lib/api';
 import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
 import { useAuth } from '../lib/auth';
+import { LocationRequired } from './LocationRequired';
 
 const DARK_MAP_STYLE = [
   { elementType: 'geometry', stylers: [{ color: '#0f0f12' }] },

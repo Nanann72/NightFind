@@ -236,6 +236,49 @@ export default function AdminClaims() {
                 ))}
               </View>
 
+              {/* Verdict du robot IA */}
+              {detail.ai_verdict && (
+                <>
+                  <Text style={styles.sectionTitle}>🤖 Vérification automatique</Text>
+                  <View style={styles.infoCard} testID="ai-verdict">
+                    <View style={styles.infoRow}>
+                      <Ionicons
+                        name={detail.ai_verdict.approve === true ? 'checkmark-circle'
+                          : detail.ai_verdict.approve === false ? 'close-circle' : 'help-circle'}
+                        size={16}
+                        color={detail.ai_verdict.approve === true ? '#22C55E'
+                          : detail.ai_verdict.approve === false ? '#EF4444' : '#F59E0B'}
+                      />
+                      <Text style={styles.infoText}>
+                        {detail.ai_verdict.approve === true
+                          ? `Approuvé par le robot (confiance ${Math.round((detail.ai_verdict.confidence || 0) * 100)}%)`
+                          : detail.ai_verdict.approve === false
+                            ? `Refus recommandé (confiance ${Math.round((detail.ai_verdict.confidence || 0) * 100)}%)`
+                            : 'Verdict incertain — examen manuel requis'}
+                      </Text>
+                    </View>
+                    {detail.ai_verdict.checks && Object.entries(detail.ai_verdict.checks).map(([k, v]) => (
+                      <View key={k} style={styles.infoRow}>
+                        <Ionicons name={v ? 'checkmark' : 'close'} size={14} color={v ? '#22C55E' : '#EF4444'} />
+                        <Text style={[styles.infoText, { fontSize: 12.5 }]}>
+                          {{
+                            id_valid: "Pièce d'identité lisible",
+                            id_name_matches: 'Nom conforme à la pièce',
+                            kbis_valid: 'Kbis valide',
+                            kbis_establishment_matches: 'Établissement sur le Kbis',
+                          }[k] || k}
+                        </Text>
+                      </View>
+                    ))}
+                    {!!detail.ai_verdict.notes && (
+                      <Text style={[styles.infoText, { fontSize: 12.5, color: colors.textSecondary }]}>
+                        {detail.ai_verdict.notes}
+                      </Text>
+                    )}
+                  </View>
+                </>
+              )}
+
               <Text style={styles.sectionTitle}>Documents</Text>
               {detailLoading ? (
                 <ActivityIndicator color={colors.primary} style={{ marginVertical: 30 }} />

@@ -127,7 +127,7 @@ export default function ClaimBar() {
       });
       Alert.alert(
         '✅ Demande envoyée',
-        'Ta demande de revendication a été transmise. Tu recevras une notification dès qu\'elle sera traitée.',
+        "Tu vas recevoir un email de confirmation. Notre robot vérifie tes documents en quelques minutes — si tout est bon, ton bar sera Vérifié automatiquement (24h max si examen manuel).",
       );
       setShowForm(false);
       setClub(null); setOwnerName(''); setEmail(''); setPhone('');
@@ -232,8 +232,7 @@ export default function ClaimBar() {
                   <Ionicons name="business" size={26} color={colors.primary} />
                   <Text style={styles.introTitle}>Vous êtes propriétaire ou gérant ?</Text>
                   <Text style={styles.introText}>
-                    Revendique ton établissement pour obtenir le badge Vérifié et accéder
-                    aux fonctionnalités professionnelles. Un admin validera ta demande.
+                    {"Revendique ton établissement pour obtenir le badge Vérifié, ton code -10% invités avec QR code, et les fonctionnalités professionnelles. Validation automatique en quelques minutes (24h max si examen manuel)."}
                   </Text>
                 </View>
 

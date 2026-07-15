@@ -129,3 +129,79 @@ async def send_password_reset(
     if mode == "otp":
         return await send_password_reset_otp(email, code_or_token, minutes)
     return await send_password_reset_link(email, code_or_token, minutes)
+
+
+# -------------------- Bar claims (Bar Vérifié) -------------------- #
+
+
+async def send_claim_received(email: str, owner_name: str, club_name: str) -> bool:
+    """Email 1 — demande de revendication reçue."""
+    html = _wrap_email(f"""
+      <h1 class="title">Demande bien reçue ✅</h1>
+      <p class="sub">Bonjour {owner_name},<br/><br/>
+      Nous avons bien reçu ta demande de revendication pour <strong style="color:#fff;">{club_name}</strong>.</p>
+      <p class="sub"><strong style="color:#fff;">Documents reçus :</strong><br/>
+      • Pièce d'identité ✅<br/>
+      • Extrait Kbis ✅</p>
+      <p class="sub"><strong style="color:#fff;">Délai de validation :</strong><br/>
+      Notre robot de vérification analyse tes documents <strong style="color:#fff;">en quelques minutes</strong>.
+      Si un examen manuel est nécessaire, la validation prend au maximum <strong style="color:#fff;">24&nbsp;heures</strong>.</p>
+      <p class="sub" style="margin:0;">Tu recevras un email dès que ton établissement sera vérifié, avec ton code -10% et ton QR code à afficher dans ton bar. 🎉</p>
+    """)
+    return await _send_async({
+        "from": FROM_ADDRESS,
+        "to": [email],
+        "subject": f"Night Finder — Demande reçue pour {club_name}",
+        "html": html,
+    })
+
+
+async def send_claim_approved(
+    email: str,
+    owner_name: str,
+    club_name: str,
+    partner_code: str,
+    qr_url: str,
+    landing_url: str,
+) -> bool:
+    """Email 2 — établissement vérifié + code -10% + QR code."""
+    html = _wrap_email(f"""
+      <h1 class="title">🎉 {club_name} est Vérifié !</h1>
+      <p class="sub">Félicitations {owner_name}, ta demande a été approuvée.
+      Ton établissement porte désormais le badge <strong style="color:#1D9BF0;">Vérifié ✓</strong>
+      et tu as accès au tableau de bord propriétaire dans l'app (Réglages → Mon établissement).</p>
+      <p class="sub"><strong style="color:#fff;">Ton code -10% pour tes invités :</strong></p>
+      <div class="otp" style="letter-spacing:6px;">{partner_code}</div>
+      <p class="sub">Toute personne qui s'inscrit sur Night Finder avec ce code (ou en scannant ton QR code)
+      reçoit un coupon <strong style="color:#fff;">-10%</strong> à utiliser dans ton bar.
+      Tu valides les coupons depuis ton tableau de bord.</p>
+      <p style="text-align:center; margin:0 0 24px;">
+        <img src="{qr_url}" alt="QR code -10%" width="220" height="220" style="border-radius:16px; background:#fff; padding:12px;"/>
+      </p>
+      <p style="text-align:center; margin:0 0 24px;"><a href="{qr_url}" class="btn">Télécharger mon QR code</a></p>
+      <p class="sub" style="font-size:12px; word-break:break-all;">Lien de parrainage à partager&nbsp;:<br/><span style="color:#8A8A9E;">{landing_url}</span></p>
+    """)
+    return await _send_async({
+        "from": FROM_ADDRESS,
+        "to": [email],
+        "subject": f"Night Finder — {club_name} est Vérifié ✓ (ton code -10% inclus)",
+        "html": html,
+    })
+
+
+async def send_claim_rejected(email: str, owner_name: str, club_name: str, reason: str) -> bool:
+    """Email 3 — demande refusée avec motif."""
+    html = _wrap_email(f"""
+      <h1 class="title">Demande non validée</h1>
+      <p class="sub">Bonjour {owner_name},<br/><br/>
+      Ta demande de revendication pour <strong style="color:#fff;">{club_name}</strong> n'a pas pu être validée.</p>
+      <p class="sub"><strong style="color:#fff;">Motif :</strong> {reason}</p>
+      <p class="sub" style="margin:0;">Tu peux soumettre une nouvelle demande depuis l'app
+      (Réglages → Revendiquer mon établissement) avec des documents corrigés.</p>
+    """)
+    return await _send_async({
+        "from": FROM_ADDRESS,
+        "to": [email],
+        "subject": f"Night Finder — Demande pour {club_name} non validée",
+        "html": html,
+    })

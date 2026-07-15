@@ -1,6 +1,7 @@
 /**
  * Mettre en avant mon bar (Phase 3) — propriétaire vérifié.
- * Choix de formule → paiement Stripe (CB / Apple Pay) → validation admin.
+ * Flux RevenueCat : demande GRATUITE → validation admin (24h max) →
+ * paiement par achat intégré Apple → activation immédiate.
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
@@ -10,23 +11,21 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as WebBrowser from 'expo-web-browser';
 import { api, Promotion } from '../lib/api';
+import { purchasePromoProduct } from '../lib/purchases';
 import { radius, spacing, type ThemeColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
 
-const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-
 const PLANS = [
-  { key: '7d' as const, price: '19,99 €', days: 7, label: '7 jours', desc: 'Idéal pour un événement ou un week-end' },
-  { key: '30d' as const, price: '49,99 €', days: 30, label: '30 jours', desc: 'Visibilité maximale tout le mois' },
+  { key: '7d' as const, price: '19,99 €', label: '7 jours', desc: 'Idéal pour un événement ou un week-end' },
+  { key: '30d' as const, price: '49,99 €', label: '30 jours', desc: 'Visibilité maximale tout le mois' },
 ];
 
 const STATUS_META: Record<string, { label: string; icon: any; color: string }> = {
-  awaiting_payment: { label: 'Paiement en attente', icon: 'card-outline', color: '#F59E0B' },
-  pending_review: { label: 'Payé — en attente de validation', icon: 'hourglass-outline', color: '#F59E0B' },
+  requested: { label: 'En attente de validation (24h max)', icon: 'hourglass-outline', color: '#F59E0B' },
+  approved_awaiting_payment: { label: 'Validée — paiement requis', icon: 'card-outline', color: '#22C55E' },
   active: { label: 'Active ⭐', icon: 'star', color: '#22C55E' },
-  rejected: { label: 'Refusée (remboursé)', icon: 'close-circle', color: '#EF4444' },
+  rejected: { label: 'Refusée (aucun paiement effectué)', icon: 'close-circle', color: '#EF4444' },
   expired: { label: 'Terminée', icon: 'time-outline', color: '#71717A' },
 };
 
@@ -57,24 +56,43 @@ export default function PromoteBar() {
 
   useEffect(() => { load(); }, [load]);
 
-  const hasOngoing = promos.some((p) => p.status === 'pending_review' || p.status === 'active');
+  const hasOngoing = promos.some((p) =>
+    ['requested', 'approved_awaiting_payment', 'active'].includes(p.status));
 
-  const pay = async (plan: '7d' | '30d') => {
+  const requestPromo = async (plan: '7d' | '30d') => {
     setBusy(plan);
     try {
-      const origin = Platform.OS === 'web' && typeof window !== 'undefined'
-        ? window.location.origin
-        : BASE_URL;
-      const r = await api.createPromoCheckout(plan, origin);
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        window.location.href = r.url;
-      } else {
-        await WebBrowser.openBrowserAsync(r.url);
-        // Back from the browser → verify the payment
-        router.push({ pathname: '/promotion-status', params: { session_id: r.session_id } } as any);
-      }
+      await api.requestPromotion(plan);
+      Alert.alert(
+        '✅ Demande envoyée',
+        "Notre équipe valide ta demande sous 24h. Tu paieras ensuite par achat intégré Apple — aucun paiement tant que ce n'est pas validé.",
+      );
+      load();
     } catch (e: any) {
-      Alert.alert('Erreur', e?.message || 'Paiement indisponible');
+      Alert.alert('Erreur', e?.message || 'Demande impossible');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const pay = async (p: Promotion) => {
+    if (Platform.OS === 'web') {
+      Alert.alert(
+        'Paiement sur iPhone',
+        "Le paiement se fait par achat intégré Apple : ouvre Night Finder sur ton iPhone pour finaliser.",
+      );
+      return;
+    }
+    setBusy(p.promo_id);
+    try {
+      await purchasePromoProduct(p.product_id);
+      await api.confirmPromoPurchase(p.promo_id);
+      Alert.alert('🎉 Mise en avant activée !', `${p.club_name} est à la une pendant ${p.days} jours.`);
+      load();
+    } catch (e: any) {
+      if (!e?.userCancelled) {
+        Alert.alert('Paiement impossible', e?.message || 'Réessaie dans un instant.');
+      }
     } finally {
       setBusy(null);
     }
@@ -105,7 +123,7 @@ export default function PromoteBar() {
             <Ionicons name="rocket" size={26} color="#F59E0B" />
             <Text style={styles.introTitle}>Booste la visibilité de ton bar</Text>
             <Text style={styles.introText}>
-              {"Ton établissement apparaît en priorité dans les listes, dans la section « À la une ⭐ » de l'accueil, avec un badge Sponsorisé. Après paiement, notre équipe valide ta demande sous 24h. En cas de refus, tu es intégralement remboursé."}
+              {"Ton établissement apparaît en priorité dans les listes, dans la section « À la une ⭐ » de l'accueil, avec un badge Sponsorisé.\n\n1. Tu envoies ta demande (gratuit)\n2. Notre équipe valide sous 24h\n3. Tu payes par achat intégré Apple\n4. Activation immédiate ⚡"}
             </Text>
           </View>
 
@@ -116,7 +134,7 @@ export default function PromoteBar() {
                 <TouchableOpacity
                   key={p.key}
                   style={styles.planCard}
-                  onPress={() => pay(p.key)}
+                  onPress={() => requestPromo(p.key)}
                   disabled={!!busy}
                   activeOpacity={0.85}
                   testID={`plan-${p.key}`}
@@ -132,8 +150,8 @@ export default function PromoteBar() {
                       <>
                         <Text style={styles.planPrice}>{p.price}</Text>
                         <View style={styles.payBtn}>
-                          <Ionicons name="card" size={14} color="#fff" />
-                          <Text style={styles.payText}>Payer</Text>
+                          <Ionicons name="paper-plane" size={13} color="#fff" />
+                          <Text style={styles.payText}>Demander</Text>
                         </View>
                       </>
                     )}
@@ -141,8 +159,8 @@ export default function PromoteBar() {
                 </TouchableOpacity>
               ))}
               <Text style={styles.secureNote}>
-                <Ionicons name="lock-closed" size={11} color={colors.textTertiary} /> Paiement sécurisé
-                par Stripe — carte bancaire et Apple Pay acceptés.
+                <Ionicons name="lock-closed" size={11} color={colors.textTertiary} />
+                {" Demande gratuite — le paiement (achat intégré Apple) n'intervient qu'après validation."}
               </Text>
             </>
           )}
@@ -151,7 +169,7 @@ export default function PromoteBar() {
             <>
               <Text style={styles.sectionTitle}>Mes mises en avant</Text>
               {promos.map((p) => {
-                const meta = STATUS_META[p.status] || STATUS_META.awaiting_payment;
+                const meta = STATUS_META[p.status] || STATUS_META.requested;
                 return (
                   <View key={p.promo_id} style={styles.promoCard} testID={`promo-${p.status}`}>
                     <View style={{ flex: 1 }}>
@@ -166,16 +184,24 @@ export default function PromoteBar() {
                       {p.status === 'rejected' && !!p.rejection_reason && (
                         <Text style={styles.promoSub}>Motif : {p.rejection_reason}</Text>
                       )}
+                      {p.status === 'approved_awaiting_payment' && (
+                        <TouchableOpacity
+                          style={[styles.bigPayBtn, busy === p.promo_id && { opacity: 0.6 }]}
+                          onPress={() => pay(p)}
+                          disabled={!!busy}
+                          testID={`pay-${p.promo_id}`}
+                        >
+                          {busy === p.promo_id ? <ActivityIndicator color="#fff" /> : (
+                            <>
+                              <Ionicons name="logo-apple" size={16} color="#fff" />
+                              <Text style={styles.bigPayText}>
+                                Payer {p.amount.toFixed(2).replace('.', ',')} € et activer
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
                     </View>
-                    {p.status === 'awaiting_payment' && (
-                      <TouchableOpacity
-                        onPress={() => router.push({ pathname: '/promotion-status', params: { session_id: p.session_id } } as any)}
-                        style={styles.checkBtn}
-                        testID={`check-${p.promo_id}`}
-                      >
-                        <Text style={styles.checkText}>Vérifier</Text>
-                      </TouchableOpacity>
-                    )}
                   </View>
                 );
               })}
@@ -234,9 +260,10 @@ const makeStyles = (colors: ThemeColors) =>
     statusRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
     statusText: { fontSize: 12.5, fontWeight: '700' },
     promoSub: { color: colors.textTertiary, fontSize: 12, marginTop: 3 },
-    checkBtn: {
-      backgroundColor: colors.primary, borderRadius: 999,
-      paddingHorizontal: 14, paddingVertical: 8,
+    bigPayBtn: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+      backgroundColor: '#000', borderRadius: 999, paddingVertical: 13,
+      marginTop: spacing.sm, borderWidth: 1, borderColor: colors.border,
     },
-    checkText: { color: '#fff', fontSize: 12.5, fontWeight: '800' },
+    bigPayText: { color: '#fff', fontSize: 14.5, fontWeight: '800' },
   });

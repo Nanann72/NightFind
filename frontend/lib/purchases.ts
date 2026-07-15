@@ -213,6 +213,27 @@ export async function getOfferings(): Promise<PremiumPackage[]> {
   ];
 }
 
+/**
+ * Achat d'un produit consommable "mise en avant de bar" (promo_bar_7d / promo_bar_30d).
+ * Déclenche la feuille de paiement native Apple. Nécessite un build natif
+ * (indisponible en Expo Go / web preview).
+ */
+export async function purchasePromoProduct(productId: string): Promise<boolean> {
+  plog('promoPurchase: start product=', productId, 'realMode=', realModeAvailable);
+  if (!realModeAvailable || !Purchases) {
+    throw new Error("Le paiement in-app nécessite l'application iOS (build natif).");
+  }
+  const products = await Purchases.getProducts([productId]);
+  plog('promoPurchase: getProducts →', products?.length || 0);
+  const product = products?.[0];
+  if (!product) {
+    throw new Error("Produit indisponible sur l'App Store. Réessaie dans un instant.");
+  }
+  await Purchases.purchaseStoreProduct(product);
+  plog('promoPurchase: SUCCESS', productId);
+  return true;
+}
+
 export async function purchasePackage(pkg: PremiumPackage): Promise<CustomerInfoLite> {
   plog('purchase: start product=', pkg.productId, 'pkg=', pkg.identifier,
     'realMode=', realModeAvailable, 'hasRawPackage=', !!pkg.rawPackage);

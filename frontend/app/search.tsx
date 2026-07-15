@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown, Layout } from 'react-native-reanimated';
 import { api, SearchUser } from '../lib/api';
+import { MUSIC_GENRES } from '../lib/musicGenres';
 import { radius, spacing, type ThemeColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
 
