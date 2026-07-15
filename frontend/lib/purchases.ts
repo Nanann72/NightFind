@@ -214,7 +214,7 @@ export async function getOfferings(): Promise<PremiumPackage[]> {
 }
 
 /**
- * Achat d'un produit consommable "mise en avant de bar" (promo_bar_7d / promo_bar_30d).
+ * Achat d'un produit consommable "mise en avant de bar" (promobar7d / promobar30d).
  * Déclenche la feuille de paiement native Apple. Nécessite un build natif
  * (indisponible en Expo Go / web preview).
  */

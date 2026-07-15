@@ -4649,8 +4649,8 @@ import asyncio as _asyncio
 
 # SECURITY: amounts are defined server-side only — never accepted from client.
 PROMO_PLANS = {
-    "7d": {"amount": 19.99, "days": 7, "label": "Mise en avant 7 jours", "product_id": "promo_bar_7d"},
-    "30d": {"amount": 49.99, "days": 30, "label": "Mise en avant 30 jours", "product_id": "promo_bar_30d"},
+    "7d": {"amount": 19.99, "days": 7, "label": "Mise en avant 7 jours", "product_id": "promobar7d"},
+    "30d": {"amount": 49.99, "days": 30, "label": "Mise en avant 30 jours", "product_id": "promobar30d"},
 }
 # RevenueCat product_id -> plan
 PROMO_PRODUCTS = {v["product_id"]: k for k, v in PROMO_PLANS.items()}
