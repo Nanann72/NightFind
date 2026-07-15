@@ -16,7 +16,7 @@ import httpx
 import jwt
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 import io
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
@@ -5073,6 +5073,17 @@ async def admin_revoke_verified(club_id: str, admin: dict = Depends(require_admi
         "details": {"club_id": club_id}, "at": now,
     })
     return {"ok": True}
+
+
+@api_router.get("/assets/iap/{name}")
+async def iap_screenshot(name: str):
+    """Captures App Store des achats intégrés (téléchargement pour App Store Connect)."""
+    if name not in ("promobar7d.png", "promobar30d.png"):
+        raise HTTPException(status_code=404, detail="Introuvable")
+    path = os.path.join(os.path.dirname(__file__), "iap_screens", name)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Fichier manquant")
+    return FileResponse(path, media_type="image/png", filename=name)
 
 
 app.include_router(legal_pages.router)
