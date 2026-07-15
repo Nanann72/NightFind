@@ -23,6 +23,10 @@
         "UIBackgroundModes": [
           "fetch",
           "remote-notification"
+        ],
+        "LSApplicationQueriesSchemes": [
+          "spotify",
+          "deezer"
         ]
       },
       "privacyManifests": {

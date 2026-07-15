@@ -705,6 +705,45 @@ async def list_clubs(
         except Exception as exc:  # noqa: BLE001
             logging.warning("Google Places fallback to seed: %s", exc)
 
+    # Also include ALL previously imported Google clubs stored in db.places.
+    # The live search caps at ~20 results per area — without this merge, most
+    # imported clubs would never show up in the app.
+    if lat is not None and lng is not None:
+        try:
+            existing_ids = {c.get("club_id") for c in items}
+            existing_names = {(c.get("name") or "").lower() for c in items}
+            stored = await db.places.find({}, {"_id": 0}).to_list(5000)
+            for c in stored:
+                if c.get("club_id") in existing_ids:
+                    continue
+                if (c.get("name") or "").lower() in existing_names:
+                    continue
+                if c.get("lat") is None or c.get("lng") is None:
+                    continue
+                if haversine_km(lat, lng, c["lat"], c["lng"]) > radius_km:
+                    continue
+                if music and music not in (c.get("music_styles") or []):
+                    continue
+                if max_price is not None and (c.get("avg_price") or 0) > max_price:
+                    continue
+                if vip and "vip" not in (c.get("features") or []):
+                    continue
+                if terrasse and "terrasse" not in (c.get("features") or []):
+                    continue
+                if search:
+                    s = search.lower()
+                    if s not in (c.get("name") or "").lower() and s not in (
+                        c.get("description") or ""
+                    ).lower():
+                        continue
+                c.pop("expires_at", None)
+                c.pop("updated_at", None)
+                existing_ids.add(c.get("club_id"))
+                existing_names.add((c.get("name") or "").lower())
+                items.append(c)
+        except Exception as exc:  # noqa: BLE001
+            logging.warning("Stored places merge failed: %s", exc)
+
     # Fall back to seed clubs if Google returned nothing OR source explicitly seed
     if not items or source == "seed":
         cursor = db.clubs.find(query, {"_id": 0})

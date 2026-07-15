@@ -161,3 +161,9 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - **Backend** : /api/profile/songs expose désormais spotify/deezer/apple_music (stockés à la reconnaissance Audd).
 - **my-songs.tsx** : 2 boutons ronds par morceau — Spotify (#1ED760, FontAwesome5 'spotify') et Deezer (violet, FontAwesome5 'deezer') → Linking.openURL vers le lien direct, fallback URL de recherche (open.spotify.com/search / deezer.com/search) si lien absent. Helper openStream. Tap ligne = déplacer (modal), long-press = supprimer (inchangés).
 - Vérifié : screenshot OK (stat Abonnés + boutons visibles), lint clean, backend serialization testée.
+
+## 🏙️ MAX CLUBS + DEEP LINKS STREAMING (juillet 2026)
+- **BUG CORRIGÉ — clubs invisibles** : /api/clubs ne renvoyait que les ~20 résultats de la recherche Google live + seeds, en ignorant db.places. Ajout d'un merge de TOUS les clubs stockés (db.places, dédup par club_id+nom, mêmes filtres music/prix/vip/terrasse/search, champs internes retirés). Paris r20 : 82 clubs, Lyon r15 : 123 clubs.
+- **Import massif** : seed_city_clubs.py étendu — 45 villes (40 FR + Ibiza, Barcelone, Bruxelles, Genève, St-Tropez, Deauville, Biarritz...) × grille 5 points (centre + 4 offsets 9km, rayon 7km) → **db.places : 480 → 3517 clubs**.
+- **Spotify/Deezer ouvrent l'APP** : openStream utilise les deep links (spotify:track:{id} / spotify:search:, deezer://www.deezer.com/track/{id} / /search/) avec canOpenURL + tentative directe, fallback site web si app absente. app.json : LSApplicationQueriesSchemes ["spotify","deezer"] ajouté (iOS). ⚠️ Deep links testables uniquement sur device réel avec les apps installées.
+- Tests : 207/207 backend PASS après modif list_clubs. Home vérifié (39+ cartes en web).

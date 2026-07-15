@@ -28,7 +28,7 @@ import { api } from '../lib/api';
 import { useLocation } from '../lib/useLocation';
 import { useClubs } from '../lib/clubs';
 import { scanOnce } from '../lib/audioRecognition';
-import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
+import { radius, spacing, type ThemeColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
 
 function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
@@ -185,15 +185,40 @@ export default function MySongs() {
     ]);
   };
 
-  /** Open the song on Spotify or Deezer — uses the direct link stored at
-   *  recognition time, falls back to a search URL so the tap always works. */
-  const openStream = (s: any, platform: 'spotify' | 'deezer') => {
-    const q = encodeURIComponent(`${s.artist || ''} ${s.title || ''}`.trim());
-    const url =
-      platform === 'spotify'
-        ? s.spotify || `https://open.spotify.com/search/${q}`
-        : s.deezer || `https://www.deezer.com/search/${q}`;
-    Linking.openURL(url).catch(() => {});
+  /** Open the song in the Spotify or Deezer APP (deep link) — falls back to
+   *  the website if the app isn't installed. Uses the direct track link
+   *  stored at recognition time, else a search query. */
+  const openStream = async (s: any, platform: 'spotify' | 'deezer') => {
+    const query = `${s.artist || ''} ${s.title || ''}`.trim();
+    const q = encodeURIComponent(query);
+    let appUrl: string;
+    let webUrl: string;
+    if (platform === 'spotify') {
+      webUrl = s.spotify || `https://open.spotify.com/search/${q}`;
+      const m = (s.spotify || '').match(/track\/([A-Za-z0-9]+)/);
+      appUrl = m ? `spotify:track:${m[1]}` : `spotify:search:${q}`;
+    } else {
+      webUrl = s.deezer || `https://www.deezer.com/search/${q}`;
+      const m = (s.deezer || '').match(/track\/(\d+)/);
+      appUrl = m
+        ? `deezer://www.deezer.com/track/${m[1]}`
+        : `deezer://www.deezer.com/search/${q}`;
+    }
+    if (Platform.OS !== 'web') {
+      try {
+        const canOpen = await Linking.canOpenURL(appUrl);
+        if (canOpen) {
+          await Linking.openURL(appUrl);
+          return;
+        }
+      } catch {}
+      // canOpenURL can be unreliable on Android — try the scheme anyway
+      try {
+        await Linking.openURL(appUrl);
+        return;
+      } catch {}
+    }
+    Linking.openURL(webUrl).catch(() => {});
   };
 
   const formatWhen = (iso?: string) => {
@@ -617,12 +642,6 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   emptyText: { color: colors.textSecondary, textAlign: 'center', marginTop: 8, lineHeight: 20 },
 });
 
-
-// Module-level fallback: sub-components that aren't theme-aware
-// keep rendering in dark mode until they're individually refactored to
-// use `useThemeColors()`.
-const colors = darkColors;
-const styles = makeStyles(darkColors);
 
 /** Fullscreen elegant overlay shown while the mic listens (Shazam-like). */
 function ScanningOverlay({ visible }: { visible: boolean }) {
