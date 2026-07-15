@@ -17,6 +17,27 @@ export type Club = {
   photos: string[];
   distance_km?: number | null;
   events?: NFEvent[];
+  verified?: boolean;
+};
+
+export type BarClaim = {
+  claim_id: string;
+  user_id: string;
+  user_email?: string;
+  club_id: string;
+  club_name?: string | null;
+  club_photo?: string | null;
+  club_address?: string | null;
+  owner_name: string;
+  email: string;
+  phone: string;
+  role: 'proprietaire' | 'gerant' | 'manager';
+  status: 'pending' | 'approved' | 'rejected';
+  rejection_reason?: string | null;
+  created_at: string;
+  reviewed_at?: string | null;
+  id_document?: string;
+  kbis_document?: string;
 };
 
 export type NFEvent = {
@@ -503,6 +524,35 @@ export const api = {
       body: JSON.stringify({ club_id, active, expires_days }),
     }),
   adminDisablePartnerBar: () => request<{ ok: boolean }>('/admin/partner-bar', { method: 'DELETE' }),
+
+  // Bar claims — Phase 2 (Bar Vérifié)
+  submitBarClaim: (payload: {
+    club_id: string;
+    owner_name: string;
+    email: string;
+    phone: string;
+    role: string;
+    id_document: string;
+    kbis_document: string;
+  }) =>
+    request<{ ok: boolean; claim: BarClaim }>('/bars/claim', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  myBarClaims: () => request<{ claims: BarClaim[] }>('/me/bar-claims'),
+  adminListBarClaims: (status?: 'pending' | 'approved' | 'rejected') =>
+    request<{ claims: BarClaim[]; pending_count: number }>(
+      `/admin/bar-claims${status ? `?status=${status}` : ''}`,
+    ),
+  adminBarClaimDetail: (claimId: string) =>
+    request<BarClaim>(`/admin/bar-claims/${claimId}`),
+  adminApproveBarClaim: (claimId: string) =>
+    request<{ ok: boolean }>(`/admin/bar-claims/${claimId}/approve`, { method: 'POST' }),
+  adminRejectBarClaim: (claimId: string, reason: string) =>
+    request<{ ok: boolean }>(`/admin/bar-claims/${claimId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
   adminRedeemCoupon: (code: string) =>
     request<{ ok: boolean }>('/admin/coupons/redeem', {
       method: 'POST',

@@ -610,6 +610,13 @@ export default function Settings() {
           })}
         </View>
 
+        {/* SECTION — Propriétaire d'établissement */}
+        <SectionHeader title="Vous êtes propriétaire ?" />
+        <View style={styles.group}>
+          {renderRow('business-outline', 'Revendiquer mon établissement', () =>
+            router.push('/claim-bar' as any), { testID: 'row-claim-bar' })}
+        </View>
+
         {/* SECTION — Admin (only visible for admin accounts) */}
         {user?.is_admin && (
           <>

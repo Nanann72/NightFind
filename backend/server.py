@@ -282,6 +282,8 @@ def public_user(user: dict) -> dict:
         "is_premium": bool(user.get("is_premium")),
         "premium_expires_at": user.get("premium_expires_at"),
         "is_admin": bool(user.get("is_admin")),
+        "is_bar_owner": bool(user.get("is_bar_owner")),
+        "owned_club_id": user.get("owned_club_id"),
     }
 
 
@@ -4201,6 +4203,193 @@ async def admin_redeem_coupon(body: RedeemBody, admin: dict = Depends(require_ad
         "at": now,
     })
     return {"ok": True, "coupon_id": coupon["coupon_id"]}
+
+
+# ============================================================
+# REVENDICATION DE BAR — Bar Vérifié (Phase 2)
+# ============================================================
+
+CLAIM_ROLES = {"proprietaire", "gerant", "manager"}
+
+
+class BarClaimBody(BaseModel):
+    club_id: str
+    owner_name: str
+    email: str
+    phone: str
+    role: str  # "proprietaire" | "gerant" | "manager"
+    id_document: str  # data URI base64 (pièce d'identité)
+    kbis_document: str  # data URI base64 (extrait Kbis)
+
+
+def _claim_public(claim: dict) -> dict:
+    """Claim sans les documents base64 (trop lourds pour les listes)."""
+    return {k: v for k, v in claim.items() if k not in ("_id", "id_document", "kbis_document")}
+
+
+@api_router.post("/bars/claim", status_code=201)
+async def submit_bar_claim(body: BarClaimBody, user: dict = Depends(get_current_user)):
+    role = body.role.strip().lower()
+    if role not in CLAIM_ROLES:
+        raise HTTPException(status_code=400, detail="Rôle invalide (propriétaire, gérant ou manager)")
+    if not body.owner_name.strip() or not body.email.strip() or not body.phone.strip():
+        raise HTTPException(status_code=400, detail="Tous les champs sont obligatoires")
+    if not body.id_document or not body.kbis_document:
+        raise HTTPException(status_code=400, detail="Pièce d'identité et extrait Kbis obligatoires")
+    club = await db.places.find_one(
+        {"club_id": body.club_id}, {"_id": 0, "name": 1, "photos": 1, "address": 1, "verified": 1}
+    )
+    if not club:
+        club = await db.clubs.find_one(
+            {"club_id": body.club_id}, {"_id": 0, "name": 1, "photos": 1, "address": 1, "verified": 1}
+        )
+    if not club:
+        raise HTTPException(status_code=404, detail="Établissement introuvable")
+    if club.get("verified"):
+        raise HTTPException(status_code=409, detail="Cet établissement est déjà vérifié")
+    existing = await db.bar_claims.find_one(
+        {"user_id": user["user_id"], "club_id": body.club_id, "status": "pending"}
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="Tu as déjà une demande en attente pour cet établissement")
+    now = datetime.now(timezone.utc)
+    claim = {
+        "claim_id": f"clm_{uuid.uuid4().hex[:12]}",
+        "user_id": user["user_id"],
+        "user_email": user["email"],
+        "club_id": body.club_id,
+        "club_name": club.get("name"),
+        "club_photo": (club.get("photos") or [None])[0],
+        "club_address": club.get("address"),
+        "owner_name": body.owner_name.strip(),
+        "email": body.email.strip(),
+        "phone": body.phone.strip(),
+        "role": role,
+        "id_document": body.id_document,
+        "kbis_document": body.kbis_document,
+        "status": "pending",  # pending | approved | rejected
+        "rejection_reason": None,
+        "created_at": now,
+        "reviewed_at": None,
+        "reviewed_by": None,
+    }
+    await db.bar_claims.insert_one({**claim})
+    return {"ok": True, "claim": _claim_public(claim)}
+
+
+@api_router.get("/me/bar-claims")
+async def my_bar_claims(user: dict = Depends(get_current_user)):
+    items = await db.bar_claims.find(
+        {"user_id": user["user_id"]},
+        {"_id": 0, "id_document": 0, "kbis_document": 0},
+    ).sort("created_at", -1).to_list(20)
+    return {"claims": items}
+
+
+@api_router.get("/admin/bar-claims")
+async def admin_list_bar_claims(status: Optional[str] = None, _admin: dict = Depends(require_admin)):
+    query: dict = {}
+    if status in ("pending", "approved", "rejected"):
+        query["status"] = status
+    items = await db.bar_claims.find(
+        query, {"_id": 0, "id_document": 0, "kbis_document": 0}
+    ).sort("created_at", -1).to_list(100)
+    pending = await db.bar_claims.count_documents({"status": "pending"})
+    return {"claims": items, "pending_count": pending}
+
+
+@api_router.get("/admin/bar-claims/{claim_id}")
+async def admin_bar_claim_detail(claim_id: str, _admin: dict = Depends(require_admin)):
+    claim = await db.bar_claims.find_one({"claim_id": claim_id}, {"_id": 0})
+    if not claim:
+        raise HTTPException(status_code=404, detail="Demande introuvable")
+    return claim
+
+
+@api_router.post("/admin/bar-claims/{claim_id}/approve")
+async def admin_approve_bar_claim(claim_id: str, admin: dict = Depends(require_admin)):
+    claim = await db.bar_claims.find_one({"claim_id": claim_id})
+    if not claim:
+        raise HTTPException(status_code=404, detail="Demande introuvable")
+    if claim["status"] != "pending":
+        raise HTTPException(status_code=409, detail="Demande déjà traitée")
+    now = datetime.now(timezone.utc)
+    await db.bar_claims.update_one(
+        {"claim_id": claim_id},
+        {"$set": {"status": "approved", "reviewed_at": now, "reviewed_by": admin["user_id"]}},
+    )
+    # Badge "Vérifié" + rattachement du propriétaire à l'établissement
+    club_update = {"$set": {"verified": True, "owner_user_id": claim["user_id"], "verified_at": now}}
+    await db.places.update_one({"club_id": claim["club_id"]}, club_update)
+    await db.clubs.update_one({"club_id": claim["club_id"]}, club_update)
+    # Statut propriétaire sur le user
+    await db.users.update_one(
+        {"user_id": claim["user_id"]},
+        {"$set": {"is_bar_owner": True, "owned_club_id": claim["club_id"]}},
+    )
+    # Rejeter automatiquement les autres demandes en attente pour ce club
+    await db.bar_claims.update_many(
+        {"club_id": claim["club_id"], "status": "pending", "claim_id": {"$ne": claim_id}},
+        {"$set": {
+            "status": "rejected",
+            "rejection_reason": "Un autre propriétaire a été validé pour cet établissement",
+            "reviewed_at": now,
+            "reviewed_by": admin["user_id"],
+        }},
+    )
+    await db.notifications.insert_one({
+        "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+        "user_id": claim["user_id"],
+        "title": "Établissement vérifié ✅",
+        "body": f"Ta demande pour {claim.get('club_name')} a été approuvée. Ton bar est maintenant Vérifié !",
+        "type": "bar_claim_approved",
+        "data": {"club_id": claim["club_id"], "claim_id": claim_id},
+        "created_at": now,
+    })
+    await db.admin_actions.insert_one({
+        "admin_id": admin["user_id"], "action": "approve_bar_claim",
+        "details": {"claim_id": claim_id, "club_id": claim["club_id"], "user_id": claim["user_id"]},
+        "at": now,
+    })
+    return {"ok": True}
+
+
+class RejectClaimBody(BaseModel):
+    reason: str = ""
+
+
+@api_router.post("/admin/bar-claims/{claim_id}/reject")
+async def admin_reject_bar_claim(
+    claim_id: str, body: RejectClaimBody, admin: dict = Depends(require_admin)
+):
+    claim = await db.bar_claims.find_one({"claim_id": claim_id})
+    if not claim:
+        raise HTTPException(status_code=404, detail="Demande introuvable")
+    if claim["status"] != "pending":
+        raise HTTPException(status_code=409, detail="Demande déjà traitée")
+    now = datetime.now(timezone.utc)
+    reason = body.reason.strip() or "Documents insuffisants ou invalides"
+    await db.bar_claims.update_one(
+        {"claim_id": claim_id},
+        {"$set": {"status": "rejected", "rejection_reason": reason,
+                  "reviewed_at": now, "reviewed_by": admin["user_id"]}},
+    )
+    await db.notifications.insert_one({
+        "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+        "user_id": claim["user_id"],
+        "title": "Demande refusée",
+        "body": f"Ta demande pour {claim.get('club_name')} a été refusée : {reason}",
+        "type": "bar_claim_rejected",
+        "data": {"club_id": claim["club_id"], "claim_id": claim_id},
+        "created_at": now,
+    })
+    await db.admin_actions.insert_one({
+        "admin_id": admin["user_id"], "action": "reject_bar_claim",
+        "details": {"claim_id": claim_id, "reason": reason},
+        "at": now,
+    })
+    return {"ok": True}
+
 
 
 app.include_router(legal_pages.router)

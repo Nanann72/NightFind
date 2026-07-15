@@ -167,7 +167,15 @@ export default function ClubDetail() {
                 </View>
               ))}
             </View>
-            <Text style={styles.title}>{club.name}</Text>
+            <View style={styles.titleRow}>
+              <Text style={[styles.title, { flexShrink: 1 }]}>{club.name}</Text>
+              {club.verified && (
+                <View style={styles.verifiedBadge}>
+                  <Ionicons name="checkmark-circle" size={14} color="#fff" />
+                  <Text style={styles.verifiedText}>Vérifié</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.address}>{club.address}</Text>
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
@@ -339,6 +347,13 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   chipText: { color: colors.textPrimary, fontSize: 11, fontWeight: '700' },
   title: { color: colors.textPrimary, fontSize: 32, fontWeight: '900', letterSpacing: -0.5 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  verifiedBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#1D9BF0', borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 4,
+  },
+  verifiedText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   address: { color: colors.textSecondary, marginTop: 4 },
   statsRow: { flexDirection: 'row', gap: 16, marginTop: 12 },
   statItem: { flexDirection: 'row', gap: 4, alignItems: 'center' },
