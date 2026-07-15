@@ -125,7 +125,9 @@ export default function MapImpl() {
             </View>
             <Callout tooltip onPress={() => router.push(`/club/${c.club_id}` as any)}>
               <View style={styles.callout}>
-                <Text style={styles.calloutTitle}>{c.name}</Text>
+                <Text style={styles.calloutTitle}>
+                  {c.name}{(c as any).verified ? ' ✓' : ''}
+                </Text>
                 <Text style={styles.calloutMeta}>
                   ⭐ {c.rating.toFixed(1)} · {c.avg_price.toFixed(0)}€
                 </Text>

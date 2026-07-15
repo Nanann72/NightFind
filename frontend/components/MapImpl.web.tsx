@@ -134,7 +134,10 @@ export default function MapImpl() {
             <Ionicons name="location" size={20} color={colors.primary} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.clubName}>{c.name}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={[styles.clubName, { flexShrink: 1 }]} numberOfLines={1}>{c.name}</Text>
+              {(c as any).verified && <Ionicons name="checkmark-circle" size={14} color="#1D9BF0" />}
+            </View>
             {c.address ? <Text style={styles.clubAddr} numberOfLines={1}>{c.address}</Text> : null}
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />

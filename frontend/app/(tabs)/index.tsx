@@ -444,7 +444,10 @@ function MiniClubCard({ club, onPress }: { club: Club; onPress: () => void }) {
         </View>
       )}
       <View style={styles.miniBody}>
-        <Text style={styles.miniName} numberOfLines={1}>{club.name}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Text style={[styles.miniName, { flexShrink: 1 }]} numberOfLines={1}>{club.name}</Text>
+          {club.verified && <Ionicons name="checkmark-circle" size={14} color="#1D9BF0" />}
+        </View>
         <Text style={styles.miniMeta} numberOfLines={1}>
           {club.distance_km != null ? `${club.distance_km.toFixed(1)} km · ` : ''}
           {club.music_styles?.[0] || ''}
@@ -462,7 +465,10 @@ function TrendCard({ club, onPress }: { club: Club; onPress: () => void }) {
       <SafeImage uri={club.photos?.[0]} style={styles.trendImage} />
       <View style={styles.trendOverlay} />
       <View style={styles.trendBody}>
-        <Text style={styles.trendName} numberOfLines={1}>{club.name}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Text style={[styles.trendName, { flexShrink: 1 }]} numberOfLines={1}>{club.name}</Text>
+          {club.verified && <Ionicons name="checkmark-circle" size={14} color="#1D9BF0" />}
+        </View>
         <View style={styles.trendMetaRow}>
           <Ionicons name="star" size={12} color={colors.secondary} />
           <Text style={styles.trendMeta}>{club.rating.toFixed(1)}</Text>
