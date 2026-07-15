@@ -700,9 +700,10 @@ async def list_clubs(
                     continue
                 if search:
                     s = search.lower()
-                    if s not in (c.get("name") or "").lower() and s not in (
-                        c.get("description") or ""
-                    ).lower():
+                    hay = " ".join([
+                        (c.get("name") or ""), (c.get("description") or ""), (c.get("address") or ""),
+                    ]).lower()
+                    if not all(w in hay for w in s.split()):
                         continue
                 items.append(c)
         except Exception as exc:  # noqa: BLE001
@@ -717,7 +718,7 @@ async def list_clubs(
         try:
             existing_ids = {c.get("club_id") for c in items}
             existing_names = {(c.get("name") or "").lower() for c in items}
-            stored = await db.places.find({}, {"_id": 0}).to_list(5000)
+            stored = await db.places.find({}, {"_id": 0}).to_list(20000)
             for c in stored:
                 if c.get("club_id") in existing_ids:
                     continue
@@ -738,9 +739,10 @@ async def list_clubs(
                     continue
                 if search:
                     s = search.lower()
-                    if s not in (c.get("name") or "").lower() and s not in (
-                        c.get("description") or ""
-                    ).lower():
+                    hay = " ".join([
+                        (c.get("name") or ""), (c.get("description") or ""), (c.get("address") or ""),
+                    ]).lower()
+                    if not all(w in hay for w in s.split()):
                         continue
                 c.pop("expires_at", None)
                 c.pop("updated_at", None)

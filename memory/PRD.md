@@ -225,3 +225,9 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 ### Fixes en passant
 - search.tsx : import MUSIC_GENRES manquant (crash écran recherche) ; MapImpl.native.tsx : import LocationRequired manquant (crash carte native si permission refusée).
 - Tests : backend curl complet PASS (robot IA auto-approve avec docs synthétiques PIL + auto-reject, webhook RC, coupons) + testing_agent iteration_31.json 11/11 PASS zéro bug. Données nettoyées, Club Rex restauré.
+
+## ✅ IMPORT MASSIF DE BARS/BOÎTES (juillet 2026)
+- `/app/backend/import_clubs_bulk.py` : import Google Places sur ~250 villes françaises (3 sets de types : night_club/dance_hall, bar/pub, karaoke/wine_bar ; fan-out 5 centres pour les grandes villes). Réutilise _map_place_to_club de places_service. Upsert $setOnInsert par club_id (gp_*), stockage PERMANENT dans db.places (pas de TTL).
+- Résultat : db.places 3 520 → **9 942** établissements (+6 383, 1 033 appels API). Le Mans couvert (Lockdown, Le Guest's, etc. — 112 clubs dans un rayon de 20 km).
+- list_clubs : cap de lecture db.places 5000 → 20000 ; la recherche matche désormais nom + description + **adresse** (multi-mots, ex. "bar le mans").
+- Relancer l'import : `cd /app/backend && python3 import_clubs_bulk.py` (ou `--city "Nom"`).
