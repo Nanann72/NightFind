@@ -344,3 +344,13 @@ agent_communication:
       Phase 5 : /owner-dashboard (stats vues/favoris/check-ins/musiques, édition infos/photos/horaires,
       menu affiché sur la fiche club, événements propriétaire).
       STRIPE_API_KEY ajoutée à backend/.env. Données de test nettoyées.
+
+  - agent: "main"
+    message: |
+      REVENDICATION AUTOMATISÉE + BASCULE REVENUECAT TERMINÉES (iteration_31.json — 11/11 PASS).
+      A) Robot IA (Gemini vision, mode strict) valide/refuse les claims automatiquement, emails Resend
+      (réception/approbation avec QR + code -10%/refus), code -10% individuel par bar vérifié,
+      validation des coupons invités depuis le dashboard propriétaire.
+      B) Mise en avant : Stripe supprimé → RevenueCat IAP (demande gratuite → validation admin →
+      paiement Apple promo_bar_7d/30d → activation auto via webhook RC). promotion-status.tsx supprimé.
+      Fixes : imports manquants search.tsx (MUSIC_GENRES) et MapImpl.native.tsx (LocationRequired).
