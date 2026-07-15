@@ -167,3 +167,21 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - **Import massif** : seed_city_clubs.py étendu — 45 villes (40 FR + Ibiza, Barcelone, Bruxelles, Genève, St-Tropez, Deauville, Biarritz...) × grille 5 points (centre + 4 offsets 9km, rayon 7km) → **db.places : 480 → 3517 clubs**.
 - **Spotify/Deezer ouvrent l'APP** : openStream utilise les deep links (spotify:track:{id} / spotify:search:, deezer://www.deezer.com/track/{id} / /search/) avec canOpenURL + tentative directe, fallback site web si app absente. app.json : LSApplicationQueriesSchemes ["spotify","deezer"] ajouté (iOS). ⚠️ Deep links testables uniquement sur device réel avec les apps installées.
 - Tests : 207/207 backend PASS après modif list_clubs. Home vérifié (39+ cartes en web).
+
+## ✅ PHASE 2 — REVENDICATION DE BAR / BAR VÉRIFIÉ (juillet 2026)
+- **Backend** (server.py section "REVENDICATION DE BAR — Bar Vérifié (Phase 2)", collection `db.bar_claims`) :
+  - `POST /api/bars/claim` (user) : {club_id, owner_name, email, phone, role(proprietaire|gerant|manager), id_document, kbis_document (data URI base64)}. Validations : rôle, champs obligatoires, club existant, club pas déjà vérifié (409), pas de doublon pending (409).
+  - `GET /api/me/bar-claims` : demandes du user (sans les documents base64).
+  - `GET /api/admin/bar-claims?status=` + `GET /api/admin/bar-claims/{id}` (avec documents) — require_admin.
+  - `POST /api/admin/bar-claims/{id}/approve` : claim approved + club (places ET clubs) reçoit {verified:true, owner_user_id, verified_at} + user {is_bar_owner:true, owned_club_id} + auto-reject des autres demandes pending du même club + notification "Établissement vérifié ✅" + log admin_actions.
+  - `POST /api/admin/bar-claims/{id}/reject` body {reason} : rejected + notification avec motif.
+  - `/auth/me` expose désormais `is_bar_owner` et `owned_club_id`.
+- **Frontend** :
+  - `app/claim-bar.tsx` : formulaire (recherche club, nom/email/tél, chips rôle, upload pièce d'identité + Kbis via ImagePicker base64 quality 0.5) + section "Mes demandes" avec statuts (pending orange / approved vert / rejected rouge + motif) + bouton "Nouvelle demande".
+  - `app/admin-claims.tsx` : onglets En attente(compteur)/Approuvées/Refusées, modal détail (infos demandeur + images documents), Approuver (Alert confirm) / Refuser (input motif inline).
+  - Réglages : section "Vous êtes propriétaire ?" → row-claim-bar → /claim-bar.
+  - /admin : section "Bars Vérifiés" → admin-claims-btn → /admin-claims.
+  - `club/[id].tsx` : badge bleu "Vérifié" (#1D9BF0, checkmark-circle) à côté du nom si club.verified.
+  - api.ts : type BarClaim + submitBarClaim/myBarClaims/adminListBarClaims/adminBarClaimDetail/adminApproveBarClaim/adminRejectBarClaim ; Club.verified?.
+- Tests : 18 checks backend curl PASS + testing_agent frontend iteration_29.json PASS (8 scénarios). Données de test nettoyées (comptes démo Apple intacts).
+- Reste à faire (roadmap partenaire) : Phase 3 mise en avant payante (Stripe/Apple Pay), Phase 4 gestion admin complète, Phase 5 tableau de bord propriétaire (infos/menus/événements/stats).

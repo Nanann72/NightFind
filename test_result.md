@@ -326,3 +326,11 @@ agent_communication:
       7. GET /api/moments/active-clubs → doit contenir le club_id avec count>=1.
       8. Test 403 : Sans check-in récent, POST /api/clubs/X/moments doit renvoyer 403.
       9. Vérifier TTL : si user est premium (le reviewer l'est), expires_at doit être ~7j après now (premium=7j).
+
+  - agent: "main"
+    message: |
+      PHASE 2 — Revendication de bar (Bar Vérifié) TERMINÉE et TESTÉE (iteration_29.json PASS).
+      Backend : POST /api/bars/claim, GET /api/me/bar-claims, GET /api/admin/bar-claims(+/{id}, /approve, /reject).
+      Frontend : /claim-bar (formulaire + upload docs base64), /admin-claims (onglets + détail + approve/reject),
+      section Réglages "Vous êtes propriétaire ?", badge "Vérifié" sur club/[id].
+      Données de test nettoyées après tests — comptes démo Apple intacts.
