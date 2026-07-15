@@ -37,6 +37,7 @@ export default {
     search: 'Recherche',
     searchSub: 'Trouve des profils',
     friends: 'Amis',
+    advantages: 'Mes avantages',
     favorites: 'Favoris',
     mySongs: 'Mes musiques',
     requests: 'Demandes',

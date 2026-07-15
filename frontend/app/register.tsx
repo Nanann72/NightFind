@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../lib/auth';
 import { api } from '../lib/api';
 import { loadOnboarding, clearOnboarding } from '../lib/onboardingStore';
+import { setPendingPartnerCode } from '../lib/partner';
 import { SocialAuthButtons } from '../components/SocialAuthButtons';
 import { MaskedDOBInput } from '../components/MaskedDOBInput';
 import { HapticButton } from '../components/ui/HapticButton';
@@ -29,6 +30,7 @@ export default function Register() {
   const { t } = useTranslation();
   const { signUp } = useAuth();
   const [name, setName] = useState('');
+  const [partnerCode, setPartnerCode] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [dob, setDob] = useState(''); // YYYY-MM-DD
@@ -88,6 +90,10 @@ export default function Register() {
     setLoading(true);
     try {
       await signUp(email.trim(), password, name.trim(), dob);
+      // Partner bar code (QR fallback) → coupon claimed on Home after login
+      if (partnerCode.trim()) {
+        await setPendingPartnerCode(partnerCode);
+      }
       // Push onboarding music prefs to profile
       if (prefilledMusic.length > 0) {
         api.updateProfile({ music_prefs: prefilledMusic }).catch(() => {});
@@ -175,6 +181,19 @@ export default function Register() {
             secureTextEntry
             style={styles.input}
             testID="register-password-input"
+          />
+        </View>
+
+        <View style={styles.field}>
+          <Ionicons name="gift-outline" size={18} color={colors.textSecondary} />
+          <TextInput
+            value={partnerCode}
+            onChangeText={setPartnerCode}
+            placeholder="Code bar partenaire (optionnel)"
+            placeholderTextColor={colors.textTertiary}
+            autoCapitalize="characters"
+            style={styles.input}
+            testID="register-partner-code-input"
           />
         </View>
 

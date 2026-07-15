@@ -26,6 +26,8 @@ import { useClubs } from '../../lib/clubs';
 import { useLocation } from '../../lib/useLocation';
 import { useTabBarScroll } from '../../lib/tabBarScroll';
 import { useUnreadNotifications } from '../../lib/useUnreadNotifications';
+import { capturePartnerCodeFromUrl, claimPendingPartnerCode } from '../../lib/partner';
+import { PartnerUnlockModal } from '../../components/PartnerUnlockModal';
 import { SafeImage } from '../../components/SafeImage';
 import { HapticButton } from '../../components/ui/HapticButton';
 import { radius, spacing, type ThemeColors } from '../../lib/theme';
@@ -54,6 +56,17 @@ export default function Home() {
   const [active, setActive] = useState('all');
   const [people, setPeople] = useState<NearbyUser[]>([]);
   const [moments, setMoments] = useState<FeedMoment[]>([]);
+  const [unlockedCoupon, setUnlockedCoupon] = useState<any | null>(null);
+
+  // Partner bar: capture code from launch URL (QR/deep link), then claim the
+  // -10% coupon once authenticated → 🎉 unlock modal.
+  useEffect(() => {
+    (async () => {
+      await capturePartnerCodeFromUrl();
+      const coupon = await claimPendingPartnerCode();
+      if (coupon) setUnlockedCoupon(coupon);
+    })();
+  }, []);
 
   useEffect(() => {
     if (loc.loading) return;
@@ -322,6 +335,7 @@ export default function Home() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]} testID="discover-screen">
+      <PartnerUnlockModal coupon={unlockedCoupon} onClose={() => setUnlockedCoupon(null)} />
       <Animated.FlatList
         data={filtered}
         keyExtractor={(c) => c.club_id}

@@ -16,7 +16,7 @@ import httpx
 import jwt
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 import io
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
@@ -708,7 +708,9 @@ async def list_clubs(
     # Also include ALL previously imported Google clubs stored in db.places.
     # The live search caps at ~20 results per area — without this merge, most
     # imported clubs would never show up in the app.
-    if lat is not None and lng is not None:
+    # (With coords → radius filter; without coords but with a search term →
+    # name search across all stored clubs, used by the admin partner picker.)
+    if (lat is not None and lng is not None) or search:
         try:
             existing_ids = {c.get("club_id") for c in items}
             existing_names = {(c.get("name") or "").lower() for c in items}
@@ -720,8 +722,9 @@ async def list_clubs(
                     continue
                 if c.get("lat") is None or c.get("lng") is None:
                     continue
-                if haversine_km(lat, lng, c["lat"], c["lng"]) > radius_km:
-                    continue
+                if lat is not None and lng is not None:
+                    if haversine_km(lat, lng, c["lat"], c["lng"]) > radius_km:
+                        continue
                 if music and music not in (c.get("music_styles") or []):
                     continue
                 if max_price is not None and (c.get("avg_price") or 0) > max_price:
@@ -744,15 +747,14 @@ async def list_clubs(
         except Exception as exc:  # noqa: BLE001
             logging.warning("Stored places merge failed: %s", exc)
 
-    # Fall back to seed clubs if Google returned nothing OR source explicitly seed
-    if not items or source == "seed":
-        cursor = db.clubs.find(query, {"_id": 0})
-        items_seed = await cursor.to_list(500)
-        # When mixing, prefer to dedupe by name
-        existing_names = {c.get("name", "").lower() for c in items}
-        for c in items_seed:
-            if c.get("name", "").lower() not in existing_names:
-                items.append(c)
+    # Always merge seed clubs too (deduped by name) — distance filter below
+    # removes those out of radius when coords are provided.
+    cursor = db.clubs.find(query, {"_id": 0})
+    items_seed = await cursor.to_list(500)
+    existing_names = {c.get("name", "").lower() for c in items}
+    for c in items_seed:
+        if c.get("name", "").lower() not in existing_names:
+            items.append(c)
 
     if lat is not None and lng is not None:
         for c in items:
@@ -3965,6 +3967,240 @@ async def delete_message(message_id: str, user: dict = Depends(get_current_user)
         {"$set": {"deleted_at": datetime.now(timezone.utc), "text": ""}},
     )
     return {"ok": True}
+
+
+# ============================================================
+# BAR PARTENAIRE OFFICIEL — offre -10% (Phase 1)
+# ============================================================
+import random as _random
+import string as _string
+
+PARTNER_CFG_ID = "config"
+
+
+def _gen_partner_code(n: int = 5) -> str:
+    return "NF" + "".join(_random.choices(_string.ascii_uppercase + _string.digits, k=n))
+
+
+def _gen_user_coupon_code() -> str:
+    return "NF-" + "".join(_random.choices(_string.ascii_uppercase + _string.digits, k=6))
+
+
+async def _find_any_club(club_id: str) -> Optional[dict]:
+    club = await db.places.find_one({"club_id": club_id}, {"_id": 0, "name": 1, "photos": 1})
+    if not club:
+        club = await db.clubs.find_one({"club_id": club_id}, {"_id": 0, "name": 1, "photos": 1})
+    return club
+
+
+async def _partner_config() -> Optional[dict]:
+    return await db.partner_bar.find_one({"_id": PARTNER_CFG_ID})
+
+
+def _partner_landing_url(request: Request, code: str) -> str:
+    # Respect proxy headers so the QR/deep-link embeds the PUBLIC domain
+    host = request.headers.get("x-forwarded-host") or request.url.netloc
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    return f"{proto}://{host}/api/partner/r?code={code}"
+
+
+class PartnerBarBody(BaseModel):
+    club_id: str
+    active: bool = True
+    expires_days: int = 30
+
+
+@api_router.get("/admin/partner-bar")
+async def admin_get_partner_bar(request: Request, _admin: dict = Depends(require_admin)):
+    cfg = await _partner_config()
+    if not cfg:
+        return {"configured": False}
+    issued = await db.partner_coupons.count_documents({"club_id": cfg["club_id"]})
+    used = await db.partner_coupons.count_documents({"club_id": cfg["club_id"], "status": "used"})
+    out = {k: v for k, v in cfg.items() if k != "_id"}
+    out["deep_link"] = _partner_landing_url(request, cfg["partner_code"])
+    out["stats"] = {"issued": issued, "used": used}
+    return {"configured": True, **out}
+
+
+@api_router.put("/admin/partner-bar")
+async def admin_set_partner_bar(
+    body: PartnerBarBody, request: Request, admin: dict = Depends(require_admin)
+):
+    club = await _find_any_club(body.club_id)
+    if not club:
+        raise HTTPException(status_code=404, detail="Club introuvable")
+    cfg = await _partner_config()
+    # Keep the same partner code when re-selecting the same bar
+    if cfg and cfg.get("club_id") == body.club_id and cfg.get("partner_code"):
+        partner_code = cfg["partner_code"]
+    else:
+        partner_code = _gen_partner_code()
+    doc = {
+        "club_id": body.club_id,
+        "club_name": club.get("name"),
+        "club_photo": (club.get("photos") or [None])[0],
+        "partner_code": partner_code,
+        "active": body.active,
+        "discount_pct": 10,
+        "expires_days": max(1, min(body.expires_days, 365)),
+        "updated_at": datetime.now(timezone.utc),
+    }
+    await db.partner_bar.update_one({"_id": PARTNER_CFG_ID}, {"$set": doc}, upsert=True)
+    await db.admin_actions.insert_one({
+        "admin_id": admin["user_id"],
+        "action": "set_partner_bar",
+        "details": {"club_id": body.club_id, "club_name": club.get("name"), "active": body.active},
+        "at": datetime.now(timezone.utc),
+    })
+    doc["deep_link"] = _partner_landing_url(request, partner_code)
+    return {"ok": True, **doc}
+
+
+@api_router.delete("/admin/partner-bar")
+async def admin_disable_partner_bar(admin: dict = Depends(require_admin)):
+    await db.partner_bar.update_one({"_id": PARTNER_CFG_ID}, {"$set": {"active": False}})
+    await db.admin_actions.insert_one({
+        "admin_id": admin["user_id"], "action": "disable_partner_bar",
+        "details": {}, "at": datetime.now(timezone.utc),
+    })
+    return {"ok": True}
+
+
+@api_router.get("/partner/qr")
+async def partner_qr(request: Request):
+    """Public PNG QR code pointing to the partner landing page."""
+    cfg = await _partner_config()
+    if not cfg:
+        raise HTTPException(status_code=404, detail="Aucun bar partenaire configuré")
+    import qrcode
+
+    img = qrcode.make(_partner_landing_url(request, cfg["partner_code"]))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return Response(content=buf.getvalue(), media_type="image/png")
+
+
+@api_router.get("/partner/r", response_class=HTMLResponse)
+async def partner_landing(code: str = ""):
+    """Landing page opened by the QR / link. Tries to open the app with the
+    partner code; otherwise shows the code to enter at signup."""
+    cfg = await _partner_config()
+    valid = bool(cfg and cfg.get("active") and code.upper() == cfg.get("partner_code", "").upper())
+    club_name = cfg.get("club_name") if valid else ""
+    app_link = f"nightfinder://partner?code={code}"
+    body = f"""<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Night Finder — Offre partenaire</title>
+<style>body{{background:#050505;color:#fff;font-family:-apple-system,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:90vh;text-align:center;padding:24px}}
+.card{{background:#141414;border:1px solid rgba(255,255,255,.08);border-radius:24px;padding:32px;max-width:400px}}
+.pct{{font-size:44px;font-weight:800;color:#8B5CF6}}.code{{font-size:26px;letter-spacing:4px;font-weight:700;background:rgba(139,92,246,.14);border:1px dashed #8B5CF6;border-radius:14px;padding:12px 20px;margin:18px 0;display:inline-block}}
+a.btn{{display:inline-block;background:#8B5CF6;color:#fff;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:999px;margin-top:10px}}
+p{{color:#A1A1AA;line-height:1.5}}</style></head><body><div class="card">"""
+    if valid:
+        body += f"""<div class="pct">-10%</div>
+<h2>🎉 {club_name} vous offre -10%</h2>
+<p>Ouvre Night Finder pour débloquer ton coupon automatiquement, ou entre ce code lors de ton inscription :</p>
+<div class="code">{cfg['partner_code']}</div><br>
+<a class="btn" href="{app_link}">Ouvrir Night Finder</a>
+<p style="font-size:13px;margin-top:18px">Pas encore l'app ? Télécharge Night Finder sur l'App Store puis entre le code à l'inscription.</p>"""
+    else:
+        body += """<h2>Offre indisponible</h2><p>Ce lien partenaire n'est plus actif.</p>"""
+    body += "</div></body></html>"
+    return HTMLResponse(content=body)
+
+
+@api_router.get("/partner/info")
+async def partner_info(code: str = ""):
+    """Public validation of a partner code (used by the signup screen)."""
+    cfg = await _partner_config()
+    valid = bool(cfg and cfg.get("active") and code.strip().upper() == cfg.get("partner_code", "").upper())
+    if not valid:
+        return {"valid": False}
+    return {
+        "valid": True,
+        "club_name": cfg.get("club_name"),
+        "club_photo": cfg.get("club_photo"),
+        "discount_pct": cfg.get("discount_pct", 10),
+    }
+
+
+class PartnerClaimBody(BaseModel):
+    code: str
+
+
+@api_router.post("/partner/claim")
+async def partner_claim(body: PartnerClaimBody, user: dict = Depends(get_current_user)):
+    """Create the user's unique -10% coupon (one per user, one use)."""
+    cfg = await _partner_config()
+    if not cfg or not cfg.get("active"):
+        raise HTTPException(status_code=404, detail="Aucune offre partenaire active")
+    if body.code.strip().upper() != cfg.get("partner_code", "").upper():
+        raise HTTPException(status_code=400, detail="Code partenaire invalide")
+    existing = await db.partner_coupons.find_one(
+        {"user_id": user["user_id"], "club_id": cfg["club_id"]}, {"_id": 0}
+    )
+    if existing:
+        return {"coupon": existing, "new": False}
+    now = datetime.now(timezone.utc)
+    coupon = {
+        "coupon_id": f"cpn_{uuid.uuid4().hex[:12]}",
+        "user_id": user["user_id"],
+        "club_id": cfg["club_id"],
+        "club_name": cfg.get("club_name"),
+        "club_photo": cfg.get("club_photo"),
+        "code": _gen_user_coupon_code(),
+        "discount_pct": cfg.get("discount_pct", 10),
+        "status": "available",
+        "created_at": now,
+        "expires_at": now + timedelta(days=cfg.get("expires_days", 30)),
+        "used_at": None,
+    }
+    await db.partner_coupons.insert_one({**coupon})
+    return {"coupon": coupon, "new": True}
+
+
+@api_router.get("/me/coupons")
+async def my_coupons(user: dict = Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    # Lazily expire outdated coupons
+    await db.partner_coupons.update_many(
+        {"user_id": user["user_id"], "status": "available", "expires_at": {"$lt": now}},
+        {"$set": {"status": "expired"}},
+    )
+    items = await db.partner_coupons.find(
+        {"user_id": user["user_id"]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    return {"coupons": items}
+
+
+class RedeemBody(BaseModel):
+    code: str
+
+
+@api_router.post("/admin/coupons/redeem")
+async def admin_redeem_coupon(body: RedeemBody, admin: dict = Depends(require_admin)):
+    """Mark a user coupon as used (shown by the customer at the bar)."""
+    coupon = await db.partner_coupons.find_one({"code": body.code.strip().upper()})
+    if not coupon:
+        raise HTTPException(status_code=404, detail="Coupon introuvable")
+    if coupon["status"] == "used":
+        raise HTTPException(status_code=409, detail="Coupon déjà utilisé")
+    now = datetime.now(timezone.utc)
+    exp = coupon.get("expires_at")
+    if exp and (exp.replace(tzinfo=timezone.utc) if exp.tzinfo is None else exp) < now:
+        await db.partner_coupons.update_one({"coupon_id": coupon["coupon_id"]}, {"$set": {"status": "expired"}})
+        raise HTTPException(status_code=410, detail="Coupon expiré")
+    await db.partner_coupons.update_one(
+        {"coupon_id": coupon["coupon_id"]},
+        {"$set": {"status": "used", "used_at": now}},
+    )
+    await db.admin_actions.insert_one({
+        "admin_id": admin["user_id"], "action": "redeem_coupon",
+        "details": {"coupon_id": coupon["coupon_id"], "user_id": coupon["user_id"]},
+        "at": now,
+    })
+    return {"ok": True, "coupon_id": coupon["coupon_id"]}
 
 
 app.include_router(legal_pages.router)

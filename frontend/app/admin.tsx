@@ -170,6 +170,20 @@ export default function AdminScreen() {
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
 
+        <Text style={styles.section}>Bar Partenaire (-10%)</Text>
+        <TouchableOpacity
+          onPress={() => router.push('/admin-partner')}
+          style={styles.userMgmtBtn}
+          activeOpacity={0.85}
+          testID="admin-partner-btn"
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userMgmtTitle}>Bar Partenaire Officiel</Text>
+            <Text style={styles.userMgmtSub}>Choisir le bar, QR Code, lien, coupons -10%</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+
         <Text style={styles.section}>Diagnostic Audd.io</Text>
         <TouchableOpacity
           onPress={() => router.push('/admin-audd')}

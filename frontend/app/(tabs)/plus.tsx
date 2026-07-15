@@ -30,6 +30,7 @@ export default function PlusHub() {
   ];
 
   const rows = [
+    { key: 'advantages', icon: 'gift-outline' as const, title: t('plusHub.advantages'), route: '/advantages' },
     { key: 'friends', icon: 'people-outline' as const, title: t('plusHub.friends'), route: '/friends' },
     { key: 'favorites', icon: 'bookmark-outline' as const, title: t('plusHub.favorites'), route: '/favorites' },
     { key: 'mysongs', icon: 'musical-notes-outline' as const, title: t('plusHub.mySongs'), route: '/my-songs' },

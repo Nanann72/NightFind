@@ -1,0 +1,26 @@
+{
+  "summary": "Frontend end-to-end validation of Bar Partenaire Officiel (-10%) PHASE 1. All 5 scenarios pass: (1) admin partner screen renders configured bar 'Péniche Marcounet' with stats (1 émis / 1 utilisé), code NFUTG7X, QR image, deep link, copy-code row, active switch; club search 'Rex' returns 2 results without re-selecting; (2) redeem NF-ZZZZZZ shows no crash and admin screen stays intact (Alert on RN Web does not surface as a DOM dialog so alert text cannot be asserted, but backend rejects code and UI recovers cleanly); (3) reviewer 'Mes avantages' shows 1 coupon Péniche Marcounet NF-GU4B29 status 'Utilisé' 14/08/2026 with working back button; (4) registration with partner code NFUTG7X for fresh account (nftest_x1iz0wyh@nightfinder.app, DOB 15/05/1995) lands on Home and 🎉 unlock modal 'Offre débloquée !' appears with -10% Péniche Marcounet + code NF-MBUOB3; 'Voir mes avantages' navigates to /advantages showing the coupon with 'Disponible' status; (5) regression: Home renders club cards (FlatList virtualization; ~99 total loaded from API, first batch shown), search filters correctly (Rex → 1 card), Plus tab and /admin display without crashes. Partner switch left ACTIVE.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_28.json"],
+  "action_items": [
+    "None blocking. Optional: Alert.alert on RN Web does not surface as native window dialog for testing tools. Consider replacing critical admin Alerts (redeem success/failure) with an in-app toast/banner that has a testID so future automation can assert copy like 'Coupon introuvable'."
+  ],
+  "critical_code_review_comments": [
+    "admin-partner.tsx: BASE_URL falls back to '' if EXPO_PUBLIC_BACKEND_URL missing → QR image src becomes '/api/partner/qr' which still works on same-origin web but breaks native. Currently OK since env is set.",
+    "partner.ts claimPendingPartnerCode only clears pending code on 400/404, so any transient 5xx keeps retrying on every Home mount. Acceptable for now.",
+    "Home (index.tsx) triggers capture+claim inside the top useEffect with no dependency on auth-ready state. In our test the Home was reached only after login so claim worked, but on cold start with lingering token a race could theoretically call /api/partner/claim before axios has the JWT set. Consider gating on `user` from useAuth."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (frontend-only)", "frontend": "100%" },
+  "seed_data_creation": "Created 1 disposable user: nftest_x1iz0wyh@nightfinder.app (partner code NFUTG7X → coupon NF-MBUOB3 Disponible). Not deleted per instructions.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Partner bar is 'Péniche Marcounet', partner_code NFUTG7X, switch ACTIVE. Admin & reviewer credentials in /app/memory/test_credentials.md. On RN Web, Alert.alert isn't a browser dialog — use body innerText scraping or add explicit toast/testID to assert alert copy.",
+  "rca_of_issue": "n/a"
+}

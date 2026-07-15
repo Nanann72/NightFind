@@ -17,6 +17,7 @@ export default {
     search: 'Search',
     searchSub: 'Find profiles',
     friends: 'Friends',
+    advantages: 'My perks',
     favorites: 'Favorites',
     mySongs: 'My songs',
     requests: 'Requests',

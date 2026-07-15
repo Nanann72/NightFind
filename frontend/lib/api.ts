@@ -485,6 +485,29 @@ export const api = {
     }>('/profile/songs'),
   deleteProfileSong: (song_id: string) =>
     request<{ ok: boolean }>(`/profile/songs/${song_id}`, { method: 'DELETE' }),
+  // ── Partner bar (offre -10%) ──
+  partnerInfo: (code: string) =>
+    request<{ valid: boolean; club_name?: string; club_photo?: string | null; discount_pct?: number }>(
+      `/partner/info?code=${encodeURIComponent(code)}`,
+    ),
+  claimPartner: (code: string) =>
+    request<{ coupon: any; new: boolean }>('/partner/claim', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
+  myCoupons: () => request<{ coupons: any[] }>('/me/coupons'),
+  adminGetPartnerBar: () => request<any>('/admin/partner-bar'),
+  adminSetPartnerBar: (club_id: string, active: boolean, expires_days: number) =>
+    request<any>('/admin/partner-bar', {
+      method: 'PUT',
+      body: JSON.stringify({ club_id, active, expires_days }),
+    }),
+  adminDisablePartnerBar: () => request<{ ok: boolean }>('/admin/partner-bar', { method: 'DELETE' }),
+  adminRedeemCoupon: (code: string) =>
+    request<{ ok: boolean }>('/admin/coupons/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    }),
   moveSong: (song_id: string, club_id: string) =>
     request<{ ok: boolean; club_id: string; club_name: string }>(
       `/profile/songs/${song_id}/club`,
