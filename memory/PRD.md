@@ -185,3 +185,24 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
   - api.ts : type BarClaim + submitBarClaim/myBarClaims/adminListBarClaims/adminBarClaimDetail/adminApproveBarClaim/adminRejectBarClaim ; Club.verified?.
 - Tests : 18 checks backend curl PASS + testing_agent frontend iteration_29.json PASS (8 scénarios). Données de test nettoyées (comptes démo Apple intacts).
 - Reste à faire (roadmap partenaire) : Phase 3 mise en avant payante (Stripe/Apple Pay), Phase 4 gestion admin complète, Phase 5 tableau de bord propriétaire (infos/menus/événements/stats).
+
+## ✅ PHASES 3/4/5 — MISE EN AVANT PAYANTE + ADMIN + DASHBOARD PROPRIÉTAIRE (juillet 2026)
+### Phase 3 — Mise en avant payante (Stripe)
+- Tarifs (server-side only, jamais depuis le client) : 19,99€/7j et 49,99€/30j. Paiement AVANT validation admin, remboursement Stripe automatique si refus.
+- Backend (server.py section "MISE EN AVANT PAYANTE — Stripe (Phase 3)", collection `db.promotions`) :
+  - `POST /api/owner/promotions/checkout` {plan, origin_url} (owner vérifié only, 409 si promo active/pending) → session Stripe Checkout (SDK stripe direct, clé STRIPE_API_KEY dans backend/.env = sk_test_emergent → api_base proxy emergent).
+  - ⚠️ Le proxy emergent fait du ROUND-ROBIN sur plusieurs comptes Stripe → helper `_stripe_call(fn, attempts=12)` retry sur "No such ..." pour retrieve/refund. Avec une vraie clé Stripe (prod), premier essai OK.
+  - `GET /api/owner/promotions` + `GET /api/owner/promotions/status/{session_id}` (poll, `_sync_promo_payment` = re-vérif du statut auprès de Stripe = source de vérité). NOTE: StripeObject → accès par index `sess["payment_status"]`, PAS .get().
+  - `POST /api/webhooks/stripe` : simple TRIGGER — re-vérifie via l'API, ne fait jamais confiance au payload (pas de webhook secret avec le proxy).
+  - `POST /api/admin/promotions/{id}/approve` → status active, starts/ends_at, club.promoted=true+promoted_until, notification. `/reject` {reason} → remboursement auto via `stripe.Refund.create(payment_intent=...)` (refund_failed géré gracieusement + message admin "à traiter manuellement"), notification.
+  - `GET /api/promotions/featured` (public) + `/api/clubs` : clubs promus flag `promoted:true` et triés EN PREMIER (helper `_active_promo_club_ids` avec lazy-expiry `_expire_promotions`).
+- Frontend : `promote-bar.tsx` (formules + paiement via window.location.href en web / WebBrowser.openBrowserAsync en natif + liste de mes promos), `promotion-status.tsx` (retour Stripe, poll 8×2,5s, états paid/pending/cancelled), `admin-promotions.tsx` (onglets À valider/Actives/Refusées, activer/refuser+motif inline). Accueil : section "À la une ⭐" (api.featuredPromotions) + chip "Sponsorisé" sur MiniClubCard. club/[id] : badge orange "Sponsorisé".
+### Phase 4 — Gestion admin
+- `GET /api/admin/overview` {pending_claims, pending_promotions, active_promotions, verified_bars}.
+- `POST /api/admin/verified-bars/{club_id}/revoke` : retire verified/owner/promoted + is_bar_owner du user + expire les promos + notification. Bouton "Révoquer le badge Vérifié" dans le détail d'une claim approuvée (admin-claims.tsx).
+- admin.tsx : nouvelle section "Mises en avant payantes" → /admin-promotions.
+### Phase 5 — Tableau de bord propriétaire
+- Backend : `GET/PATCH /api/owner/club` (description, avg_price, music_styles, photos≤6, hours), `PUT /api/owner/club/menu` {items[{name,price,category}]≤50} (affiché sur la fiche club section "Carte & Menu"), `POST /api/owner/events` + `DELETE /api/owner/events/{id}` (bypass premium, created_by_owner:true), `GET /api/owner/stats` {views, favorites, checkins, songs, active_promotion}. Vues comptées via $inc sur `db.club_stats` dans GET /api/clubs/{id}.
+- Frontend : `owner-dashboard.tsx` (stats cards, édition infos + genres MUSIC_GENRES + photos ImagePicker + horaires par jour avec Switch, éditeur de menu, création/suppression événements via modal). Réglages : rows "Mon établissement" + "Mettre en avant ⭐" si user.is_bar_owner (exposé par /auth/me).
+- Tests : backend curl complet PASS + testing_agent iteration_30.json — 10/10 flux PASS, zéro bug. Données nettoyées, Club Rex restauré.
+- ⚠️ POUR LA PROD : l'utilisateur devra remplacer STRIPE_API_KEY par sa vraie clé Stripe (le refund/retrieve fonctionneront alors sans retry).

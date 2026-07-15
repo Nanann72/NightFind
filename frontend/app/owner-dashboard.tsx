@@ -151,11 +151,12 @@ export default function OwnerDashboard() {
       Alert.alert('Champs incomplets', 'Titre et date sont obligatoires (ex : 2026-07-14 23:00).');
       return;
     }
-    const iso = new Date(evt.date.replace(' ', 'T')).toISOString();
-    if (Number.isNaN(new Date(iso).getTime())) {
+    const parsed = new Date(evt.date.replace(' ', 'T'));
+    if (Number.isNaN(parsed.getTime())) {
       Alert.alert('Date invalide', 'Format attendu : AAAA-MM-JJ HH:MM');
       return;
     }
+    const iso = parsed.toISOString();
     setSaving('event');
     try {
       const created = await api.ownerCreateEvent({

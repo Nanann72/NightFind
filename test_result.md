@@ -334,3 +334,13 @@ agent_communication:
       Frontend : /claim-bar (formulaire + upload docs base64), /admin-claims (onglets + détail + approve/reject),
       section Réglages "Vous êtes propriétaire ?", badge "Vérifié" sur club/[id].
       Données de test nettoyées après tests — comptes démo Apple intacts.
+
+  - agent: "main"
+    message: |
+      PHASES 3/4/5 TERMINÉES et TESTÉES (iteration_30.json — 10/10 PASS, zéro bug).
+      Phase 3 : mise en avant payante Stripe (19,99€/7j, 49,99€/30j), remboursement auto si refus,
+      section "À la une ⭐" accueil + badge Sponsorisé + tri prioritaire dans /api/clubs.
+      Phase 4 : /admin-promotions (valider/refuser), /api/admin/overview, révocation badge Vérifié.
+      Phase 5 : /owner-dashboard (stats vues/favoris/check-ins/musiques, édition infos/photos/horaires,
+      menu affiché sur la fiche club, événements propriétaire).
+      STRIPE_API_KEY ajoutée à backend/.env. Données de test nettoyées.
