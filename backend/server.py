@@ -775,6 +775,16 @@ async def list_clubs(
     if open_now:
         items = [c for c in items if _is_open_now(c.get("hours", {}))]
 
+    # Paid promoted clubs first, flagged "promoted" (Phase 3)
+    try:
+        promoted_ids = await _active_promo_club_ids()
+        if promoted_ids:
+            for c in items:
+                c["promoted"] = c.get("club_id") in promoted_ids
+            items.sort(key=lambda c: 0 if c.get("promoted") else 1)
+    except Exception as exc:  # noqa: BLE001
+        logging.warning("Promo annotate failed: %s", exc)
+
     return items
 
 
@@ -804,6 +814,11 @@ async def get_club(club_id: str):
             club = await places_service.get_place_by_id(db, http_client, place_id)
     if not club:
         raise HTTPException(status_code=404, detail="Club not found")
+    # Phase 5 — owner stats: count profile views
+    try:
+        await db.club_stats.update_one({"club_id": club_id}, {"$inc": {"views": 1}}, upsert=True)
+    except Exception:  # noqa: BLE001
+        pass
     events = await db.events.find({"club_id": club_id}, {"_id": 0}).to_list(50)
     club["events"] = sorted(events, key=lambda e: e.get("date", ""))
     return club
@@ -4390,6 +4405,509 @@ async def admin_reject_bar_claim(
     })
     return {"ok": True}
 
+
+
+# ============================================================
+# MISE EN AVANT PAYANTE — Stripe (Phase 3)
+# + TABLEAU DE BORD PROPRIÉTAIRE (Phase 5)
+# ============================================================
+import asyncio as _asyncio
+import stripe as stripe_sdk
+
+STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "")
+stripe_sdk.api_key = STRIPE_API_KEY
+if "sk_test_emergent" in STRIPE_API_KEY:
+    # Emergent test proxy (round-robins several Stripe test accounts)
+    stripe_sdk.api_base = "https://integrations.emergentagent.com/stripe"
+
+# SECURITY: amounts are defined server-side only — never accepted from client.
+PROMO_PLANS = {
+    "7d": {"amount": 19.99, "days": 7, "label": "Mise en avant 7 jours"},
+    "30d": {"amount": 49.99, "days": 30, "label": "Mise en avant 30 jours"},
+}
+
+
+async def _stripe_call(fn, *args, attempts: int = 12, **kwargs):
+    """Run a sync Stripe SDK call in a thread. The Emergent test proxy
+    round-robins multiple accounts, so read/refund calls can land on the
+    wrong account ("No such ...") — retry until routed correctly.
+    With a real Stripe key this succeeds on the first attempt."""
+    last: Optional[Exception] = None
+    for _ in range(attempts):
+        try:
+            return await _asyncio.to_thread(fn, *args, **kwargs)
+        except stripe_sdk.error.InvalidRequestError as e:
+            if "No such" in str(e):
+                last = e
+                continue
+            raise
+    raise last  # type: ignore[misc]
+
+
+async def _get_owned_club(user: dict) -> dict:
+    if not user.get("is_bar_owner") or not user.get("owned_club_id"):
+        raise HTTPException(status_code=403, detail="Réservé aux propriétaires de bar vérifiés")
+    club_id = user["owned_club_id"]
+    club = await db.places.find_one({"club_id": club_id}, {"_id": 0})
+    if not club:
+        club = await db.clubs.find_one({"club_id": club_id}, {"_id": 0})
+    if not club:
+        raise HTTPException(status_code=404, detail="Établissement introuvable")
+    return club
+
+
+async def _update_owned_club(club_id: str, update: dict):
+    await db.places.update_one({"club_id": club_id}, update)
+    await db.clubs.update_one({"club_id": club_id}, update)
+
+
+def _promo_public(p: dict) -> dict:
+    return {k: v for k, v in p.items() if k != "_id"}
+
+
+async def _expire_promotions() -> None:
+    """Lazily expire finished promotions and clear club flags."""
+    now = datetime.now(timezone.utc)
+    expired = await db.promotions.find(
+        {"status": "active", "ends_at": {"$lt": now}}, {"_id": 0, "promo_id": 1, "club_id": 1}
+    ).to_list(100)
+    for p in expired:
+        await db.promotions.update_one({"promo_id": p["promo_id"]}, {"$set": {"status": "expired"}})
+        still = await db.promotions.count_documents({"club_id": p["club_id"], "status": "active"})
+        if still == 0:
+            await _update_owned_club(p["club_id"], {"$unset": {"promoted": "", "promoted_until": ""}})
+
+
+async def _active_promo_club_ids() -> set:
+    await _expire_promotions()
+    rows = await db.promotions.find({"status": "active"}, {"_id": 0, "club_id": 1}).to_list(100)
+    return {r["club_id"] for r in rows}
+
+
+class PromoCheckoutBody(BaseModel):
+    plan: str  # "7d" | "30d"
+    origin_url: str  # frontend origin for success/cancel redirect
+
+
+@api_router.post("/owner/promotions/checkout")
+async def owner_promo_checkout(body: PromoCheckoutBody, request: Request, user: dict = Depends(get_current_user)):
+    plan = PROMO_PLANS.get(body.plan)
+    if not plan:
+        raise HTTPException(status_code=400, detail="Formule invalide")
+    club = await _get_owned_club(user)
+    if not club.get("verified"):
+        raise HTTPException(status_code=403, detail="Seuls les bars vérifiés peuvent être mis en avant")
+    existing = await db.promotions.find_one({
+        "club_id": club["club_id"],
+        "status": {"$in": ["awaiting_payment", "pending_review", "active"]},
+    })
+    if existing and existing["status"] != "awaiting_payment":
+        raise HTTPException(status_code=409, detail="Une mise en avant est déjà en cours ou en attente de validation")
+
+    origin = body.origin_url.rstrip("/")
+    promo_id = f"prm_{uuid.uuid4().hex[:12]}"
+    webhook_url = _partner_landing_url(request, "").split("/api/")[0] + "/api/webhooks/stripe"
+    try:
+        session = await _asyncio.to_thread(
+            stripe_sdk.checkout.Session.create,
+            payment_method_types=["card"],
+            line_items=[{
+                "price_data": {
+                    "currency": "eur",
+                    "product_data": {"name": f"Night Finder — {plan['label']} ({club.get('name')})"},
+                    "unit_amount": int(round(plan["amount"] * 100)),
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            success_url=f"{origin}/promotion-status?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{origin}/promotion-status?cancelled=1",
+            metadata={
+                "promo_id": promo_id,
+                "club_id": club["club_id"],
+                "type": "bar_promotion",
+                "webhook_url": webhook_url,
+            },
+        )
+    except Exception as e:  # noqa: BLE001
+        logging.error("Stripe session create failed: %s", e)
+        raise HTTPException(status_code=502, detail="Paiement momentanément indisponible, réessaie plus tard")
+
+    now = datetime.now(timezone.utc)
+    promo = {
+        "promo_id": promo_id,
+        "user_id": user["user_id"],
+        "club_id": club["club_id"],
+        "club_name": club.get("name"),
+        "club_photo": (club.get("photos") or [None])[0],
+        "plan": body.plan,
+        "plan_label": plan["label"],
+        "days": plan["days"],
+        "amount": plan["amount"],
+        "currency": "eur",
+        "session_id": session["id"],
+        "payment_intent": None,
+        "payment_status": "pending",  # pending | paid | refunded | refund_failed
+        "status": "awaiting_payment",  # awaiting_payment | pending_review | active | rejected | expired
+        "rejection_reason": None,
+        "created_at": now,
+        "starts_at": None,
+        "ends_at": None,
+        "reviewed_at": None,
+        "reviewed_by": None,
+    }
+    await db.promotions.insert_one({**promo})
+    return {"url": session["url"], "session_id": session["id"], "promo_id": promo_id}
+
+
+async def _sync_promo_payment(promo: dict) -> dict:
+    """Verify payment status straight from Stripe (source of truth) and
+    transition awaiting_payment → pending_review when paid."""
+    if promo.get("payment_status") == "pending":
+        try:
+            sess = await _stripe_call(stripe_sdk.checkout.Session.retrieve, promo["session_id"])
+        except Exception as e:  # noqa: BLE001
+            logging.warning("Stripe status check failed for %s: %s", promo["promo_id"], e)
+            return promo
+        if sess["payment_status"] == "paid":
+            update = {
+                "payment_status": "paid",
+                "payment_intent": sess["payment_intent"],
+                "status": "pending_review" if promo["status"] == "awaiting_payment" else promo["status"],
+                "paid_at": datetime.now(timezone.utc),
+            }
+            await db.promotions.update_one({"promo_id": promo["promo_id"]}, {"$set": update})
+            promo = {**promo, **update}
+    return promo
+
+
+@api_router.get("/owner/promotions")
+async def owner_list_promotions(user: dict = Depends(get_current_user)):
+    await _expire_promotions()
+    items = await db.promotions.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(20)
+    return {"promotions": items, "plans": PROMO_PLANS}
+
+
+@api_router.get("/owner/promotions/status/{session_id}")
+async def owner_promo_status(session_id: str, user: dict = Depends(get_current_user)):
+    promo = await db.promotions.find_one({"session_id": session_id}, {"_id": 0})
+    if not promo or (promo["user_id"] != user["user_id"] and not user.get("is_admin")):
+        raise HTTPException(status_code=404, detail="Paiement introuvable")
+    promo = await _sync_promo_payment(promo)
+    return _promo_public(promo)
+
+
+@api_router.post("/webhooks/stripe")
+async def stripe_webhook(request: Request):
+    """Stripe webhook — used only as a TRIGGER: the payload session id is
+    re-verified against the Stripe API (never trusted as-is)."""
+    try:
+        payload = await request.json()
+        obj = (payload.get("data") or {}).get("object") or {}
+        session_id = obj.get("id") if str(obj.get("object")) == "checkout.session" else None
+        if session_id:
+            promo = await db.promotions.find_one({"session_id": session_id}, {"_id": 0})
+            if promo:
+                await _sync_promo_payment(promo)
+    except Exception as e:  # noqa: BLE001
+        logging.warning("Stripe webhook parse error: %s", e)
+    return {"received": True}
+
+
+@api_router.get("/promotions/featured")
+async def featured_promotions():
+    """Public — active paid promotions for the home 'À la une ⭐' section."""
+    ids = await _active_promo_club_ids()
+    out = []
+    for club_id in ids:
+        club = await db.places.find_one({"club_id": club_id}, {"_id": 0})
+        if not club:
+            club = await db.clubs.find_one({"club_id": club_id}, {"_id": 0})
+        if club:
+            club.pop("expires_at", None)
+            club.pop("updated_at", None)
+            club["promoted"] = True
+            out.append(club)
+    return {"clubs": out}
+
+
+@api_router.get("/admin/promotions")
+async def admin_list_promotions(status: Optional[str] = None, _admin: dict = Depends(require_admin)):
+    await _expire_promotions()
+    query: dict = {}
+    if status:
+        query["status"] = status
+    items = await db.promotions.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    # Sync any pending payments so the admin sees fresh states
+    for i, p in enumerate(items):
+        if p["payment_status"] == "pending" and p["status"] == "awaiting_payment":
+            items[i] = await _sync_promo_payment(p)
+    pending = await db.promotions.count_documents({"status": "pending_review"})
+    return {"promotions": items, "pending_count": pending}
+
+
+@api_router.post("/admin/promotions/{promo_id}/approve")
+async def admin_approve_promotion(promo_id: str, admin: dict = Depends(require_admin)):
+    promo = await db.promotions.find_one({"promo_id": promo_id})
+    if not promo:
+        raise HTTPException(status_code=404, detail="Demande introuvable")
+    if promo["status"] != "pending_review":
+        raise HTTPException(status_code=409, detail="Demande déjà traitée ou paiement non confirmé")
+    now = datetime.now(timezone.utc)
+    ends = now + timedelta(days=promo["days"])
+    await db.promotions.update_one(
+        {"promo_id": promo_id},
+        {"$set": {"status": "active", "starts_at": now, "ends_at": ends,
+                  "reviewed_at": now, "reviewed_by": admin["user_id"]}},
+    )
+    await _update_owned_club(promo["club_id"], {"$set": {"promoted": True, "promoted_until": ends}})
+    await db.notifications.insert_one({
+        "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+        "user_id": promo["user_id"],
+        "title": "Mise en avant activée ⭐",
+        "body": f"{promo.get('club_name')} est maintenant à la une pendant {promo['days']} jours !",
+        "type": "promotion_approved",
+        "data": {"club_id": promo["club_id"], "promo_id": promo_id},
+        "created_at": now,
+    })
+    await db.admin_actions.insert_one({
+        "admin_id": admin["user_id"], "action": "approve_promotion",
+        "details": {"promo_id": promo_id, "club_id": promo["club_id"]}, "at": now,
+    })
+    return {"ok": True, "ends_at": ends}
+
+
+class RejectPromoBody(BaseModel):
+    reason: str = ""
+
+
+@api_router.post("/admin/promotions/{promo_id}/reject")
+async def admin_reject_promotion(promo_id: str, body: RejectPromoBody, admin: dict = Depends(require_admin)):
+    promo = await db.promotions.find_one({"promo_id": promo_id})
+    if not promo:
+        raise HTTPException(status_code=404, detail="Demande introuvable")
+    if promo["status"] not in ("pending_review", "awaiting_payment"):
+        raise HTTPException(status_code=409, detail="Demande déjà traitée")
+    now = datetime.now(timezone.utc)
+    reason = body.reason.strip() or "Demande non conforme"
+
+    # Automatic FULL refund if the payment went through
+    refund_status = "not_needed"
+    if promo.get("payment_status") == "paid":
+        try:
+            pi = promo.get("payment_intent")
+            if not pi:
+                sess = await _stripe_call(stripe_sdk.checkout.Session.retrieve, promo["session_id"])
+                pi = sess["payment_intent"]
+            if not pi:
+                raise RuntimeError("PaymentIntent introuvable")
+            refund = await _stripe_call(
+                stripe_sdk.Refund.create,
+                payment_intent=pi,
+                metadata={"promo_id": promo_id, "reason": "promotion_rejected"},
+            )
+            refund_status = "refunded"
+            await db.promotions.update_one(
+                {"promo_id": promo_id},
+                {"$set": {"payment_status": "refunded", "refund_id": refund["id"]}},
+            )
+        except Exception as e:  # noqa: BLE001
+            logging.error("Refund failed for %s: %s", promo_id, e)
+            refund_status = "refund_failed"
+            await db.promotions.update_one(
+                {"promo_id": promo_id}, {"$set": {"payment_status": "refund_failed"}}
+            )
+
+    await db.promotions.update_one(
+        {"promo_id": promo_id},
+        {"$set": {"status": "rejected", "rejection_reason": reason,
+                  "reviewed_at": now, "reviewed_by": admin["user_id"]}},
+    )
+    await db.notifications.insert_one({
+        "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+        "user_id": promo["user_id"],
+        "title": "Mise en avant refusée",
+        "body": f"Ta demande pour {promo.get('club_name')} a été refusée : {reason}."
+                + (" Tu as été intégralement remboursé." if refund_status == "refunded" else ""),
+        "type": "promotion_rejected",
+        "data": {"club_id": promo["club_id"], "promo_id": promo_id},
+        "created_at": now,
+    })
+    await db.admin_actions.insert_one({
+        "admin_id": admin["user_id"], "action": "reject_promotion",
+        "details": {"promo_id": promo_id, "reason": reason, "refund": refund_status}, "at": now,
+    })
+    return {"ok": True, "refund": refund_status}
+
+
+# -------------- Phase 5 — Tableau de bord propriétaire -------------- #
+
+
+@api_router.get("/owner/club")
+async def owner_get_club(user: dict = Depends(get_current_user)):
+    club = await _get_owned_club(user)
+    club.pop("expires_at", None)
+    club.pop("updated_at", None)
+    return club
+
+
+class OwnerClubUpdate(BaseModel):
+    description: Optional[str] = None
+    avg_price: Optional[float] = None
+    music_styles: Optional[List[str]] = None
+    photos: Optional[List[str]] = None
+    hours: Optional[dict] = None
+
+
+@api_router.patch("/owner/club")
+async def owner_update_club(body: OwnerClubUpdate, user: dict = Depends(get_current_user)):
+    club = await _get_owned_club(user)
+    update = {k: v for k, v in body.dict().items() if v is not None}
+    if not update:
+        raise HTTPException(status_code=400, detail="Aucune modification")
+    if "avg_price" in update:
+        update["avg_price"] = max(0.0, min(float(update["avg_price"]), 1000.0))
+    if "photos" in update:
+        update["photos"] = update["photos"][:6]
+    await _update_owned_club(club["club_id"], {"$set": update})
+    return {"ok": True, "updated": list(update.keys())}
+
+
+class MenuItem(BaseModel):
+    name: str
+    price: float = 0.0
+    category: str = ""
+
+
+class MenuBody(BaseModel):
+    items: List[MenuItem]
+
+
+@api_router.put("/owner/club/menu")
+async def owner_set_menu(body: MenuBody, user: dict = Depends(get_current_user)):
+    club = await _get_owned_club(user)
+    items = [i.dict() for i in body.items][:50]
+    await _update_owned_club(club["club_id"], {"$set": {"menu": items}})
+    return {"ok": True, "count": len(items)}
+
+
+class OwnerEventBody(BaseModel):
+    title: str
+    description: str = ""
+    dj: str = ""
+    date: str  # ISO datetime
+    entry_price: float = 0.0
+    photo: Optional[str] = None
+
+
+@api_router.post("/owner/events", status_code=201)
+async def owner_create_event(body: OwnerEventBody, user: dict = Depends(get_current_user)):
+    club = await _get_owned_club(user)
+    if not body.title.strip():
+        raise HTTPException(status_code=400, detail="Titre obligatoire")
+    event = {
+        "event_id": f"evt_{uuid.uuid4().hex[:12]}",
+        "club_id": club["club_id"],
+        "club_name": club.get("name"),
+        "club_photo": (club.get("photos") or [None])[0],
+        "title": body.title.strip(),
+        "description": body.description.strip(),
+        "dj": body.dj.strip(),
+        "date": body.date,
+        "entry_price": max(0.0, body.entry_price),
+        "photo": body.photo,
+        "visibility": "public",
+        "location_name": club.get("name"),
+        "location_address": club.get("address", ""),
+        "created_by": user["user_id"],
+        "created_by_owner": True,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.events.insert_one({**event})
+    event.pop("created_at", None)
+    return event
+
+
+@api_router.delete("/owner/events/{event_id}")
+async def owner_delete_event(event_id: str, user: dict = Depends(get_current_user)):
+    club = await _get_owned_club(user)
+    res = await db.events.delete_one({"event_id": event_id, "club_id": club["club_id"]})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Événement introuvable")
+    return {"ok": True}
+
+
+@api_router.get("/owner/stats")
+async def owner_stats(user: dict = Depends(get_current_user)):
+    club = await _get_owned_club(user)
+    cid = club["club_id"]
+    stats_doc = await db.club_stats.find_one({"club_id": cid}) or {}
+    favorites = await db.favorites.count_documents({"club_id": cid})
+    checkins = await db.checkins.count_documents({"club_id": cid})
+    songs = await db.user_songs.count_documents({"club_id": cid})
+    promo = await db.promotions.find_one(
+        {"club_id": cid, "status": "active"}, {"_id": 0, "ends_at": 1, "plan_label": 1}
+    )
+    return {
+        "club_id": cid,
+        "club_name": club.get("name"),
+        "views": int(stats_doc.get("views", 0)),
+        "favorites": favorites,
+        "checkins": checkins,
+        "songs": songs,
+        "active_promotion": promo,
+    }
+
+
+# -------------- Phase 4 — Gestion administrateur -------------- #
+
+
+@api_router.get("/admin/overview")
+async def admin_overview(_admin: dict = Depends(require_admin)):
+    await _expire_promotions()
+    pending_claims = await db.bar_claims.count_documents({"status": "pending"})
+    pending_promotions = await db.promotions.count_documents({"status": "pending_review"})
+    active_promotions = await db.promotions.count_documents({"status": "active"})
+    verified_places = await db.places.count_documents({"verified": True})
+    verified_clubs = await db.clubs.count_documents({"verified": True})
+    return {
+        "pending_claims": pending_claims,
+        "pending_promotions": pending_promotions,
+        "active_promotions": active_promotions,
+        "verified_bars": verified_places + verified_clubs,
+    }
+
+
+@api_router.post("/admin/verified-bars/{club_id}/revoke")
+async def admin_revoke_verified(club_id: str, admin: dict = Depends(require_admin)):
+    """Retire le badge Vérifié + le statut propriétaire + stoppe les promos."""
+    club = await _find_any_club(club_id)
+    if not club:
+        raise HTTPException(status_code=404, detail="Établissement introuvable")
+    now = datetime.now(timezone.utc)
+    owner = await db.users.find_one({"owned_club_id": club_id}, {"_id": 0, "user_id": 1})
+    await _update_owned_club(club_id, {"$unset": {"verified": "", "owner_user_id": "", "verified_at": "", "promoted": "", "promoted_until": ""}})
+    if owner:
+        await db.users.update_one(
+            {"user_id": owner["user_id"]}, {"$unset": {"is_bar_owner": "", "owned_club_id": ""}}
+        )
+        await db.notifications.insert_one({
+            "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+            "user_id": owner["user_id"],
+            "title": "Statut Vérifié retiré",
+            "body": f"Le badge Vérifié de {club.get('name')} a été retiré par l'équipe Night Finder.",
+            "type": "verified_revoked",
+            "data": {"club_id": club_id},
+            "created_at": now,
+        })
+    await db.promotions.update_many(
+        {"club_id": club_id, "status": "active"}, {"$set": {"status": "expired"}}
+    )
+    await db.admin_actions.insert_one({
+        "admin_id": admin["user_id"], "action": "revoke_verified",
+        "details": {"club_id": club_id}, "at": now,
+    })
+    return {"ok": True}
 
 
 app.include_router(legal_pages.router)

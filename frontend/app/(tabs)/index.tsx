@@ -56,6 +56,7 @@ export default function Home() {
   const [active, setActive] = useState('all');
   const [people, setPeople] = useState<NearbyUser[]>([]);
   const [moments, setMoments] = useState<FeedMoment[]>([]);
+  const [featured, setFeatured] = useState<Club[]>([]);
   const [unlockedCoupon, setUnlockedCoupon] = useState<any | null>(null);
 
   // Partner bar: capture code from launch URL (QR/deep link), then claim the
@@ -81,6 +82,9 @@ export default function Home() {
       .catch(() => {});
     api.momentsFeed(10)
       .then((r) => setMoments(r.moments || []))
+      .catch(() => {});
+    api.featuredPromotions()
+      .then((r) => setFeatured((r.clubs || []).slice(0, 8)))
       .catch(() => {});
   }, [loc.loading, loc.coords.lat, loc.coords.lng]);
 
@@ -216,6 +220,23 @@ export default function Home() {
           );
         })}
       </ScrollView>
+
+      {/* ── À la une (mises en avant payées) ───── */}
+      {featured.length > 0 && (
+        <View>
+          <SectionHeader title="À la une ⭐" colors={colors} />
+          <FlatList
+            horizontal
+            data={featured}
+            keyExtractor={(c) => `feat-${c.club_id}`}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.hList}
+            renderItem={({ item }) => (
+              <MiniClubCard club={item} onPress={() => router.push(`/club/${item.club_id}` as any)} />
+            )}
+          />
+        </View>
+      )}
 
       {/* ── Clubs proches ──────────────────────── */}
       {nearby.length > 0 && (
@@ -417,6 +438,11 @@ function MiniClubCard({ club, onPress }: { club: Club; onPress: () => void }) {
   return (
     <TouchableOpacity style={styles.miniCard} activeOpacity={0.9} onPress={onPress} testID={`near-card-${club.club_id}`}>
       <SafeImage uri={club.photos?.[0]} style={styles.miniImage} />
+      {club.promoted && (
+        <View style={styles.sponsoredChip}>
+          <Text style={styles.sponsoredText}>Sponsorisé</Text>
+        </View>
+      )}
       <View style={styles.miniBody}>
         <Text style={styles.miniName} numberOfLines={1}>{club.name}</Text>
         <Text style={styles.miniMeta} numberOfLines={1}>
@@ -628,6 +654,16 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     overflow: 'hidden',
   },
   miniImage: { width: '100%', height: 110 },
+  sponsoredChip: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(245, 158, 11, 0.95)',
+    borderRadius: radius.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  sponsoredText: { color: '#fff', fontSize: 10, fontWeight: '800' },
   miniBody: { padding: 12 },
   miniName: { color: colors.textPrimary, fontSize: 14, fontWeight: '700' },
   miniMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 3 },

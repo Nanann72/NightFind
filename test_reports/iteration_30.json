@@ -1,0 +1,27 @@
+{
+  "summary": "Frontend testing of Phases 3/4/5 (Bar Partenaire — mise en avant payante Stripe + admin promotions + owner dashboard) — all 9 UI flows validated end-to-end on mobile viewport 390x844. (1) Setup via API: Emma soumet claim sur Club Rex → admin approuve → Emma devient propriétaire (is_bar_owner=true, owned_club_id=club_6c802df155, verified=true). (2) Settings (emma) → section 'Vous êtes propriétaire ?' affiche bien row-owner-dashboard + row-promote-bar. (3) /owner-dashboard : stat cards (Vues=0, Favoris=0, Check-ins=65, Musiques=1), owner-description modifiée + owner-avg-price=19 → owner-save-info → DB confirme description/avg_price persistés. menu-name='Mojito TEST' + menu-price=12.50 → menu-add → owner-save-menu → Mojito TEST 12.50€ apparaît dans la liste + persisté en DB (clubs.menu). owner-add-event → modal evt-title/evt-date '2026-09-15 23:00'/evt-price=15 → evt-save → 'Soirée T1 Test' apparaît + DB confirme created_by_owner=true. (4) /club/club_6c802df155 (emma) : badge 'Vérifié' (bleu) + section 'Carte & Menu' avec Mojito TEST 12.50€ + événement 'Soirée T1 Test' listé. (5) /promote-bar : intro card + plan-7d (19,99€) + plan-30d (49,99€) visibles + testIDs OK. Clic plan-7d → window.location redirige bien vers checkout.stripe.com (cs_test_a1pJFN…) — redirection Stripe confirmée. (6) Simulation paiement en DB (payment_status='paid', status='pending_review') → admin login → /admin affiche admin-promotions-btn → /admin-promotions onglet 'À valider' affiche la carte avec '💳 Payé' + boutons Refuser/Activer → promo-approve-{id} clic → alert succès → onglet 'Actives' → promo listée avec 'jusqu'au 22 juil.' (7) Après activation : page d'accueil (/) affiche section 'À la une ⭐' avec Club Rex + badge orange 'Sponsorisé' sur la carte. Fiche /club/club_6c802df155 affiche 2 badges côte à côte : bleu 'Vérifié' + orange 'Sponsorisé'. (8) Flux refus : 2e promo créée en DB (30d, paid, pending_review), admin → promo-reject-{id} → champ promo-reject-reason rempli 'Test refus T1 — documents insuffisants' → promo-confirm-reject → onglet 'Refusées' affiche la carte avec '⚠️ Remboursement échoué' + Motif visible (acceptable car payment_intent simulé, comme précisé dans la spec). (9) /promotion-status?cancelled=1 → écran 'Paiement annulé' + testID promo-status-cancelled + bouton back-to-promote OK. (10) /admin-claims → onglet Approuvées → détail claim → revoke-btn → alert révoquée → DB confirme : verified/owner_user_id unset sur club, is_bar_owner unset sur emma. CLEANUP FINAL EFFECTUÉ : 0 promotions, 0 claims, 0 owner events, Club Rex restauré (description/avg_price=18.0/music_styles=['techno','house','electronic']), 4 notifications supprimées. Aucun paiement Stripe réel effectué.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/setup_phase345.py",
+    "/app/test_reports/iteration_30.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "owner-dashboard.tsx (line 154): `new Date(evt.date.replace(' ', 'T')).toISOString()` — si l'utilisateur saisit une date incorrecte, .toISOString() lance une RangeError avant le check `Number.isNaN` de la ligne suivante. Envelopper la construction dans try/catch ou faire le check sur `Date` avant .toISOString(). Impact faible car saisie utilisateur validée avant, mais peut crasher l'app sur input très mal formé.",
+    "promotion-status.tsx (line 40): polling à intervalle fixe 2500ms sans backoff. 8 polls × 2.5s = 20s. Acceptable mais un léger exponential backoff (2s, 3s, 4s…) réduirait la charge backend en cas de session inexistante.",
+    "admin-promotions.tsx : l'affichage '⚠️ Remboursement échoué' est un état de bord attendu quand payment_intent est simulé — le message côté frontend est clair et correct."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend only run — backend déjà validé)", "frontend": "100% (10/10 flows validés)"},
+  "seed_data_creation": "Créé via API : 1 claim Emma→Club Rex (approuvé par admin), 2 promotions (1 approuvée, 1 refusée), 1 menu item Mojito TEST, 1 event 'Soirée T1 Test'. TOUT CLEANUP EFFECTUÉ à la fin (voir summary étape 10). Club Rex restauré aux valeurs d'origine.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Phase 3/4/5 Bar Partenaire fully working end-to-end sur mobile web (390x844). Tous les testIDs listés dans la spec existent et fonctionnent : row-owner-dashboard, row-promote-bar, owner-description/avg-price/save-info, genre-*, menu-name/price/add, owner-save-menu, owner-add-event, evt-title/date/price/save, del-evt-*, plan-7d/30d, promote-back, admin-promotions-btn, ptab-{pending,active,rejected}, promo-approve/reject-*, promo-reject-reason, promo-confirm-reject, promo-status-*, back-to-promote, revoke-btn, tab-approved, claim-card-*. Le paiement Stripe réel n'a PAS été effectué (redirect vers checkout.stripe.com vérifié seulement, comme spec). La simulation via DB (payment_status='paid') est le seul moyen de tester le flux admin approve/reject. Le message '⚠️ Remboursement échoué' est attendu quand le pi est simulé (Stripe refuse le refund) — pas un bug.",
+  "rca_of_issue": "N/A — aucun bug UI/backend trouvé. Tous les flows implémentés fonctionnent comme spécifié. Les 3 remarques de code review sont mineures (defensive coding) et n'affectent pas le comportement utilisateur."
+}

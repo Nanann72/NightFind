@@ -175,6 +175,12 @@ export default function ClubDetail() {
                   <Text style={styles.verifiedText}>Vérifié</Text>
                 </View>
               )}
+              {club.promoted && (
+                <View style={[styles.verifiedBadge, { backgroundColor: '#F59E0B' }]}>
+                  <Ionicons name="star" size={12} color="#fff" />
+                  <Text style={styles.verifiedText}>Sponsorisé</Text>
+                </View>
+              )}
             </View>
             <Text style={styles.address}>{club.address}</Text>
             <View style={styles.statsRow}>
@@ -236,6 +242,20 @@ export default function ClubDetail() {
                   </View>
                 ))}
               </View>
+            </Section>
+          )}
+
+          {club.menu && club.menu.length > 0 && (
+            <Section title="Carte & Menu">
+              {club.menu.map((m, i) => (
+                <View key={i} style={styles.hourRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.dayLabel}>{m.name}</Text>
+                    {!!m.category && <Text style={styles.menuCat}>{m.category}</Text>}
+                  </View>
+                  <Text style={styles.hourValue}>{Number(m.price).toFixed(2)}€</Text>
+                </View>
+              ))}
             </Section>
           )}
 
@@ -354,6 +374,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 10, paddingVertical: 4,
   },
   verifiedText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  menuCat: { color: colors.textTertiary, fontSize: 11.5, marginTop: 1 },
   address: { color: colors.textSecondary, marginTop: 4 },
   statsRow: { flexDirection: 'row', gap: 16, marginTop: 12 },
   statItem: { flexDirection: 'row', gap: 4, alignItems: 'center' },

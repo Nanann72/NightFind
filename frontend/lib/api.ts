@@ -70,6 +70,8 @@ export type User = {
   is_premium?: boolean;
   premium_expires_at?: string | null;
   is_admin?: boolean;
+  is_bar_owner?: boolean;
+  owned_club_id?: string | null;
 };
 
 export type MomentComment = {
@@ -553,6 +555,73 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ reason }),
     }),
+
+  // Promotions payantes — Phase 3
+  createPromoCheckout: (plan: '7d' | '30d', originUrl: string) =>
+    request<{ url: string; session_id: string; promo_id: string }>('/owner/promotions/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ plan, origin_url: originUrl }),
+    }),
+  myPromotions: () =>
+    request<{ promotions: Promotion[]; plans: Record<string, { amount: number; days: number; label: string }> }>(
+      '/owner/promotions',
+    ),
+  promoStatus: (sessionId: string) =>
+    request<Promotion>(`/owner/promotions/status/${sessionId}`),
+  featuredPromotions: () => request<{ clubs: Club[] }>('/promotions/featured'),
+  adminListPromotions: (status?: string) =>
+    request<{ promotions: Promotion[]; pending_count: number }>(
+      `/admin/promotions${status ? `?status=${status}` : ''}`,
+    ),
+  adminApprovePromotion: (promoId: string) =>
+    request<{ ok: boolean }>(`/admin/promotions/${promoId}/approve`, { method: 'POST' }),
+  adminRejectPromotion: (promoId: string, reason: string) =>
+    request<{ ok: boolean; refund: string }>(`/admin/promotions/${promoId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
+  // Tableau de bord propriétaire — Phase 5
+  ownerGetClub: () => request<Club & { menu?: MenuItem[] }>('/owner/club'),
+  ownerUpdateClub: (payload: Partial<{
+    description: string;
+    avg_price: number;
+    music_styles: string[];
+    photos: string[];
+    hours: Record<string, any>;
+  }>) =>
+    request<{ ok: boolean }>('/owner/club', { method: 'PATCH', body: JSON.stringify(payload) }),
+  ownerSetMenu: (items: MenuItem[]) =>
+    request<{ ok: boolean }>('/owner/club/menu', { method: 'PUT', body: JSON.stringify({ items }) }),
+  ownerCreateEvent: (payload: {
+    title: string;
+    description?: string;
+    dj?: string;
+    date: string;
+    entry_price?: number;
+    photo?: string | null;
+  }) =>
+    request<NFEvent>('/owner/events', { method: 'POST', body: JSON.stringify(payload) }),
+  ownerDeleteEvent: (eventId: string) =>
+    request<{ ok: boolean }>(`/owner/events/${eventId}`, { method: 'DELETE' }),
+  ownerStats: () =>
+    request<{
+      club_id: string;
+      club_name: string;
+      views: number;
+      favorites: number;
+      checkins: number;
+      songs: number;
+      active_promotion?: { ends_at: string; plan_label: string } | null;
+    }>('/owner/stats'),
+
+  // Admin — Phase 4
+  adminOverview: () =>
+    request<{ pending_claims: number; pending_promotions: number; active_promotions: number; verified_bars: number }>(
+      '/admin/overview',
+    ),
+  adminRevokeVerified: (clubId: string) =>
+    request<{ ok: boolean }>(`/admin/verified-bars/${clubId}/revoke`, { method: 'POST' }),
   adminRedeemCoupon: (code: string) =>
     request<{ ok: boolean }>('/admin/coupons/redeem', {
       method: 'POST',

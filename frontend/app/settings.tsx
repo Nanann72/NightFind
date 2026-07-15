@@ -613,6 +613,14 @@ export default function Settings() {
         {/* SECTION — Propriétaire d'établissement */}
         <SectionHeader title="Vous êtes propriétaire ?" />
         <View style={styles.group}>
+          {user?.is_bar_owner && (
+            <>
+              {renderRow('stats-chart-outline', 'Mon établissement — tableau de bord', () =>
+                router.push('/owner-dashboard' as any), { testID: 'row-owner-dashboard' })}
+              {renderRow('star-outline', 'Mettre en avant mon bar ⭐', () =>
+                router.push('/promote-bar' as any), { testID: 'row-promote-bar' })}
+            </>
+          )}
           {renderRow('business-outline', 'Revendiquer mon établissement', () =>
             router.push('/claim-bar' as any), { testID: 'row-claim-bar' })}
         </View>

@@ -116,6 +116,21 @@ export default function AdminClaims() {
     }
   };
 
+  const revoke = async () => {
+    if (!detail) return;
+    setBusy(true);
+    try {
+      await api.adminRevokeVerified(detail.club_id);
+      setDetail(null);
+      Alert.alert('Badge révoqué', `${detail.club_name} n'est plus un bar Vérifié.`);
+      load();
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message || 'Révocation impossible');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const fmtDate = (iso?: string | null) => {
     if (!iso) return '';
     try {
@@ -293,18 +308,31 @@ export default function AdminClaims() {
                   )}
                 </>
               ) : (
-                <View style={styles.statusBanner}>
-                  <Ionicons
-                    name={detail.status === 'approved' ? 'checkmark-circle' : 'close-circle'}
-                    size={18}
-                    color={detail.status === 'approved' ? '#22C55E' : '#EF4444'}
-                  />
-                  <Text style={styles.statusBannerText}>
-                    {detail.status === 'approved'
-                      ? `Approuvée le ${fmtDate(detail.reviewed_at)}`
-                      : `Refusée le ${fmtDate(detail.reviewed_at)}${detail.rejection_reason ? ` — ${detail.rejection_reason}` : ''}`}
-                  </Text>
-                </View>
+                <>
+                  <View style={styles.statusBanner}>
+                    <Ionicons
+                      name={detail.status === 'approved' ? 'checkmark-circle' : 'close-circle'}
+                      size={18}
+                      color={detail.status === 'approved' ? '#22C55E' : '#EF4444'}
+                    />
+                    <Text style={styles.statusBannerText}>
+                      {detail.status === 'approved'
+                        ? `Approuvée le ${fmtDate(detail.reviewed_at)}`
+                        : `Refusée le ${fmtDate(detail.reviewed_at)}${detail.rejection_reason ? ` — ${detail.rejection_reason}` : ''}`}
+                    </Text>
+                  </View>
+                  {detail.status === 'approved' && (
+                    <TouchableOpacity
+                      style={[styles.rejectBtn, { marginTop: spacing.md }, busy && { opacity: 0.6 }]}
+                      onPress={revoke}
+                      disabled={busy}
+                      testID="revoke-btn"
+                    >
+                      <Ionicons name="shield-outline" size={16} color="#fff" />
+                      <Text style={styles.btnText}>Révoquer le badge Vérifié</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
               )}
             </ScrollView>
           )}

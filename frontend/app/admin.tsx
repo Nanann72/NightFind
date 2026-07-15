@@ -198,6 +198,20 @@ export default function AdminScreen() {
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
 
+        <Text style={styles.section}>Mises en avant payantes</Text>
+        <TouchableOpacity
+          onPress={() => router.push('/admin-promotions')}
+          style={styles.userMgmtBtn}
+          activeOpacity={0.85}
+          testID="admin-promotions-btn"
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userMgmtTitle}>Promotions de bars ⭐</Text>
+            <Text style={styles.userMgmtSub}>Valider/refuser les mises en avant payées (remboursement auto si refus)</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
+
         <Text style={styles.section}>Diagnostic Audd.io</Text>
         <TouchableOpacity
           onPress={() => router.push('/admin-audd')}
