@@ -1,7 +1,7 @@
 """Génère les captures d'écran App Store (previews) aux dimensions Apple.
 
-iPhone 6,9" : 1290 × 2796 px  →  viewport 430×932 @3x
-Compatible avec les slots 6,9" et 6,7" d'App Store Connect.
+iPhone 6,5" : 1284 × 2778 px  →  viewport 428×926 @3x
+(Dimensions exigées par App Store Connect : 1242×2688 ou 1284×2778.)
 """
 import asyncio
 import os
@@ -39,7 +39,7 @@ async def main():
     async with async_playwright() as pw:
         browser = await pw.chromium.launch()
         ctx = await browser.new_context(
-            viewport={"width": 430, "height": 932},
+            viewport={"width": 428, "height": 926},
             device_scale_factor=3,
             is_mobile=True,
             has_touch=True,
@@ -47,8 +47,8 @@ async def main():
         await ctx.add_init_script("try { localStorage.setItem('nf_lang', 'fr'); } catch (e) {}")
         page = await ctx.new_page()
         # Login
-        await page.goto(f"{BASE}/login", wait_until="networkidle")
-        await page.wait_for_selector("input", timeout=30000)
+        await page.goto(f"{BASE}/login", wait_until="domcontentloaded", timeout=120000)
+        await page.wait_for_selector("input", timeout=90000)
         inputs = await page.query_selector_all("input")
         await inputs[0].fill("emma.demo@nightfinder.app")
         await inputs[1].fill("DemoOnly2026!")
