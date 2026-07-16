@@ -5086,6 +5086,32 @@ async def iap_screenshot(name: str):
     return FileResponse(path, media_type="image/png", filename=name)
 
 
+APPSTORE_SCREENS_DIR = os.path.join(os.path.dirname(__file__), "appstore_screens")
+
+
+@api_router.get("/assets/appstore/all.zip")
+async def appstore_screenshots_zip():
+    """ZIP de toutes les captures App Store (1290×2796, iPhone 6,9\")."""
+    import zipfile
+    zip_path = "/tmp/nightfinder_appstore_screens.zip"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED) as zf:
+        for f in sorted(os.listdir(APPSTORE_SCREENS_DIR)):
+            if f.endswith(".png"):
+                zf.write(os.path.join(APPSTORE_SCREENS_DIR, f), f)
+    return FileResponse(zip_path, media_type="application/zip", filename="nightfinder_appstore_screens.zip")
+
+
+@api_router.get("/assets/appstore/{name}")
+async def appstore_screenshot(name: str):
+    """Capture App Store individuelle (téléchargement pour App Store Connect)."""
+    if "/" in name or ".." in name or not name.endswith(".png"):
+        raise HTTPException(status_code=404, detail="Introuvable")
+    path = os.path.join(APPSTORE_SCREENS_DIR, name)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Fichier manquant")
+    return FileResponse(path, media_type="image/png", filename=name)
+
+
 app.include_router(legal_pages.router)
 
 # ================== ADMIN ROUTES (require_admin) ================== #
