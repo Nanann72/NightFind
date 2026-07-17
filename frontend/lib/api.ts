@@ -2,6 +2,15 @@ import { getToken } from './storage';
 
 const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
+export type LiveStats = {
+  active_users: number;
+  moments_tonight: number;
+  checkins_tonight: number;
+  matches_tonight: number;
+  generated_at: string;
+};
+
+
 export type Club = {
   club_id: string;
   name: string;
@@ -255,6 +264,7 @@ export const api = {
   },
   notificationsUnread: () =>
     request<{ unread: number }>('/notifications/unread-count'),
+  statsLive: () => request<LiveStats>('/stats/live'),
   notificationsMarkRead: () =>
     request<{ ok: boolean; updated: number }>('/notifications/mark-read', { method: 'POST' }),
   // Admin — user moderation

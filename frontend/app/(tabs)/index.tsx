@@ -28,6 +28,7 @@ import { useTabBarScroll } from '../../lib/tabBarScroll';
 import { useUnreadNotifications } from '../../lib/useUnreadNotifications';
 import { capturePartnerCodeFromUrl, claimPendingPartnerCode } from '../../lib/partner';
 import { PartnerUnlockModal } from '../../components/PartnerUnlockModal';
+import { LiveStatsBanner } from '../../components/LiveStatsBanner';
 import { SafeImage } from '../../components/SafeImage';
 import { HapticButton } from '../../components/ui/HapticButton';
 import { radius, spacing, type ThemeColors } from '../../lib/theme';
@@ -220,6 +221,9 @@ export default function Home() {
           );
         })}
       </ScrollView>
+
+      {/* ── Live : ce soir sur Night Finder ────── */}
+      <LiveStatsBanner colors={colors} />
 
       {/* ── À la une (mises en avant payées) ───── */}
       {featured.length > 0 && (

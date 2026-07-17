@@ -246,6 +246,22 @@ def make_jwt(user_id: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
 
 
+_last_seen_cache: dict = {}
+LAST_SEEN_THROTTLE_SECONDS = 300
+
+
+def _touch_last_seen(user_id: str) -> None:
+    """Met à jour users.last_seen au plus 1 fois / 5 min (fire-and-forget)."""
+    now = datetime.now(timezone.utc)
+    prev = _last_seen_cache.get(user_id)
+    if prev and (now - prev).total_seconds() < LAST_SEEN_THROTTLE_SECONDS:
+        return
+    _last_seen_cache[user_id] = now
+    asyncio.create_task(
+        db.users.update_one({"user_id": user_id}, {"$set": {"last_seen": now}})
+    )
+
+
 async def get_current_user(request: Request) -> dict:
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
@@ -259,6 +275,7 @@ async def get_current_user(request: Request) -> dict:
         if user_id:
             user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
             if user:
+                _touch_last_seen(user["user_id"])
                 return user
     except jwt.InvalidTokenError:
         pass
@@ -292,6 +309,7 @@ async def get_current_user(request: Request) -> dict:
                                 ),
                             },
                         )
+                    _touch_last_seen(user["user_id"])
                     return user
     raise HTTPException(status_code=401, detail="Invalid or expired token")
 
@@ -5115,6 +5133,47 @@ async def admin_revoke_verified(club_id: str, admin: dict = Depends(require_admi
         "details": {"club_id": club_id}, "at": now,
     })
     return {"ok": True}
+
+
+_live_stats_cache: dict = {"at": None, "data": None}
+
+
+@api_router.get("/stats/live")
+async def live_stats():
+    """Statistiques temps réel affichées sur l'accueil (cache 60s)."""
+    now = datetime.now(timezone.utc)
+    cached_at = _live_stats_cache["at"]
+    if cached_at and (now - cached_at).total_seconds() < 60:
+        return _live_stats_cache["data"]
+
+    # "Ce soir" démarre à 17h UTC (~18-19h en France) ; avant cela, on prend
+    # la soirée de la veille pour ne jamais afficher des compteurs à zéro.
+    tonight = now.replace(hour=17, minute=0, second=0, microsecond=0)
+    if tonight > now:
+        tonight -= timedelta(days=1)
+
+    active_users = await db.users.count_documents(
+        {"last_seen": {"$gte": now - timedelta(hours=3)}}
+    )
+    moments_tonight = await db.club_moments.count_documents(
+        {"created_at": {"$gte": tonight}}
+    )
+    checkins_tonight = await db.checkins.count_documents(
+        {"created_at": {"$gte": tonight}}
+    )
+    matches_tonight = await db.matches.count_documents(
+        {"created_at": {"$gte": tonight}}
+    )
+    data = {
+        "active_users": active_users,
+        "moments_tonight": moments_tonight,
+        "checkins_tonight": checkins_tonight,
+        "matches_tonight": matches_tonight,
+        "generated_at": now.isoformat(),
+    }
+    _live_stats_cache["at"] = now
+    _live_stats_cache["data"] = data
+    return data
 
 
 @api_router.get("/assets/iap/{name}")
