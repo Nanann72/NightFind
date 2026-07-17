@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import math
+import asyncio
 import os
 import secrets
 import hashlib
@@ -51,11 +52,52 @@ app = FastAPI(title="Night Finder API")
 api_router = APIRouter(prefix="/api")
 
 
+PLACES_SEED_THRESHOLD = 5000
+PLACES_DUMP_PATH = os.path.join(os.path.dirname(__file__), "data", "places_dump.json.gz")
+
+
+async def _seed_places_from_dump() -> None:
+    """Auto-seed de db.places depuis le dump embarqué (déploiement prod).
+
+    Ne fait rien si la base contient déjà assez de lieux.
+    """
+    try:
+        count = await db.places.count_documents({})
+        if count >= PLACES_SEED_THRESHOLD or not os.path.exists(PLACES_DUMP_PATH):
+            return
+        import gzip
+        import json as _json
+        logger.info(f"places seed: {count} lieux en base — chargement du dump…")
+        with gzip.open(PLACES_DUMP_PATH, "rt", encoding="utf-8") as f:
+            docs = _json.load(f)
+        from pymongo import UpdateOne
+        ops = []
+        for doc in docs:
+            for k in ("updated_at", "expires_at"):
+                v = doc.get(k)
+                if isinstance(v, str):
+                    try:
+                        doc[k] = datetime.fromisoformat(v)
+                    except ValueError:
+                        doc.pop(k, None)
+            ops.append(UpdateOne({"place_id": doc["place_id"]}, {"$set": doc}, upsert=True))
+            if len(ops) >= 500:
+                await db.places.bulk_write(ops, ordered=False)
+                ops = []
+        if ops:
+            await db.places.bulk_write(ops, ordered=False)
+        total = await db.places.count_documents({})
+        logger.info(f"places seed: terminé — {total} lieux en base.")
+    except Exception as exc:
+        logger.error(f"places seed: échec — {exc}")
+
+
 @app.on_event("startup")
 async def _startup() -> None:
     global http_client
     http_client = httpx.AsyncClient(timeout=httpx.Timeout(15.0, connect=5.0))
     await places_service.ensure_indexes(db)
+    asyncio.create_task(_seed_places_from_dump())
     # Seed the admin account (idempotent). Credentials are set via env vars
     # so they can be rotated without a code change. Defaults are safe:
     # everything is behind is_admin=True and the account is hidden from
