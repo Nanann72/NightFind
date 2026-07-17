@@ -90,6 +90,32 @@ async def _seed_places_from_dump() -> None:
         logger.info(f"places seed: terminé — {total} lieux en base.")
     except Exception as exc:
         logger.error(f"places seed: échec — {exc}")
+    await _apply_club_photo_fixes()
+
+
+CLUB_PHOTOS_FIX_PATH = os.path.join(os.path.dirname(__file__), "data", "club_photos_fix.json")
+
+
+async def _apply_club_photo_fixes() -> None:
+    """Remplace les photos génériques (Unsplash/Pexels) des clubs seed par les
+    vraies photos Google (dump data/club_photos_fix.json), idempotent."""
+    try:
+        if not os.path.exists(CLUB_PHOTOS_FIX_PATH):
+            return
+        import json as _json
+        with open(CLUB_PHOTOS_FIX_PATH, encoding="utf-8") as f:
+            fixes = _json.load(f)
+        updated = 0
+        for name, photos in fixes.items():
+            res = await db.clubs.update_one(
+                {"name": name, "photos.0": {"$regex": "unsplash|pexels", "$options": "i"}},
+                {"$set": {"photos": photos}},
+            )
+            updated += res.modified_count
+        if updated:
+            logger.info(f"club photos fix: {updated} clubs mis à jour avec de vraies photos.")
+    except Exception as exc:
+        logger.error(f"club photos fix: échec — {exc}")
 
 
 @app.on_event("startup")
