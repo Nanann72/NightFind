@@ -73,13 +73,13 @@ async def _seed_places_from_dump() -> None:
         from pymongo import UpdateOne
         ops = []
         for doc in docs:
-            for k in ("updated_at", "expires_at"):
-                v = doc.get(k)
-                if isinstance(v, str):
-                    try:
-                        doc[k] = datetime.fromisoformat(v)
-                    except ValueError:
-                        doc.pop(k, None)
+            doc.pop("expires_at", None)  # clubs permanents, jamais de TTL
+            v = doc.get("updated_at")
+            if isinstance(v, str):
+                try:
+                    doc["updated_at"] = datetime.fromisoformat(v)
+                except ValueError:
+                    doc.pop("updated_at", None)
             ops.append(UpdateOne({"place_id": doc["place_id"]}, {"$set": doc}, upsert=True))
             if len(ops) >= 500:
                 await db.places.bulk_write(ops, ordered=False)
@@ -804,7 +804,17 @@ async def list_clubs(
         try:
             existing_ids = {c.get("club_id") for c in items}
             existing_names = {(c.get("name") or "").lower() for c in items}
-            stored = await db.places.find({}, {"_id": 0}).to_list(20000)
+            # Filtre géographique au niveau Mongo (bounding box sur l'index
+            # lat/lng) — évite de charger les ~16k lieux à chaque requête.
+            stored_query: dict = {}
+            if lat is not None and lng is not None:
+                dlat = radius_km / 111.0
+                dlng = radius_km / max(0.1, 111.0 * math.cos(math.radians(lat)))
+                stored_query = {
+                    "lat": {"$gte": lat - dlat, "$lte": lat + dlat},
+                    "lng": {"$gte": lng - dlng, "$lte": lng + dlng},
+                }
+            stored = await db.places.find(stored_query, {"_id": 0}).to_list(20000)
             for c in stored:
                 if c.get("club_id") in existing_ids:
                     continue

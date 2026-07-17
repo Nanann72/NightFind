@@ -297,14 +297,16 @@ async def search_places_nearby(
             continue
         clubs.append(club)
         place_ids.append(club["place_id"])
+        club.pop("expires_at", None)
         await db.places.update_one(
             {"place_id": club["place_id"]},
             {
                 "$set": {
                     **club,
-                    "expires_at": now + timedelta(hours=PLACES_TTL_HOURS),
                     "updated_at": now,
-                }
+                },
+                # les clubs importés sont permanents : jamais de TTL
+                "$unset": {"expires_at": ""},
             },
             upsert=True,
         )
@@ -330,8 +332,13 @@ async def get_place_by_id(
         return None
     now = datetime.now(timezone.utc)
     cached = await db.places.find_one({"place_id": place_id}, {"_id": 0})
-    if cached and cached.get("expires_at") and cached["expires_at"] > now:
-        return cached
+    if cached:
+        upd = cached.get("updated_at")
+        if isinstance(upd, datetime):
+            if upd.tzinfo is None:
+                upd = upd.replace(tzinfo=timezone.utc)
+            if upd > now - timedelta(hours=PLACES_TTL_HOURS):
+                return cached
 
     url = f"{PLACES_BASE}/places/{place_id}"
     field_mask = NEARBY_FIELD_MASK.replace("places.", "")
@@ -349,14 +356,15 @@ async def get_place_by_id(
         return cached  # fallback to stale cache if available
 
     club = _map_place_to_club(place)
+    club.pop("expires_at", None)
     await db.places.update_one(
         {"place_id": place_id},
         {
             "$set": {
                 **club,
-                "expires_at": now + timedelta(hours=PLACES_TTL_HOURS),
                 "updated_at": now,
-            }
+            },
+            "$unset": {"expires_at": ""},
         },
         upsert=True,
     )
@@ -389,7 +397,16 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     try:
         await db.places.create_index("place_id", unique=True)
         await db.places.create_index([("lat", 1), ("lng", 1)])
-        await db.places.create_index("expires_at", expireAfterSeconds=0)
+        # Les clubs stockés sont permanents : on supprime l'ancien index TTL
+        # (sinon Mongo effacerait les lieux importés) et le champ expires_at.
+        try:
+            await db.places.drop_index("expires_at_1")
+            LOG.info("places: index TTL expires_at_1 supprimé (clubs permanents).")
+        except Exception:
+            pass  # index déjà absent
+        await db.places.update_many(
+            {"expires_at": {"$exists": True}}, {"$unset": {"expires_at": ""}}
+        )
         await db.places_cache.create_index("expires_at", expireAfterSeconds=0)
     except Exception as exc:  # noqa: BLE001
         LOG.warning("places ensure_indexes failed: %s", exc)
