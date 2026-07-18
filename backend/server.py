@@ -52,44 +52,45 @@ app = FastAPI(title="Night Finder API")
 api_router = APIRouter(prefix="/api")
 
 
-PLACES_SEED_THRESHOLD = 5000
 PLACES_DUMP_PATH = os.path.join(os.path.dirname(__file__), "data", "places_dump.json.gz")
 
 
 async def _seed_places_from_dump() -> None:
     """Auto-seed de db.places depuis le dump embarqué (déploiement prod).
 
-    Ne fait rien si la base contient déjà assez de lieux.
+    Upsert idempotent : ne s'exécute que si la base contient moins de lieux
+    que le dump (à 95%), pour rattraper les nouveaux imports à chaque déploiement.
     """
     try:
-        count = await db.places.count_documents({})
-        if count >= PLACES_SEED_THRESHOLD or not os.path.exists(PLACES_DUMP_PATH):
-            return
-        import gzip
-        import json as _json
-        logger.info(f"places seed: {count} lieux en base — chargement du dump…")
-        with gzip.open(PLACES_DUMP_PATH, "rt", encoding="utf-8") as f:
-            docs = _json.load(f)
-        from pymongo import UpdateOne
-        ops = []
-        for doc in docs:
-            doc.pop("expires_at", None)  # clubs permanents, jamais de TTL
-            v = doc.get("updated_at")
-            if isinstance(v, str):
-                try:
-                    doc["updated_at"] = datetime.fromisoformat(v)
-                except ValueError:
-                    doc.pop("updated_at", None)
-            ops.append(UpdateOne({"place_id": doc["place_id"]}, {"$set": doc}, upsert=True))
-            if len(ops) >= 500:
-                await db.places.bulk_write(ops, ordered=False)
+        if os.path.exists(PLACES_DUMP_PATH):
+            import gzip
+            import json as _json
+            with gzip.open(PLACES_DUMP_PATH, "rt", encoding="utf-8") as f:
+                docs = _json.load(f)
+            count = await db.places.count_documents({})
+            if count < len(docs) * 0.95:
+                logger.info(f"places seed: {count} lieux en base < {len(docs)} au dump — chargement…")
+                from pymongo import UpdateOne
                 ops = []
-        if ops:
-            await db.places.bulk_write(ops, ordered=False)
-        total = await db.places.count_documents({})
-        logger.info(f"places seed: terminé — {total} lieux en base.")
+                for doc in docs:
+                    doc.pop("expires_at", None)  # clubs permanents, jamais de TTL
+                    v = doc.get("updated_at")
+                    if isinstance(v, str):
+                        try:
+                            doc["updated_at"] = datetime.fromisoformat(v)
+                        except ValueError:
+                            doc.pop("updated_at", None)
+                    ops.append(UpdateOne({"place_id": doc["place_id"]}, {"$set": doc}, upsert=True))
+                    if len(ops) >= 500:
+                        await db.places.bulk_write(ops, ordered=False)
+                        ops = []
+                if ops:
+                    await db.places.bulk_write(ops, ordered=False)
+                total = await db.places.count_documents({})
+                logger.info(f"places seed: terminé — {total} lieux en base.")
     except Exception as exc:
         logger.error(f"places seed: échec — {exc}")
+    # Toujours appliquer les correctifs photos (même si le seed est ignoré)
     await _apply_club_photo_fixes()
 
 
