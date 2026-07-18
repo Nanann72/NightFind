@@ -5225,6 +5225,29 @@ async def iap_screenshot(name: str):
 
 
 APPSTORE_SCREENS_DIR = os.path.join(os.path.dirname(__file__), "appstore_screens")
+APPSTORE_MARKETING_DIR = os.path.join(os.path.dirname(__file__), "appstore_marketing")
+
+
+@api_router.get("/assets/appstore-marketing/all.zip")
+async def appstore_marketing_zip():
+    """ZIP des previews marketing App Store (1284×2778, titre + mockup)."""
+    import zipfile
+    zip_path = "/tmp/nightfinder_marketing_screens.zip"
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_STORED) as zf:
+        for f in sorted(os.listdir(APPSTORE_MARKETING_DIR)):
+            if f.endswith(".png"):
+                zf.write(os.path.join(APPSTORE_MARKETING_DIR, f), f)
+    return FileResponse(zip_path, media_type="application/zip", filename="nightfinder_marketing_screens.zip")
+
+
+@api_router.get("/assets/appstore-marketing/{name}")
+async def appstore_marketing_screenshot(name: str):
+    if "/" in name or ".." in name or not name.endswith(".png"):
+        raise HTTPException(status_code=404, detail="Introuvable")
+    path = os.path.join(APPSTORE_MARKETING_DIR, name)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Fichier manquant")
+    return FileResponse(path, media_type="image/png", filename=name)
 
 
 @api_router.get("/assets/appstore/all.zip")
