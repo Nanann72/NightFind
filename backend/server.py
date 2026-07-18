@@ -815,7 +815,7 @@ async def list_clubs(
                     "lat": {"$gte": lat - dlat, "$lte": lat + dlat},
                     "lng": {"$gte": lng - dlng, "$lte": lng + dlng},
                 }
-            stored = await db.places.find(stored_query, {"_id": 0}).to_list(20000)
+            stored = await db.places.find(stored_query, {"_id": 0}).to_list(2000)
             for c in stored:
                 if c.get("club_id") in existing_ids:
                     continue
