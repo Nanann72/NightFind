@@ -26,6 +26,10 @@ SCREENS = [
     ("04-events.png", "Les meilleures\nsoirées à venir.", "DJ sets, lives et événements\nexclusifs près de toi."),
     ("05-chats.png", "Organise ta soirée\nen groupe.", "Discute avec tes matchs\net retrouve-les en club."),
     ("06-club.png", "Chaque club,\nen détail.", "Photos, horaires, ambiance,\nitinéraire en un tap."),
+    ("12-feed.png", "Vis la nuit\nen direct.", "Stories et moments partagés\ndepuis les clubs, en live."),
+    ("09-mysongs.png", "Retrouve chaque son\nde ta soirée.", "Reconnaissance musicale en direct,\nplaylist de ta nuit auto."),
+    ("10-favorites.png", "Tes spots préférés,\ntoujours sous la main.", "Enregistre tes clubs favoris\nen un tap."),
+    ("07-paywall.png", "Passe au niveau\nsupérieur.", "Swipes illimités, filtres avancés\net boost de profil."),
 ]
 
 
