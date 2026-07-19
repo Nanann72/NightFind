@@ -17,7 +17,7 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-resend.api_key = os.environ.get("RESEND_API_KEY", "")
+resend.api_key = os.environ.get("RESEND_API_KEY", "").strip().strip(chr(34)).strip(chr(39))
 FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev")
 FROM_NAME = os.environ.get("RESEND_FROM_NAME", "Night Finder")
 APP_PUBLIC_URL = os.environ.get("APP_PUBLIC_URL", "https://nightfinder.app")

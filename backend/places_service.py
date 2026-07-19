@@ -34,7 +34,7 @@ LOG = logging.getLogger("places")
 PLACES_BASE = os.environ.get(
     "GOOGLE_PLACES_BASE_URL", "https://places.googleapis.com/v1"
 )
-PLACES_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "").strip()
+PLACES_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "").strip().strip(chr(34)).strip(chr(39))
 PLACES_TTL_HOURS = int(os.environ.get("PLACES_CACHE_TTL_HOURS", "72"))
 
 NEARBY_FIELD_MASK = (

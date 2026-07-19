@@ -26,7 +26,7 @@ from starlette.middleware.cors import CORSMiddleware
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
-JWT_SECRET = os.environ.get("JWT_SECRET", "night-finder-dev-secret-change-me")
+JWT_SECRET = os.environ.get("JWT_SECRET", "night-finder-dev-secret-change-me").strip().strip(chr(34)).strip(chr(39))
 JWT_ALG = "HS256"
 JWT_TTL_DAYS = 7
 
@@ -284,9 +284,14 @@ def _touch_last_seen(user_id: str) -> None:
     if prev and (now - prev).total_seconds() < LAST_SEEN_THROTTLE_SECONDS:
         return
     _last_seen_cache[user_id] = now
-    asyncio.create_task(
-        db.users.update_one({"user_id": user_id}, {"$set": {"last_seen": now}})
-    )
+
+    async def _update() -> None:
+        try:
+            await db.users.update_one({"user_id": user_id}, {"$set": {"last_seen": now}})
+        except Exception:  # noqa: BLE001
+            pass
+
+    asyncio.create_task(_update())
 
 
 async def get_current_user(request: Request) -> dict:
@@ -2093,9 +2098,17 @@ async def mark_notifications_read(user: dict = Depends(get_current_user)):
     return {"ok": True, "updated": res.modified_count}
 
 
+async def _find_club_any(club_id: str) -> Optional[dict]:
+    """Cherche un club dans db.clubs (vitrine) puis db.places (import Google)."""
+    club = await db.clubs.find_one({"club_id": club_id}, {"_id": 0})
+    if not club:
+        club = await db.places.find_one({"club_id": club_id}, {"_id": 0})
+    return club
+
+
 @api_router.post("/checkins")
 async def checkin(body: CheckInBody, user: dict = Depends(get_current_user)):
-    club = await db.clubs.find_one({"club_id": body.club_id}, {"_id": 0})
+    club = await _find_club_any(body.club_id)
     if not club:
         raise HTTPException(status_code=404, detail="Club not found")
     ci_id = f"ci_{uuid.uuid4().hex[:10]}"
@@ -2115,7 +2128,7 @@ async def checkin(body: CheckInBody, user: dict = Depends(get_current_user)):
                 "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
                 "user_id": user["user_id"],
                 "title": f"Bonne soirée à {club['name']} 🎉",
-                "body": f"On garde l'œil sur les meilleurs sons {club['music_styles'][0]} pour toi.",
+                "body": f"On garde l'œil sur les meilleurs sons {(club.get('music_styles') or ['house'])[0]} pour toi.",
                 "type": "checkin",
                 "created_at": datetime.now(timezone.utc),
             }
@@ -2234,7 +2247,7 @@ async def add_detected_song(
 ):
     """Record a track recognised (or manually added) while the user is at a
     club. Stored under the user profile, grouped by club."""
-    club = await db.clubs.find_one({"club_id": body.club_id}, {"_id": 0})
+    club = await _find_club_any(body.club_id)
     if not club:
         raise HTTPException(status_code=404, detail="Club not found")
     now = datetime.now(timezone.utc)
@@ -2306,7 +2319,7 @@ async def move_user_song(
     song_id: str, body: MoveSongBody, user: dict = Depends(get_current_user)
 ):
     """Re-attach a detected song to another club chosen by the user."""
-    club = await db.clubs.find_one({"club_id": body.club_id}, {"_id": 0, "name": 1})
+    club = await _find_club_any(body.club_id)
     if not club:
         raise HTTPException(status_code=404, detail="Club introuvable")
     res = await db.user_songs.update_one(
@@ -2679,13 +2692,54 @@ class AudioRecognizeBody(BaseModel):
     audio_base64: str  # raw audio bytes encoded as base64 (mp3/m4a/wav, <= 1MB)
 
 
+def _preprocess_club_audio(raw: bytes) -> tuple[bytes, str]:
+    """Prétraite l'échantillon audio avant Audd.io pour les clubs bruyants :
+    - adeclip : répare l'écrêtage (musique trop forte qui sature le micro)
+    - highpass : retire les basses saturées qui masquent l'empreinte
+    - dynaudnorm : normalise le niveau
+
+    Retourne (bytes, extension). En cas d'échec ffmpeg → audio original.
+    """
+    import subprocess
+    import tempfile
+    try:
+        import imageio_ffmpeg
+        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        with tempfile.NamedTemporaryFile(suffix=".m4a", delete=False) as fin:
+            fin.write(raw)
+            in_path = fin.name
+        out_path = in_path + ".mp3"
+        res = subprocess.run(
+            [
+                ffmpeg, "-y", "-i", in_path,
+                "-af", "adeclip,highpass=f=80,dynaudnorm=g=7",
+                "-ac", "1", "-ar", "44100", "-b:a", "128k",
+                out_path,
+            ],
+            capture_output=True,
+            timeout=20,
+        )
+        if res.returncode == 0 and os.path.getsize(out_path) > 5000:
+            with open(out_path, "rb") as f:
+                cleaned = f.read()
+            os.unlink(in_path)
+            os.unlink(out_path)
+            return cleaned, "mp3"
+        os.unlink(in_path)
+        if os.path.exists(out_path):
+            os.unlink(out_path)
+    except Exception as exc:  # noqa: BLE001
+        logging.warning("audio preprocess failed (fallback raw): %s", exc)
+    return raw, "m4a"
+
+
 @api_router.post("/recognize/audio")
 async def recognize_audio(
     body: AudioRecognizeBody, user: dict = Depends(get_current_user)
 ):
     """Identify a track from a short audio sample using Audd.io and store
     the result under the user profile, grouped by club."""
-    audd_token = os.environ.get("AUDD_API_TOKEN", "").strip()
+    audd_token = os.environ.get("AUDD_API_TOKEN", "").strip().strip(chr(34)).strip(chr(39)).strip(chr(34)).strip(chr(39))
     if not audd_token:
         raise HTTPException(status_code=503, detail="Audd.io not configured")
     if http_client is None:
@@ -2695,7 +2749,7 @@ async def recognize_audio(
     if body.club_id == "manual_scan":
         club = {"club_id": "manual_scan", "name": "Scan manuel"}
     else:
-        club = await db.clubs.find_one({"club_id": body.club_id}, {"_id": 0})
+        club = await _find_club_any(body.club_id)
         if not club:
             raise HTTPException(status_code=404, detail="Club not found")
     try:
@@ -2706,8 +2760,11 @@ async def recognize_audio(
     if len(raw) > 5_000_000:
         raise HTTPException(status_code=413, detail="Audio sample too large (max 5MB)")
 
+    # Anti-saturation : répare l'écrêtage des enregistrements en club bruyant
+    cleaned, ext = await asyncio.to_thread(_preprocess_club_audio, raw)
+
     try:
-        files = {"file": ("sample.m4a", raw, "audio/m4a")}
+        files = {"file": (f"sample.{ext}", cleaned, f"audio/{ext}")}
         data = {
             "api_token": audd_token,
             "return": "spotify,apple_music,deezer,musicbrainz",
@@ -3344,7 +3401,7 @@ async def root():
 # Billing — RevenueCat webhook & premium status
 # ---------------------------------------------------------------------------
 PREMIUM_ENTITLEMENT_ID = os.environ.get("PREMIUM_ENTITLEMENT_ID", "premium")
-REVENUECAT_WEBHOOK_SECRET = os.environ.get("REVENUECAT_WEBHOOK_SECRET", "")
+REVENUECAT_WEBHOOK_SECRET = os.environ.get("REVENUECAT_WEBHOOK_SECRET", "").strip().strip(chr(34)).strip(chr(39))
 
 
 async def _apply_rc_event(payload: dict) -> bool:
@@ -3484,7 +3541,7 @@ async def get_my_billing(user: dict = Depends(get_current_user)):
     webhooks.
     """
     user_id = user.get("user_id")
-    rc_secret = os.environ.get("REVENUECAT_SECRET_KEY", "").strip()
+    rc_secret = os.environ.get("REVENUECAT_SECRET_KEY", "").strip().strip(chr(34)).strip(chr(39))
     if rc_secret and http_client is not None:
         try:
             r = await http_client.get(
@@ -5213,6 +5270,41 @@ async def live_stats():
     return data
 
 
+@api_router.get("/health/integrations")
+async def health_integrations():
+    """Diagnostic (sans secrets) : vérifie que les clés API fonctionnent réellement.
+    Utile pour valider l'environnement de production après un déploiement."""
+    out: dict = {}
+    key = places_service.PLACES_KEY
+    out["google_places"] = {"configured": bool(key), "key_length": len(key)}
+    if key and http_client is not None:
+        try:
+            r = await http_client.post(
+                f"{places_service.PLACES_BASE}/places:searchText",
+                json={"textQuery": "Rex Club Paris", "maxResultCount": 1},
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": key,
+                    "X-Goog-FieldMask": "places.id",
+                },
+                timeout=10.0,
+            )
+            out["google_places"]["live_test"] = "ok" if r.status_code == 200 else f"http_{r.status_code}"
+            if r.status_code != 200:
+                out["google_places"]["error"] = (r.text or "")[:200]
+        except Exception as exc:  # noqa: BLE001
+            out["google_places"]["live_test"] = f"exception: {str(exc)[:120]}"
+    import resend as _resend
+    out["resend"] = {
+        "configured": bool(_resend.api_key),
+        "from_email": os.environ.get("RESEND_FROM_EMAIL", ""),
+    }
+    audd = os.environ.get("AUDD_API_TOKEN", "").strip().strip(chr(34)).strip(chr(39))
+    out["audd"] = {"configured": bool(audd)}
+    out["places_in_db"] = await db.places.count_documents({})
+    return out
+
+
 @api_router.get("/assets/iap/{name}")
 async def iap_screenshot(name: str):
     """Captures App Store des achats intégrés (téléchargement pour App Store Connect)."""
@@ -5310,7 +5402,7 @@ async def admin_audd_status(_admin: dict = Depends(require_admin)):
       - `total_songs`: int          — count of user_songs from Audd
       - `recent_songs`: list[dict]  — last 10 successful recognitions
     """
-    token = os.environ.get("AUDD_API_TOKEN", "").strip()
+    token = os.environ.get("AUDD_API_TOKEN", "").strip().strip(chr(34)).strip(chr(39))
     configured = bool(token)
     token_preview = ""
     if token:
@@ -5352,7 +5444,7 @@ async def admin_audd_probe(
     import base64
     import time as _time
 
-    token = os.environ.get("AUDD_API_TOKEN", "").strip()
+    token = os.environ.get("AUDD_API_TOKEN", "").strip().strip(chr(34)).strip(chr(39))
     if not token:
         raise HTTPException(status_code=503, detail="Audd.io not configured")
     if http_client is None:

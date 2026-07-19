@@ -32,14 +32,14 @@ function buildRecognitionRecordingOptions(ExpoAudio: any) {
     extension: '.m4a',
     sampleRate: 44100,
     numberOfChannels: 1,
-    bitRate: 64000,
+    bitRate: 128000,
     android: {
       outputFormat: 'mpeg4',
       audioEncoder: 'aac',
     },
     ios: {
       outputFormat: ExpoAudio?.IOSOutputFormat?.MPEG4AAC ?? 'aac ',
-      audioQuality: ExpoAudio?.AudioQuality?.HIGH ?? 96,
+      audioQuality: ExpoAudio?.AudioQuality?.MAX ?? 127,
       linearPCMBitDepth: 16,
       linearPCMIsBigEndian: false,
       linearPCMIsFloat: false,
