@@ -21,6 +21,7 @@ import { BlurView } from 'expo-blur';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { api, Club } from '../../lib/api';
 import { useClubs } from '../../lib/clubs';
 import { HapticButton } from '../../components/ui/HapticButton';
@@ -45,6 +46,41 @@ export default function ClubDetail() {
   const { favorites, toggleFavorite } = useClubs();
   const [club, setClub] = useState<Club | null>(null);
   const [loading, setLoading] = useState(true);
+  const [checkingIn, setCheckingIn] = useState(false);
+  const [checkinMsg, setCheckinMsg] = useState<string | null>(null);
+
+  const handleManualCheckIn = async () => {
+    if (!club || checkingIn) return;
+    setCheckinMsg(null);
+    setCheckingIn(true);
+    try {
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (!perm.granted) {
+        setCheckinMsg(
+          perm.canAskAgain
+            ? 'Autorise la localisation pour te checker au club.'
+            : 'Localisation refusée — active-la dans les Réglages.',
+        );
+        if (!perm.canAskAgain) Linking.openSettings();
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      await api.checkInManual(
+        club.club_id,
+        pos.coords.latitude,
+        pos.coords.longitude,
+        pos.coords.accuracy ?? undefined,
+      );
+      setCheckinMsg(null);
+      router.push({ pathname: '/moment-capture', params: { club_id: club.club_id } });
+    } catch (e: any) {
+      setCheckinMsg(String(e?.message || 'Check-in impossible. Réessaie.'));
+    } finally {
+      setCheckingIn(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -280,24 +316,44 @@ export default function ClubDetail() {
       </Animated.ScrollView>
 
       <View style={[styles.footer, { paddingBottom: 24 + insets.bottom / 2 }]}>
+        {checkinMsg && (
+          <Text style={styles.checkinMsg} testID="manual-checkin-msg">{checkinMsg}</Text>
+        )}
         <TouchableOpacity
-          style={styles.directionsBtn}
-          onPress={openDirections}
-          testID="directions-btn"
+          style={styles.checkinBtn}
+          onPress={handleManualCheckIn}
+          disabled={checkingIn}
+          testID="manual-checkin-btn"
         >
-          <Ionicons name="navigate" size={18} color={colors.textPrimary} />
-          <Text style={styles.directionsText}>Itinéraire</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.favBtn}
-          onPress={() => toggleFavorite(club.club_id)}
-          testID="footer-fav-btn"
-        >
-          <Ionicons name={isFav ? 'heart' : 'heart-outline'} size={18} color={colors.bg} />
-          <Text style={styles.favText}>
-            {isFav ? 'Dans vos favoris' : 'Ajouter aux favoris'}
+          {checkingIn ? (
+            <ActivityIndicator size="small" color={colors.bg} />
+          ) : (
+            <Ionicons name="location" size={18} color={colors.bg} />
+          )}
+          <Text style={styles.checkinText}>
+            {checkingIn ? 'Vérification de ta position…' : 'Je suis ici — Check-in'}
           </Text>
         </TouchableOpacity>
+        <View style={styles.footerRow}>
+          <TouchableOpacity
+            style={styles.directionsBtn}
+            onPress={openDirections}
+            testID="directions-btn"
+          >
+            <Ionicons name="navigate" size={18} color={colors.textPrimary} />
+            <Text style={styles.directionsText}>Itinéraire</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.favBtn}
+            onPress={() => toggleFavorite(club.club_id)}
+            testID="footer-fav-btn"
+          >
+            <Ionicons name={isFav ? 'heart' : 'heart-outline'} size={18} color={colors.bg} />
+            <Text style={styles.favText}>
+              {isFav ? 'Dans vos favoris' : 'Ajouter aux favoris'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -435,8 +491,27 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: 'rgba(9,9,11,0.95)',
     borderTopWidth: 1,
     borderTopColor: colors.border,
+    gap: 10,
+  },
+  footerRow: {
     flexDirection: 'row',
     gap: 10,
+  },
+  checkinBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    backgroundColor: colors.primary,
+    borderRadius: radius.full,
+  },
+  checkinText: { color: colors.bg, fontWeight: '800', fontSize: 15 },
+  checkinMsg: {
+    color: '#F87171',
+    fontSize: 12.5,
+    textAlign: 'center',
+    fontWeight: '600',
   },
   directionsBtn: {
     flexDirection: 'row',

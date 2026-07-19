@@ -501,6 +501,14 @@ export const api = {
   // Check-ins — when the user confirms they're at a club we automatically
   // start the live listening session (Auto-Shazam). Promised in onboarding
   // slide "06 · Auto-Shazam".
+  checkInManual: (club_id: string, lat: number, lng: number, accuracy?: number) =>
+    request<{ ok: boolean; checkin_id: string; distance_m: number }>(
+      '/checkins/manual',
+      {
+        method: 'POST',
+        body: JSON.stringify({ club_id, lat, lng, accuracy }),
+      },
+    ),
   checkIn: async (club_id: string, confirmed: boolean) => {
     const res = await request<{ ok: boolean; checkin_id: string; confirmed: boolean }>(
       '/checkins',

@@ -2241,6 +2241,57 @@ class SongDetected(BaseModel):
     source: Optional[str] = "auto"  # "auto" | "manual"
 
 
+class ManualCheckInBody(BaseModel):
+    club_id: str
+    lat: float
+    lng: float
+    accuracy: Optional[float] = None  # précision GPS en mètres (facultatif)
+
+
+MANUAL_CHECKIN_BASE_RADIUS_M = 20
+
+
+@api_router.post("/checkins/manual")
+async def manual_checkin(body: ManualCheckInBody, user: dict = Depends(get_current_user)):
+    """Check-in manuel : l'utilisateur choisit le club, le serveur vérifie
+    qu'il se trouve à moins de 20 m (+ marge de précision GPS, max 30 m)."""
+    club = await _find_club_any(body.club_id)
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+    club_lat, club_lng = club.get("lat"), club.get("lng")
+    if club_lat is None or club_lng is None:
+        raise HTTPException(status_code=400, detail="Position du club inconnue")
+
+    distance_m = haversine_km(body.lat, body.lng, club_lat, club_lng) * 1000
+    threshold = MANUAL_CHECKIN_BASE_RADIUS_M + min(max(body.accuracy or 0, 0), 30)
+    if distance_m > threshold:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Tu es à {int(distance_m)} m de {club['name']}. "
+                f"Rapproche-toi (moins de {MANUAL_CHECKIN_BASE_RADIUS_M} m) pour te checker."
+            ),
+        )
+
+    # Évite les doublons : réutilise un check-in confirmé récent sur ce club
+    now = datetime.now(timezone.utc)
+    recent = await db.checkins.find_one(
+        {
+            "user_id": user["user_id"],
+            "club_id": body.club_id,
+            "confirmed": True,
+            "created_at": {"$gte": now - timedelta(minutes=MOMENT_WINDOW_MIN)},
+        },
+        sort=[("created_at", -1)],
+    )
+    if recent:
+        return {"ok": True, "checkin_id": recent["checkin_id"], "confirmed": True, "distance_m": int(distance_m)}
+
+    result = await checkin(CheckInBody(club_id=body.club_id, confirmed=True), user)
+    result["distance_m"] = int(distance_m)
+    return result
+
+
 @api_router.post("/checkins/song")
 async def add_detected_song(
     body: SongDetected, user: dict = Depends(get_current_user)
