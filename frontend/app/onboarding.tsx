@@ -285,7 +285,7 @@ const SCREENS: Screen[] = [
         pause: 1200,
       },
     ],
-    cta: 'Activer les notifications',
+    cta: 'Continuer',
   },
   {
     kind: 'photos',
@@ -854,7 +854,7 @@ export default function Onboarding() {
         <View style={styles.progressTrack}>
           <Animated.View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
         </View>
-        {screen.kind === 'location' ? (
+        {screen.kind === 'location' || screen.kind === 'notifications' ? (
           <View style={{ width: 44 }} />
         ) : (
           <TouchableOpacity onPress={skip} testID="onboarding-skip-btn">
