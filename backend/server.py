@@ -92,6 +92,21 @@ async def _seed_places_from_dump() -> None:
         logger.error(f"places seed: échec — {exc}")
     # Toujours appliquer les correctifs photos (même si le seed est ignoré)
     await _apply_club_photo_fixes()
+    await _ensure_reviewer_account()
+
+
+async def _ensure_reviewer_account() -> None:
+    """Garantit l'existence du compte démo Apple Review en production
+    (apple.reviewer@nightfinder.app) — requis pour la review App Store."""
+    try:
+        existing = await db.users.find_one({"email": "apple.reviewer@nightfinder.app"})
+        if existing:
+            return
+        import seed_reviewer
+        await seed_reviewer.main()
+        logger.info("reviewer seed: compte Apple Review créé.")
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"reviewer seed: échec — {exc}")
 
 
 CLUB_PHOTOS_FIX_PATH = os.path.join(os.path.dirname(__file__), "data", "club_photos_fix.json")
