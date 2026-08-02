@@ -11,6 +11,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.nightfinder.app",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Te montrer les clubs et soirées à proximité.",
         "NSUserNotificationUsageDescription": "Te prévenir des matches et des soirées qui arrivent.",

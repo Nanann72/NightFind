@@ -648,25 +648,52 @@ async def google_oauth(body: GoogleOAuth):
     return {"token": token, "user": public_user(user)}
 
 
+_apple_jwks: dict = {}
+
+
+def _apple_jwks_client():
+    """Client JWKS Apple mis en cache (clés publiques de signature)."""
+    if "client" not in _apple_jwks:
+        from jwt import PyJWKClient
+        _apple_jwks["client"] = PyJWKClient(
+            "https://appleid.apple.com/auth/keys", cache_keys=True, lifespan=3600
+        )
+    return _apple_jwks["client"]
+
+
 @api_router.post("/auth/apple")
 async def apple_signin(body: AppleSignIn):
-    """Sign in with Apple. Decodes identity_token without verifying (MVP).
-    For production, validate with Apple's public keys.
-    """
+    """Sign in with Apple : vérifie la signature du identity_token contre les
+    clés publiques Apple (JWKS), l'émetteur, l'audience et l'expiration."""
     sub: Optional[str] = None
     email: Optional[str] = body.email
+    audiences = [
+        a.strip()
+        for a in os.environ.get(
+            "APPLE_AUDIENCES", "com.nightfinder.app,host.exp.Exponent"
+        ).strip().strip('"').split(",")
+        if a.strip()
+    ]
     try:
-        payload = jwt.decode(body.identity_token, options={"verify_signature": False})
+        signing_key = _apple_jwks_client().get_signing_key_from_jwt(body.identity_token)
+        payload = jwt.decode(
+            body.identity_token,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=audiences,
+            issuer="https://appleid.apple.com",
+        )
         sub = payload.get("sub")
         if not email:
             email = payload.get("email")
-    except Exception:
+    except Exception as exc:
+        logger.warning(f"apple signin: token invalide — {exc}")
         raise HTTPException(status_code=400, detail="Invalid Apple identity token")
 
     if not sub:
         raise HTTPException(status_code=400, detail="Missing Apple user id")
 
-    apple_email = (email or f"{sub}@privaterelay.apple").lower()
+    apple_email = (email or f"{sub}@privaterelay.appleid.com").lower()
     user = await db.users.find_one({"$or": [{"apple_sub": sub}, {"email": apple_email}]}, {"_id": 0})
     if not user:
         user_id = f"user_{uuid.uuid4().hex[:12]}"
