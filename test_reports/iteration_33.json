@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 33 — Photo proxy flow (Google Places) + /api/health/integrations diagnostic: 3/3 backend tests + 2/2 frontend flows PASS end-to-end. BACKEND (pytest 3/3, /app/backend/tests/test_places_photo_proxy.py): (1) GET /api/health/integrations (no auth) → 200 with google_places.configured=true, google_places.key_fingerprint='3068950d' (8 hex chars regex-validated), google_places.live_test='ok', resend.configured=true, resend.from_email='contact@nightfinder.app', audd.configured=true, places_in_db=15731 (>15000). (2) GET /api/clubs?lat=48.8566&lng=2.3522&radius_km=10 → 200 with a list of clubs including entries whose photos[0] starts with '/api/places/photo' (proxied). (3) GET on that proxied photo URL → 200 with content-type image/* and body size >10 KB (real image bytes, not a placeholder). FRONTEND (mobile 390x844, emma.demo@nightfinder.app / DemoOnly2026!): (a) Login submits → redirected to '/'. Home page loads with sections 'Trending tonight', 'People near you', 'All clubs'. Inspected 30 <img> nodes: 18 distinct proxied /api/places/photo URLs loaded with real dimensions (naturalWidth up to 1200, various sizes: 1200x900, 960x576, 1000x667, 1200x675, 768x1024, 932x1164, 1200x1420, 1200x1500, 1200x1802 — all DIFFERENT), plus 12 unsplash images used for People near you avatars/BeReal moments. No broken/identical placeholders. Requirement 'at least 3 loaded proxied images' is far exceeded (18 loaded). (b) Tap first club-card testID → navigates to /club/club_6c802df155 (Club Rex). Hero image loads with naturalWidth=1200 naturalHeight=900 (real Google Places photo). Screen shows title 'Club Rex', tags (techno/house/electronic), address, rating 4.6, price 18€, description, opening hours + CTA 'Je suis ici — Check-in' / 'Ajouter aux favoris' / 'Itinéraire'. Console: only expected expo-notifications web warnings + 2x 401 on pre-auth resource fetch — no red screen, no runtime errors. In the CURRENT preview environment the photo proxy pipeline is fully functional. The prod bug (default identical images on TestFlight) can only be fixed by the user by updating the Deployment Panel secret GOOGLE_PLACES_API_KEY to the same key currently in preview (fingerprint 3068950d) and redeploying — the enriched /api/health/integrations diagnostic is now reliable for post-deploy verification (key_fingerprint + live_test give an unambiguous OK/KO signal).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_places_photo_proxy.py",
+    "/app/test_reports/pytest/places_photo_proxy.xml",
+    "/app/test_reports/iteration_33.json"
+  ],
+  "action_items": [
+    "USER ACTION REQUIRED (out of code scope): update the Deployment Panel secret GOOGLE_PLACES_API_KEY to match the preview key (fingerprint 3068950d, length 39) and redeploy. After redeploy, hit GET /api/health/integrations on the production domain and check google_places.key_fingerprint === '3068950d' AND google_places.live_test === 'ok' — those two conditions together prove the proxy will serve real images."
+  ],
+  "critical_code_review_comments": [
+    "server.py:5374 — key_fingerprint uses SHA-256 truncated to 8 hex chars. Collision-free for the small set of API keys in use; good balance between diagnosis and secret leakage.",
+    "server.py:5378 — live_test uses places:searchText with maxResultCount=1 and a minimal FieldMask (places.id). Cheap and reliable enough to run on every /health/integrations call. Consider adding a 5-min cache if this endpoint is called frequently by monitoring."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "100% (2/2 flows)"},
+  "seed_data_creation": "None — used existing emma.demo demo profile and existing seeded/Google-Places clubs.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The /api/health/integrations endpoint is the source of truth for validating prod deployments after a secret change. Preview key fingerprint is 3068950d (length 39). The photo proxy at /api/places/photo?name=places/{place_id}/photos/{photo_ref} streams real Google Places bytes (10KB–500KB per image). All club-card testIDs on Home follow pattern '[data-testid^=\"club-card-\"]' (40 present with emma at 48.8566/2.3522). Club detail routes are /club/{club_id} and load the hero image + opening hours + CTA correctly.",
+  "rca_of_issue": "Root cause is external to code: the Deployment Panel holds a stale GOOGLE_PLACES_API_KEY that Google rejects with 403 'method blocked'. In-code mitigation is complete — /api/health/integrations now returns key_fingerprint + live_test so the user can diff preview vs prod fingerprints. Reproduction of the prod symptom is impossible from the preview environment because preview holds the working key. Mitigation for the user: (1) copy the exact key value from preview backend/.env GOOGLE_PLACES_API_KEY (fingerprint 3068950d), (2) paste it into Deployment Panel secrets replacing the current one, (3) redeploy, (4) hit https://<prod>/api/health/integrations and confirm key_fingerprint='3068950d' and live_test='ok'."
+}

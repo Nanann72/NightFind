@@ -5367,7 +5367,12 @@ async def health_integrations():
     Utile pour valider l'environnement de production après un déploiement."""
     out: dict = {}
     key = places_service.PLACES_KEY
-    out["google_places"] = {"configured": bool(key), "key_length": len(key)}
+    out["google_places"] = {
+        "configured": bool(key),
+        "key_length": len(key),
+        # Empreinte non réversible pour comparer les clés dev/prod sans les exposer
+        "key_fingerprint": hashlib.sha256(key.encode()).hexdigest()[:8] if key else None,
+    }
     if key and http_client is not None:
         try:
             r = await http_client.post(
