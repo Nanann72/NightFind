@@ -97,14 +97,12 @@ async def _seed_places_from_dump() -> None:
 
 async def _ensure_reviewer_account() -> None:
     """Garantit l'existence du compte démo Apple Review en production
-    (apple.reviewer@nightfinder.app) — requis pour la review App Store."""
+    (apple.reviewer@nightfinder.app) — requis pour la review App Store.
+    Toujours exécuté : le seed est idempotent et resynchronise le mot de passe."""
     try:
-        existing = await db.users.find_one({"email": "apple.reviewer@nightfinder.app"})
-        if existing:
-            return
         import seed_reviewer
         await seed_reviewer.main()
-        logger.info("reviewer seed: compte Apple Review créé.")
+        logger.info("reviewer seed: compte Apple Review vérifié/synchronisé.")
     except Exception as exc:  # noqa: BLE001
         logger.error(f"reviewer seed: échec — {exc}")
 

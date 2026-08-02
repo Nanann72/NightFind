@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { TouchableOpacity, Text, View, ActivityIndicator, StyleSheet, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -10,6 +10,15 @@ export function SocialAuthButtons({ onSuccess }: { onSuccess?: () => void }) {
   const router = useRouter();
   const { signInWithGoogle, signInWithApple } = useAuth();
   const [busy, setBusy] = useState<'google' | 'apple' | null>(null);
+  const [appleAvailable, setAppleAvailable] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    import('expo-apple-authentication')
+      .then((m) => m.isAvailableAsync())
+      .then(setAppleAvailable)
+      .catch(() => setAppleAvailable(false));
+  }, []);
 
   const handleGoogle = async () => {
     setBusy('google');
@@ -61,7 +70,7 @@ export function SocialAuthButtons({ onSuccess }: { onSuccess?: () => void }) {
         )}
       </TouchableOpacity>
 
-      {Platform.OS === 'ios' && (
+      {Platform.OS === 'ios' && appleAvailable && (
         <TouchableOpacity
           style={styles.appleBtn}
           onPress={handleApple}
