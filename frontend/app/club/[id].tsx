@@ -9,6 +9,7 @@ import {
   Linking,
   Platform,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import Animated, {
   useAnimatedScrollHandler,
@@ -48,6 +49,18 @@ export default function ClubDetail() {
   const [loading, setLoading] = useState(true);
   const [checkingIn, setCheckingIn] = useState(false);
   const [checkinMsg, setCheckinMsg] = useState<string | null>(null);
+  const [moments, setMoments] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!id) return;
+    api.listClubMoments(String(id)).then(setMoments).catch(() => {});
+  }, [id]);
+
+  const timeAgo = (iso: string) => {
+    const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+    if (mins < 60) return `il y a ${mins} min`;
+    return `il y a ${Math.round(mins / 60)} h`;
+  };
 
   const handleManualCheckIn = async () => {
     if (!club || checkingIn) return;
@@ -239,6 +252,24 @@ export default function ClubDetail() {
         </View>
 
         <View style={styles.body}>
+          {moments.length > 0 && (
+            <Section title="Moments — ils y sont en ce moment ✨">
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+                {moments.map((m: any) => (
+                  <View key={m.moment_id} style={styles.momentCard} testID={`club-moment-${m.moment_id}`}>
+                    <Image source={{ uri: m.image }} style={styles.momentImg} resizeMode="cover" />
+                    <View style={styles.momentOverlay}>
+                      <View style={styles.momentFooter}>
+                        <Text style={styles.momentAuthor} numberOfLines={1}>{m.user_name}</Text>
+                        <Text style={styles.momentTime}>{timeAgo(m.created_at)}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            </Section>
+          )}
+
           <Section title="À propos">
             <Text style={styles.bodyText}>{club.description}</Text>
           </Section>

@@ -16,6 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
@@ -53,7 +54,7 @@ export default function MomentCapture() {
   const [secondsLeft, setSecondsLeft] = useState<number>(0);
 
   // Two-step dual capture
-  const [step, setStep] = useState<'idle' | 'capturing-back' | 'capturing-front' | 'compositing' | 'preview'>('idle');
+  const [step, setStep] = useState<'idle' | 'camera' | 'capturing-back' | 'capturing-front' | 'compositing' | 'preview'>('idle');
   const [, setBackPhoto] = useState<string | null>(null); // kept via setter only
   const [frontPhoto, setFrontPhoto] = useState<string | null>(null); // full res base64
   const [compositeUri, setCompositeUri] = useState<string | null>(null);  // local uri for preview
@@ -63,6 +64,14 @@ export default function MomentCapture() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Caméra in-app (capture simultanée) + reprise unique
+  const cameraRef = useRef<CameraView | null>(null);
+  const frontResolverRef = useRef<((v: any) => void) | null>(null);
+  const [facing, setFacing] = useState<'back' | 'front'>('back');
+  const [shooting, setShooting] = useState(false);
+  const [retakesLeft, setRetakesLeft] = useState(1);
+  const [camPerm, requestCamPerm] = useCameraPermissions();
 
   // 1) Verify window state on mount
   useEffect(() => {
@@ -143,8 +152,112 @@ export default function MomentCapture() {
     };
   };
 
+  // ---- Capture simultanée in-app (un seul déclencheur) ----
+  // 1 tap : photo arrière capturée → bascule caméra avant → selfie AUTO.
+  const takeShot = async (): Promise<{ uri: string; base64: string; width: number; height: number } | null> => {
+    const cam = cameraRef.current;
+    if (!cam) return null;
+    const photo = await cam.takePictureAsync({ quality: 0.75, base64: true, exif: false });
+    if (!photo?.base64) return null;
+    return { uri: photo.uri, base64: photo.base64, width: photo.width || 1080, height: photo.height || 1440 };
+  };
+
+  const onShutterPress = async () => {
+    if (shooting) return;
+    setShooting(true);
+    setError(null);
+    try {
+      // Photo arrière — instantanée
+      buzz('medium');
+      const back = await takeShot();
+      if (!back) throw new Error('Capture arrière échouée');
+      setBackPhoto(back.base64);
+
+      // Bascule caméra avant : le selfie part AUTOMATIQUEMENT dès que prête
+      setStep('capturing-front');
+      setFacing('front');
+      const front = await new Promise<Awaited<ReturnType<typeof takeShot>>>((resolve) => {
+        frontResolverRef.current = resolve;
+        // filet de sécurité si onCameraReady ne se déclenche pas
+        setTimeout(async () => {
+          if (frontResolverRef.current) {
+            frontResolverRef.current = null;
+            try { resolve(await takeShot()); } catch { resolve(null); }
+          }
+        }, 2500);
+      });
+
+      setStep('compositing');
+      if (front?.base64) {
+        setFrontPhoto(front.base64);
+        buzz('medium');
+        const composite = await compositeImages(back, front);
+        if (composite) {
+          setCompositeUri(composite.uri);
+          setCompositeB64(composite.base64);
+        } else {
+          setCompositeUri(back.uri);
+          setCompositeB64(`data:image/jpeg;base64,${back.base64}`);
+        }
+      } else {
+        // Selfie impossible → on publie quand même la photo arrière
+        setCompositeUri(back.uri);
+        setCompositeB64(`data:image/jpeg;base64,${back.base64}`);
+      }
+      setStep('preview');
+      buzz('success');
+    } catch (e: any) {
+      setError(e?.message || 'Échec de la capture');
+      setStep('camera');
+      buzz('error');
+    } finally {
+      setShooting(false);
+      setFacing('back');
+    }
+  };
+
+  const onCameraReady = async () => {
+    // Auto-capture du selfie dès que la caméra avant est prête
+    if (facing === 'front' && frontResolverRef.current) {
+      const resolve = frontResolverRef.current;
+      frontResolverRef.current = null;
+      await new Promise((r) => setTimeout(r, 350)); // stabilisation exposition
+      try {
+        resolve(await takeShot());
+      } catch {
+        resolve(null);
+      }
+    }
+  };
+
   const startDualCapture = async () => {
     setError(null);
+    if (Platform.OS === 'web') {
+      return startDualCaptureLegacy();
+    }
+    if (!camPerm?.granted) {
+      const res = await requestCamPerm();
+      if (!res.granted) {
+        if (!res.canAskAgain) {
+          Alert.alert(
+            'Accès à la caméra refusé',
+            'Va dans les Réglages pour autoriser Night Finder à utiliser la caméra.',
+            [
+              { text: 'Annuler', style: 'cancel' },
+              { text: 'Ouvrir Réglages', onPress: () => Linking.openSettings() },
+            ],
+          );
+        } else {
+          setError('Autorise la caméra pour poster ton moment.');
+        }
+        return;
+      }
+    }
+    setFacing('back');
+    setStep('camera');
+  };
+
+  const startDualCaptureLegacy = async () => {
     if (!(await ensureCameraPerm())) return;
 
     try {
@@ -278,13 +391,16 @@ export default function MomentCapture() {
   };
 
   const retake = () => {
+    if (retakesLeft <= 0) return;
+    setRetakesLeft((n) => n - 1);
     setBackPhoto(null);
     setFrontPhoto(null);
     setCompositeUri(null);
     setCompositeB64(null);
     setCaption('');
     setError(null);
-    setStep('idle');
+    setFacing('back');
+    setStep(Platform.OS === 'web' ? 'idle' : 'camera');
   };
 
   const submit = async () => {
@@ -316,9 +432,10 @@ export default function MomentCapture() {
     );
   }
 
-  const busy = step !== 'idle' && step !== 'preview';
+  const busy = step !== 'idle' && step !== 'preview' && step !== 'camera';
   const stepLabel: Record<typeof step, string> = {
     idle: '',
+    camera: '',
     'capturing-back': '📸 Prends la photo arrière…',
     'capturing-front': '🤳 Maintenant, un selfie',
     compositing: '✨ Fusion des deux photos…',
@@ -361,7 +478,38 @@ export default function MomentCapture() {
       </View>
 
       <View style={styles.content}>
-        {compositeUri ? (
+        {step === 'camera' || step === 'capturing-front' ? (
+          // ---- CAMÉRA IN-APP : 1 tap → arrière + selfie AUTO ----
+          <View style={styles.cameraWrap}>
+            <CameraView
+              ref={cameraRef}
+              style={styles.camera}
+              facing={facing}
+              onCameraReady={onCameraReady}
+              animateShutter={false}
+            />
+            <View style={styles.cameraOverlay} pointerEvents="box-none">
+              <Text style={styles.cameraHint}>
+                {step === 'capturing-front' || facing === 'front'
+                  ? '🤳 Selfie automatique… ne bouge pas'
+                  : 'Un seul déclenchement : arrière + selfie'}
+              </Text>
+              {facing === 'back' && !shooting && (
+                <TouchableOpacity
+                  style={styles.camShutter}
+                  onPress={onShutterPress}
+                  activeOpacity={0.85}
+                  testID="moment-shutter"
+                >
+                  <View style={styles.camShutterInner} />
+                </TouchableOpacity>
+              )}
+              {shooting && facing === 'back' && (
+                <ActivityIndicator size="large" color="#fff" style={{ marginBottom: 26 }} />
+              )}
+            </View>
+          </View>
+        ) : compositeUri ? (
           // ---- PREVIEW STATE ----
           <Animated.View entering={FadeInDown.duration(420)} style={styles.previewWrap}>
             <View style={styles.previewFrame}>
@@ -373,15 +521,22 @@ export default function MomentCapture() {
                   style={styles.selfieOverlay}
                 />
               )}
-              <TouchableOpacity
-                style={styles.retakeBtn}
-                onPress={retake}
-                testID="moment-retake"
-                activeOpacity={0.85}
-              >
-                <Ionicons name="refresh" size={16} color={colors.textPrimary} />
-                <Text style={styles.retakeText}>Reprendre</Text>
-              </TouchableOpacity>
+              {retakesLeft > 0 ? (
+                <TouchableOpacity
+                  style={styles.retakeBtn}
+                  onPress={retake}
+                  testID="moment-retake"
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="refresh" size={16} color={colors.textPrimary} />
+                  <Text style={styles.retakeText}>Reprendre (1 seule fois)</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.retakeBtn}>
+                  <Ionicons name="lock-closed" size={14} color={colors.textTertiary} />
+                  <Text style={[styles.retakeText, { color: colors.textTertiary }]}>Reprise utilisée</Text>
+                </View>
+              )}
             </View>
 
             <View style={styles.captionWrap}>
@@ -461,6 +616,47 @@ export default function MomentCapture() {
 
 const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  cameraWrap: {
+    flex: 1,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+  },
+  camera: { flex: 1 },
+  cameraOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  cameraHint: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radius.full,
+    overflow: 'hidden',
+    marginBottom: 14,
+  },
+  camShutter: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 4,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 22,
+  },
+  camShutterInner: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#fff',
+  },
   loading: {
     flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', gap: 12,
   },

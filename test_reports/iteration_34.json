@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 34 — BeReal Moments E2E (upload+display sur fiche club) + garde photos génériques : 3/3 pytest + 3/3 flows frontend PASS. BACKEND (/app/backend/tests/test_bereal_moments.py) : (1) POST /api/auth/login emma → 200, GET /api/clubs?lat=48.8566&lng=2.3522&radius_km=10 → 200 (510 clubs). POST /api/checkins/manual avec les coords exactes du club (accuracy=5) → 200 {ok:true, confirmed:true, checkin_id, distance_m:0}. POST /api/clubs/{club_id}/moments avec {image: PIL JPEG 8x8 base64 dataURI} → 200 {moment_id:'mom_...', user_name:'Emma', club_id, checkin_id, is_premium_author, created_at, expires_at, likes_count:0} (l'image n'est PAS renvoyée dans la réponse, comme prévu, ligne 1797 pop). GET /api/clubs/{club_id}/moments → 200 [array], contient le moment avec user_name='Emma' + image base64 non vide + created_at ISO. (2) Garde photos génériques : 17/510 clubs (3.3%) utilisent encore unsplash/pexels après _fix_generic_club_photos au startup — sous le seuil 15% (log backend confirme '1/9 clubs corrigés' au dernier boot). (3) Regression auth : GET+POST /clubs/*/moments sans Bearer → 401/403. FRONTEND (mobile 390x844, emma.demo/DemoOnly2026!) : (a) Login → /, navigation vers /club/gp_ChIJ_aEE-xxu5kcRF0TrOvzIGwY (Le Raidd Bar) : la section 'Moments — ils y sont en ce moment ✨' s'affiche avec 1 moment-card (testID club-moment-mom_...), photo rouge du test, 'Emma' visible + 'il y a 2 min'. Sections 'À propos' + 'Horaires' présentes. Bouton 'Je suis ici — Check-in' (testID manual-checkin-btn) visible en footer. testID club-detail-screen OK. (b) Après création d'un nouveau checkin sur un club différent (window active 4:59), /moment-capture charge et affiche : brand 'MOMENT EN DIRECT', timer 4:35 en haut à droite, titre 'Capture ton moment', sous-titre 'Une photo arrière + un selfie, comme une story éphémère. Visible 24h (7j en Premium).', gros bouton violet 'Lancer la double capture' (testID moment-open-camera) + close btn (testID moment-close). Aucun crash, aucun red screen. Console : 1 seule erreur 401 attendue (ressource pre-auth). BUG CORRIGÉ pendant les tests : /app/frontend/app/club/[id].tsx utilisait <ScrollView> ligne 256 sans l'importer depuis react-native — aurait crashé (ReferenceError) DÈS QU'un club a au moins un moment. Import ajouté à la liste react-native. Sans ce fix la section Moments n'aurait JAMAIS pu s'afficher.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "/app/frontend/app/club/[id].tsx",
+        "issue": "ScrollView utilisé ligne 256 sans être importé depuis react-native → ReferenceError qui aurait crashé la fiche club dès qu'un moment existe. Bug fixé par le testeur (ajout ScrollView à la liste d'imports). À valider en review.",
+        "testID": "club-detail-screen",
+        "priority": "HIGH (fixed)"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bereal_moments.py",
+    "/app/test_reports/pytest/bereal_moments_v2.xml",
+    "/app/test_reports/iteration_34.json"
+  ],
+  "action_items": [
+    "Vérifier le fix ScrollView appliqué dans /app/frontend/app/club/[id].tsx (import ajouté). C'était un crash bloquant pour toute fiche club ayant au moins un moment.",
+    "Optionnel : dans /app/backend/server.py:1797 (upload_moment), on strip 'image' avant de renvoyer — c'est bien, mais on pourrait aussi renvoyer explicitement un DTO Pydantic pour éviter tout mongo _id résiduel (déjà pop line 1796, donc OK aujourd'hui)."
+  ],
+  "critical_code_review_comments": [
+    "server.py:1729-1798 upload_moment — 5-min window + duplicate-per-checkin (409) + 4h global cooldown (429) : logique cohérente, messages FR OK, expires_at écrit pour la purge TTL. Attention : le champ 'selfie' est stocké entier (base64 potentiellement 100-500 KB) → si beaucoup d'uploads, MongoDB gonfle vite. Idée : offloader vers GridFS ou S3.",
+    "server.py:1801-1812 list_club_moments — renvoie DIRECTEMENT le document mongo (avec 'image' base64 complet dans la liste). Pour un club avec 20 moments, la réponse peut faire plusieurs MB. À terme, renvoyer une URL /api/moments/{id}/image et une thumbnail base64 réduite dans la liste.",
+    "frontend/app/club/[id].tsx:255-269 — la section Moments utilise <ScrollView horizontal> qui n'était pas importé (fix appliqué). Envisager <FlatList horizontal> pour la virtualisation quand le nombre de moments grandit.",
+    "frontend/app/club/[id].tsx:186 — <Image source={{ uri: club.photos[0] }} /> ne gère pas onError → sur la web preview, si l'URL /api/places/photo timeout, on aura une image cassée sans fallback visuel."
+  ],
+  "updated_files": [
+    "/app/frontend/app/club/[id].tsx (ajout ScrollView à l'import react-native)",
+    "/app/backend/tests/test_bereal_moments.py (nouveau test file)"
+  ],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "100% (3/3 flows)"},
+  "seed_data_creation": "1 check-in Emma sur Le Raidd Bar + 1 moment TEST_moment (image PIL 8x8) via le test, expires_at ~24h. 1 check-in Emma supplémentaire sur un club différent pour valider l'écran moment-capture (fenêtre 5 min).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Club avec moment actif pour retest UI : gp_ChIJ_aEE-xxu5kcRF0TrOvzIGwY (Le Raidd Bar). Moments TTL : 24h free / 7j premium (Emma est free d'après is_premium_author=false dans la réponse — à confirmer). Cooldown global 4h par user. Pour re-tester l'écran moment-capture : (1) créer un check-in via /api/checkins/manual sur un NOUVEAU club (car sinon in_window=false si moment déjà posté pour ce checkin), (2) /moment-capture doit alors afficher shutter/timer. testID moment-open-camera + moment-close + moment-shutter + moment-caption + moment-submit + moment-retake tous en place. Photo proxy Google : ratio générique 3.3% (17/510) — sain.",
+  "rca_of_issue": "RCA du crash potentiel sur fiche club avec moments (fixé) : lors du refactor pour ajouter la section 'Moments — ils y sont en ce moment ✨' dans /app/frontend/app/club/[id].tsx, le composant <ScrollView horizontal> a été utilisé mais l'import react-native n'a pas été mis à jour. Sur les fiches club SANS moment le rendu conditionnel (moments.length > 0) évite le ReferenceError, mais dès qu'au moins un moment existe, le rendu explose (Metro peut ne pas le voir en compile-time car ScrollView est aussi exposé par Animated). Fix : ajout de ScrollView à la destructure d'import react-native. Reproduction avant fix : login emma, avoir posté un moment sur Le Raidd Bar, ouvrir la fiche → crash. Mitigation appliquée. Recommandation : activer `eslint-plugin-react-native/no-unresolved` + `no-undef` en CI."
+}

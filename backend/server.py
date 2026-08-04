@@ -92,7 +92,56 @@ async def _seed_places_from_dump() -> None:
         logger.error(f"places seed: échec — {exc}")
     # Toujours appliquer les correctifs photos (même si le seed est ignoré)
     await _apply_club_photo_fixes()
+    await _fix_generic_club_photos()
     await _ensure_reviewer_account()
+
+
+def _norm_name(s: str) -> str:
+    import re
+    import unicodedata
+    s = unicodedata.normalize("NFD", s or "").encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()
+
+
+async def _fix_generic_club_photos() -> None:
+    """Remplace les photos stock (Unsplash/Pexels) des clubs générés par les
+    vraies photos Google du même établissement présent dans db.places
+    (match nom normalisé + distance < 1,5 km). Aucun appel API — idempotent."""
+    try:
+        generic_q = {"photos.0": {"$regex": "unsplash|pexels", "$options": "i"}}
+        count = await db.clubs.count_documents(generic_q)
+        if not count:
+            return
+        places = await db.places.find(
+            {"photos.0": {"$exists": True}},
+            {"_id": 0, "name": 1, "lat": 1, "lng": 1, "photos": 1},
+        ).to_list(30000)
+        by_norm: dict = {}
+        for p in places:
+            by_norm.setdefault(_norm_name(p["name"]), []).append(p)
+        fixed = 0
+        async for club in db.clubs.find(generic_q):
+            n = _norm_name(club.get("name", ""))
+            clat, clng = club.get("lat"), club.get("lng")
+            candidates = list(by_norm.get(n, []))
+            if not candidates and len(n) >= 5:
+                for key, plist in by_norm.items():
+                    if n in key or key in n:
+                        candidates.extend(plist)
+            for cand in candidates:
+                if clat is None or cand.get("lat") is None:
+                    continue
+                if haversine_km(clat, clng, cand["lat"], cand["lng"]) < 1.5:
+                    await db.clubs.update_one(
+                        {"club_id": club["club_id"]},
+                        {"$set": {"photos": cand["photos"][:4]}},
+                    )
+                    fixed += 1
+                    break
+        if fixed:
+            logger.info(f"generic club photos: {fixed}/{count} clubs corrigés avec de vraies photos.")
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"generic club photos: échec — {exc}")
 
 
 async def _ensure_reviewer_account() -> None:

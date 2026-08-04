@@ -20,6 +20,7 @@
         "NSCalendarsFullAccessUsageDescription": "Ajouter tes soirées à ton agenda iOS.",
         "NSContactsUsageDescription": "Retrouver tes amis déjà sur Night Finder (hash uniquement).",
         "NSPhotoLibraryUsageDescription": "Choisir tes photos de profil pour le swipe.",
+        "NSCameraUsageDescription": "Capturer ton moment en soirée (photo avant + arrière).",
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
           "fetch",
@@ -168,9 +169,8 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION",
-        "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION",
+        "CAMERA",
+        "RECORD_AUDIO",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
         "POST_NOTIFICATIONS"
@@ -185,6 +185,12 @@
     "plugins": [
       "expo-router",
       "expo-apple-authentication",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Capturer ton moment en soirée (photo avant + arrière)."
+        }
+      ],
       [
         "expo-splash-screen",
         {
