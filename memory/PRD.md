@@ -231,3 +231,11 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - Résultat : db.places 3 520 → **9 942** établissements (+6 383, 1 033 appels API). Le Mans couvert (Lockdown, Le Guest's, etc. — 112 clubs dans un rayon de 20 km).
 - list_clubs : cap de lecture db.places 5000 → 20000 ; la recherche matche désormais nom + description + **adresse** (multi-mots, ex. "bar le mans").
 - Relancer l'import : `cd /app/backend && python3 import_clubs_bulk.py` (ou `--city "Nom"`).
+
+## ✅ PROFILS UTILISATEURS DÉTAILLÉS (juin 2026 — fork)
+- Splash "NF" vérifié (screenshot OK) — juste les lettres NF avec glow, sans cercle ni texte.
+- Backend : `GET /api/users/{user_id}/profile` (server.py, avant /users/search) — profil public d'un autre utilisateur : identité (_profile_for_swipe + picture + is_premium + member_since), stats {friends, checkins (confirmed), moments, likes_received}, moments[] (24 derniers, image base64 + club_name + active), friendship {status: none|pending_out|pending_in|accepted, friendship_id}, is_me. 404 si inexistant/banni/bloqué (via _blocked_user_ids).
+- Frontend : NOUVEL écran `/app/frontend/app/user/[id].tsx` — avatar, nom+âge, ville, badge premium, rangée stats, bouton ami contextuel (Ajouter/Demande envoyée/Accepter/Amis✓ avec retrait), BIO, Instagram (lien), MUSIQUE (chips), PHOTOS (strip horizontal), grille MOMENTS 3 colonnes (overlay expiré + nom club) + modal preview, UserActionsMenu (bloquer/signaler). État "Profil introuvable" + Retour.
+- Navigation ajoutée : friends.tsx (lignes tappables → /user/{id}), chat/[matchId].tsx (header testID chat-header-profile → profil du correspondant), search.tsx (résultat → /user/{id} au lieu de story-viewer).
+- api.ts : `getUserProfile(userId)`.
+- Tests : iteration_35.json — backend 5/5 pytest PASS (shape, 404, flow amitié complet + cleanup vérifié), frontend 100% PASS. Comptes démo Apple intacts.
