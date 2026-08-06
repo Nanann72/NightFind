@@ -150,6 +150,30 @@ def _offset_geo(lat: float, lng: float, dlat_km: float, dlng_km: float) -> tuple
     return lat + dlat, lng + dlng
 
 
+# Banque de photos d'ambiance bar/club variées — attribution déterministe
+# par lieu (hash) pour que chaque bar sans photo Google ait un visuel différent.
+FALLBACK_PHOTO_BANK = [
+    "https://images.unsplash.com/photo-1571266028243-d220c6a9b40c?w=1200&q=80",
+    "https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=1200&q=80",
+    "https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=1200&q=80",
+    "https://images.unsplash.com/photo-1543007630-9710e4a00a20?w=1200&q=80",
+    "https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200&q=80",
+    "https://images.unsplash.com/photo-1538488881038-e252a119ace7?w=1200&q=80",
+    "https://images.unsplash.com/photo-1575444758702-4a6b9222336e?w=1200&q=80",
+    "https://images.unsplash.com/photo-1566417713940-fe7c737a9ef2?w=1200&q=80",
+    "https://images.unsplash.com/photo-1541532713592-79a0317b6b77?w=1200&q=80",
+    "https://images.unsplash.com/photo-1521017432531-fbd92d768814?w=1200&q=80",
+    "https://images.unsplash.com/photo-1559305616-3f99cd43e353?w=1200&q=80",
+    "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=1200&q=80",
+]
+
+
+def _fallback_photo(seed: str) -> str:
+    import hashlib as _h
+    idx = int(_h.md5((seed or "x").encode()).hexdigest(), 16) % len(FALLBACK_PHOTO_BANK)
+    return FALLBACK_PHOTO_BANK[idx]
+
+
 def _photo_proxy_url(name: str, max_width: int = 1200) -> str:
     # name comes as 'places/<placeId>/photos/<photoId>' — encode to keep slashes routable
     from urllib.parse import quote
@@ -178,10 +202,8 @@ def _map_place_to_club(p: Dict[str, Any]) -> Dict[str, Any]:
     photos_meta = p.get("photos") or []
     photos_urls = [_photo_proxy_url(ph["name"]) for ph in photos_meta if ph.get("name")][:6]
     if not photos_urls:
-        # Fallback hero from Unsplash so UI never breaks
-        photos_urls = [
-            "https://images.unsplash.com/photo-1571266028243-d220c6a9b40c?w=1200&q=80",
-        ]
+        # Pas de photo Google : fallback varié et déterministe (par lieu)
+        photos_urls = [_fallback_photo(p.get("id") or p.get("displayName", {}).get("text", ""))]
 
     hours_raw = p.get("regularOpeningHours") or {}
     weekday_desc = hours_raw.get("weekdayDescriptions") or []

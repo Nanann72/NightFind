@@ -732,6 +732,8 @@ export const api = {
       outgoing: any[];
     }>('/friends/list'),
   activeFriends: () => request<ActiveFriend[]>('/friends/active'),
+  getUserProfile: (userId: string) =>
+    request<any>(`/users/${encodeURIComponent(userId)}/profile`),
 
   // Push notifications
   registerPush: (body: { user_id: string; platform: 'ios' | 'android'; device_token: string }) =>

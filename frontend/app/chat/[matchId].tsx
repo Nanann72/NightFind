@@ -273,7 +273,13 @@ export default function Chat() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Ionicons name="chevron-back" size={26} color={colors.textPrimary} />
         </TouchableOpacity>
-        <View style={styles.headerCenter}>
+        <TouchableOpacity
+          style={styles.headerCenter}
+          activeOpacity={0.7}
+          disabled={!other}
+          onPress={() => other && router.push(`/user/${other.user_id}` as any)}
+          testID="chat-header-profile"
+        >
           {other?.photo ? (
             <Image source={{ uri: other.photo }} style={styles.headerAvatar} />
           ) : (
@@ -287,7 +293,7 @@ export default function Chat() {
               <Text style={styles.headerStatus}>en train d&apos;écrire…</Text>
             ) : null}
           </View>
-        </View>
+        </TouchableOpacity>
         {other ? (
           <UserActionsMenu
             targetUserId={other.user_id}

@@ -77,18 +77,8 @@ export default function Index() {
         pointerEvents="none"
       />
       <View style={styles.center}>
-        <View style={styles.logoWrap}>
-          <Animated.View style={[styles.ring, ring1Style]} />
-          <Animated.View style={[styles.ring, ring2Style]} />
-          <Animated.View style={[styles.logoBubble, logoStyle]}>
-            <Ionicons name="moon" size={36} color={colors.primary} />
-          </Animated.View>
-        </View>
-        <Animated.Text entering={FadeInDown.delay(200).duration(600)} style={styles.brand}>
-          NIGHT FINDER
-        </Animated.Text>
-        <Animated.Text entering={FadeIn.delay(450).duration(600)} style={styles.tag}>
-          FIND THE NIGHT.
+        <Animated.Text style={[styles.nf, logoStyle]} allowFontScaling={false}>
+          NF
         </Animated.Text>
       </View>
     </View>
@@ -98,48 +88,14 @@ export default function Index() {
 const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  logoWrap: {
-    width: 140,
-    height: 140,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 32,
-  },
-  ring: {
-    position: 'absolute',
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  logoBubble: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(224,26,79,0.15)',
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.primary,
-    shadowOpacity: 0.7,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 12,
-  },
-  brand: {
+  nf: {
     color: colors.textPrimary,
-    fontSize: 28,
+    fontSize: 96,
     fontWeight: '900',
-    letterSpacing: 6,
-  },
-  tag: {
-    color: colors.primary,
-    marginTop: 6,
-    fontSize: 11,
     letterSpacing: 4,
-    fontWeight: '700',
+    textShadowColor: colors.primary,
+    textShadowRadius: 28,
+    textShadowOffset: { width: 0, height: 0 },
   },
 });
 

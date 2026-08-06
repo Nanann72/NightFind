@@ -96,7 +96,7 @@ export default function UserSearch() {
   const renderUser = ({ item: u }: { item: SearchUser }) => (
     <TouchableOpacity
       style={styles.row}
-      onPress={() => router.push({ pathname: '/story-viewer', params: { user_id: u.user_id, user_name: u.name } })}
+      onPress={() => router.push(`/user/${u.user_id}` as any)}
       testID={`search-user-${u.user_id}`}
       activeOpacity={0.85}
     >

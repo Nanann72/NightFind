@@ -110,14 +110,21 @@ export default function Friends() {
   };
 
   const renderUser = (u: any, actions: React.ReactNode) => (
-    <View key={u.user_id || u.friendship_id} style={styles.userRow}>
+    <TouchableOpacity
+      key={u.user_id || u.friendship_id}
+      style={styles.userRow}
+      activeOpacity={0.7}
+      disabled={!u.user_id}
+      onPress={() => u.user_id && router.push(`/user/${u.user_id}` as any)}
+      testID={`friend-row-${u.user_id || u.friendship_id}`}
+    >
       <View style={styles.avatar}><Text style={styles.avatarText}>{(u.username || u.name || '?').slice(0, 2).toUpperCase()}</Text></View>
       <View style={{ flex: 1 }}>
         <Text style={styles.userName}>{u.name || u.username}</Text>
         <Text style={styles.userHandle}>@{u.username || '...'}</Text>
       </View>
       {actions}
-    </View>
+    </TouchableOpacity>
   );
 
   return (

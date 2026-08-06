@@ -93,7 +93,28 @@ async def _seed_places_from_dump() -> None:
     # Toujours appliquer les correctifs photos (même si le seed est ignoré)
     await _apply_club_photo_fixes()
     await _fix_generic_club_photos()
+    await _diversify_fallback_photos()
     await _ensure_reviewer_account()
+
+
+async def _diversify_fallback_photos() -> None:
+    """Les lieux sans photo Google partageaient UNE seule photo stock.
+    Réattribue une photo d'ambiance variée et déterministe par lieu (idempotent)."""
+    try:
+        old = "https://images.unsplash.com/photo-1571266028243-d220c6a9b40c?w=1200&q=80"
+        bank = places_service.FALLBACK_PHOTO_BANK
+        fixed = 0
+        for coll in (db.places, db.clubs):
+            async for d in coll.find({"photos.0": old}, {"club_id": 1}):
+                idx = int(hashlib.md5(d["club_id"].encode()).hexdigest(), 16) % len(bank)
+                if bank[idx] == old:
+                    idx = (idx + 1) % len(bank)
+                await coll.update_one({"_id": d["_id"]}, {"$set": {"photos": [bank[idx]]}})
+                fixed += 1
+        if fixed:
+            logger.info(f"fallback photos: {fixed} lieux diversifiés.")
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"fallback photos: échec — {exc}")
 
 
 def _norm_name(s: str) -> str:
@@ -3888,6 +3909,91 @@ async def report_user(body: ReportBody, user: dict = Depends(get_current_user)):
         report_id, user["user_id"], body.target_user_id, reason,
     )
     return {"ok": True, "report_id": report_id}
+
+
+@api_router.get("/users/{user_id}/profile")
+async def get_user_public_profile(user_id: str, user: dict = Depends(get_current_user)):
+    """Detailed public profile of another user: bio, photos, stats,
+    past moments (last 7 days) and friendship status with the viewer."""
+    me = user["user_id"]
+    blocked = await _blocked_user_ids(me)
+    if user_id in blocked:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    target = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not target or target.get("banned"):
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    profile = _profile_for_swipe(target)
+    profile["picture"] = target.get("picture") or ((target.get("photos") or [None])[0])
+    profile["is_premium"] = bool(target.get("is_premium"))
+    created = target.get("created_at")
+    profile["member_since"] = created.isoformat() if hasattr(created, "isoformat") else created
+
+    # ---- Stats ----
+    friends_count = await db.friendships.count_documents(
+        {"status": "accepted", "$or": [{"from_user_id": user_id}, {"to_user_id": user_id}]}
+    )
+    checkins_count = await db.checkins.count_documents({"user_id": user_id, "confirmed": True})
+    moments_count = await db.club_moments.count_documents({"user_id": user_id})
+    likes_received = 0
+    try:
+        mids = [
+            m["moment_id"]
+            async for m in db.club_moments.find({"user_id": user_id}, {"_id": 0, "moment_id": 1}).limit(200)
+        ]
+        if mids:
+            likes_received = await db.moment_likes.count_documents({"moment_id": {"$in": mids}})
+    except Exception:
+        pass
+    profile["stats"] = {
+        "friends": friends_count,
+        "checkins": checkins_count,
+        "moments": moments_count,
+        "likes_received": likes_received,
+    }
+
+    # ---- Recent moments (same shape as /me/moments, capped at 24) ----
+    now = datetime.now(timezone.utc)
+    moments = await db.club_moments.find(
+        {"user_id": user_id}, {"_id": 0}
+    ).sort("created_at", -1).limit(24).to_list(24)
+    club_ids = list({m.get("club_id") for m in moments if m.get("club_id")})
+    name_map: dict = {}
+    if club_ids:
+        async for c in db.clubs.find({"club_id": {"$in": club_ids}}, {"_id": 0, "club_id": 1, "name": 1}):
+            name_map[c["club_id"]] = c.get("name")
+    for m in moments:
+        m["club_name"] = name_map.get(m.get("club_id"))
+        exp = m.get("expires_at")
+        if exp is not None and getattr(exp, "tzinfo", None) is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        m["active"] = bool(exp and exp > now)
+    profile["moments"] = moments
+
+    # ---- Friendship status with viewer ----
+    friendship = {"status": "none", "friendship_id": None}
+    if user_id != me:
+        fs = await db.friendships.find_one(
+            {
+                "$or": [
+                    {"from_user_id": me, "to_user_id": user_id},
+                    {"from_user_id": user_id, "to_user_id": me},
+                ]
+            },
+            {"_id": 0},
+        )
+        if fs:
+            if fs.get("status") == "accepted":
+                friendship = {"status": "accepted", "friendship_id": fs.get("friendship_id")}
+            elif fs.get("from_user_id") == me:
+                friendship = {"status": "pending_out", "friendship_id": fs.get("friendship_id")}
+            else:
+                friendship = {"status": "pending_in", "friendship_id": fs.get("friendship_id")}
+    profile["friendship"] = friendship
+    profile["is_me"] = user_id == me
+    return profile
+
+
 @api_router.get("/users/search")
 async def users_search(
     q: str = "",
