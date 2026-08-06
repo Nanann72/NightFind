@@ -13,6 +13,7 @@ import Animated, {
   FadeInDown,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../lib/auth';
 import { type ThemeColors, darkColors } from '../lib/theme';
@@ -25,6 +26,9 @@ export default function Index() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user, loading } = useAuth();
   const router = useRouter();
+  const [fontsLoaded] = useFonts({
+    'Exo2-BlackItalic': require('../assets/fonts/Exo2-BlackItalic.ttf'),
+  });
 
   // Pulse animation for the diamond
   const scale = useSharedValue(0.8);
@@ -77,9 +81,11 @@ export default function Index() {
         pointerEvents="none"
       />
       <View style={styles.center}>
-        <Animated.Text style={[styles.nf, logoStyle]} allowFontScaling={false}>
-          NF
-        </Animated.Text>
+        {fontsLoaded && (
+          <Animated.Text style={[styles.nf, logoStyle]} allowFontScaling={false}>
+            NF
+          </Animated.Text>
+        )}
       </View>
     </View>
   );
@@ -90,9 +96,9 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   nf: {
     color: colors.textPrimary,
+    fontFamily: 'Exo2-BlackItalic',
     fontSize: 96,
-    fontWeight: '900',
-    letterSpacing: 4,
+    letterSpacing: 2,
     textShadowColor: colors.primary,
     textShadowRadius: 28,
     textShadowOffset: { width: 0, height: 0 },
