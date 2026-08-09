@@ -283,3 +283,8 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - Micro-interactions : FavHeart (cœur favori) avec spring scale 1.35 + haptic léger + update optimiste (index.tsx).
 - Testing agent iteration_38 : 5/5 nouveautés PASS + 0 régression (swipe, chats, settings, moment-event, profil public). Bugs iter37 confirmés corrigés (i18n FR partout, light mode settings).
 - Backlog restant proposé : préférences de notifications par catégorie (backend filtering), réactions/réponses dans le chat, analytics privacy-first, context menus long-press.
+
+## ✅ SPLASH PREMIUM iOS 26 (juin 2026)
+- /app/frontend/app/index.tsx RÉÉCRIT : séquence de lancement premium — (1) logo NF (Exo2-BlackItalic) fade+scale 0.82→1 spring, (2) pulse "respiration" 1→1.035→1 (2.8s, démarre à +850ms), (3) halo ruby très subtil (opacity max 0.12, shadow 80), (4) nom "NIGHT FINDER" fade+translateY à +380ms (letterSpacing 7), (5) barre de progression fine 132x3px arrondie reflétant le VRAI démarrage (runtime 12% → fonts 45% → auth 100%), (6) sortie : logo shrink 0.94 + fade 320ms → router.replace (min 650ms depuis mount pour éviter le flash, JAMAIS de délai artificiel).
+- Reduce Motion respecté (useReducedMotion : tout affiché directement, pas de pulse). Timeout 10s → écran "Impossible de démarrer l'application" + Réessayer (testID splash-error/splash-retry). Warm start : la route "/" ne remonte pas au resume.
+- Launch screen natif statique inchangé (expo-splash-screen, bg #09090B) conformément aux contraintes iOS.
