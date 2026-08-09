@@ -13,7 +13,7 @@ const P = {
   card: '#141414',
   border: 'rgba(255,255,255,0.1)',
   violet: '#E11D48',
-  violetSoft: 'rgba(139,92,246,0.14)',
+  violetSoft: 'rgba(225,29,72,0.14)',
   text: '#fff',
   dim: '#A1A1AA',
 };
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   },
   halo: {
     position: 'absolute', top: -90, alignSelf: 'center', width: 240, height: 240,
-    borderRadius: 120, backgroundColor: 'rgba(139,92,246,0.12)',
+    borderRadius: 120, backgroundColor: 'rgba(225,29,72,0.12)',
   },
   emoji: { fontSize: 48, marginBottom: 10 },
   title: { color: P.text, fontSize: 22, fontWeight: '800' },

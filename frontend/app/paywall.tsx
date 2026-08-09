@@ -41,7 +41,7 @@ const P = {
   textDim: '#A1A1AA',
   textFaint: '#5C5C64',
   violet: '#E11D48',
-  violetSoft: 'rgba(139, 92, 246, 0.14)',
+  violetSoft: 'rgba(225, 29, 72, 0.14)',
 };
 
 const BENEFITS = [
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     width: 460,
     height: 460,
     borderRadius: 230,
-    backgroundColor: 'rgba(139, 92, 246, 0.09)',
+    backgroundColor: 'rgba(225, 29, 72, 0.09)',
   },
   haloInner: {
     position: 'absolute',
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     width: 260,
     height: 260,
     borderRadius: 130,
-    backgroundColor: 'rgba(139, 92, 246, 0.06)',
+    backgroundColor: 'rgba(225, 29, 72, 0.06)',
   },
   headerRow: {
     flexDirection: 'row',
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
     borderRadius: 34,
     backgroundColor: P.violetSoft,
     borderWidth: 1,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
+    borderColor: 'rgba(225, 29, 72, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 14,
     backgroundColor: P.violetSoft,
-    borderColor: 'rgba(139, 92, 246, 0.35)',
+    borderColor: 'rgba(225, 29, 72, 0.35)',
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
     padding: 18,
     position: 'relative',
   },
-  planCardSelected: { borderColor: P.violet, backgroundColor: 'rgba(139, 92, 246, 0.07)' },
+  planCardSelected: { borderColor: P.violet, backgroundColor: 'rgba(225, 29, 72, 0.07)' },
   badge: {
     position: 'absolute',
     top: -10,

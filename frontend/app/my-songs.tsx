@@ -539,7 +539,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: 'rgba(139,92,246,0.25)',
+    backgroundColor: 'rgba(225,29,72,0.25)',
   },
   scanBtn: {
     width: 76,

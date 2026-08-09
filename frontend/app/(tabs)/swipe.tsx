@@ -37,12 +37,12 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { UserActionsMenu } from '../../components/UserActionsMenu';
-import { radius, spacing, type ThemeColors, darkColors } from '../../lib/theme';
+import { radius, spacing, type ThemeColors } from '../../lib/theme';
 import { useThemeColors } from '../../lib/themeContext';
 
 const { width, height } = Dimensions.get('window');
 const CARD_W = width - 32;
-const CARD_H = Math.min(620, Math.round(width * 1.55));
+const CARD_H = Math.min(620, Math.round(width * 1.55), Math.max(420, height - 360));
 const SWIPE_THRESHOLD = width * 0.28;
 const SWIPE_UP_THRESHOLD = height * 0.16;
 
@@ -632,15 +632,21 @@ export default function SwipePeople() {
                     </View>
                   )}
                   {!!top.instagram && (
-                    <Text style={styles.insta}>📸 @{top.instagram}</Text>
+                    <Text style={styles.insta}>📸 @{String(top.instagram).replace(/^@+/, '')}</Text>
                   )}
                 </View>
               </Animated.View>
             </GestureDetector>
           </View>
 
-          {/* ---- Tinder-style action bar: Rewind / Nope / Super Like / Like / Boost ---- */}
-          <View style={[styles.actions, { paddingBottom: insets.bottom + 110 }]}>
+          {/* ---- Tinder-style action bar: floats above the tab bar ---- */}
+          <View
+            style={[
+              styles.actions,
+              { position: 'absolute', left: 0, right: 0, bottom: insets.bottom + 96, zIndex: 30 },
+            ]}
+            pointerEvents="box-none"
+          >
             <ActionButton
               onPress={onRewind}
               icon="refresh"
@@ -695,7 +701,7 @@ export default function SwipePeople() {
       <Modal visible={!!match} transparent animationType="fade" onRequestClose={() => setMatch(null)}>
         <View style={styles.matchRoot} testID="match-modal">
           <LinearGradient
-            colors={['#1a0a2e', '#0d0518', '#000']}
+            colors={['#2b0a12', '#150507', '#000']}
             style={StyleSheet.absoluteFill}
           />
           {/* Floating sparkles */}
@@ -1183,10 +1189,3 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   ctaText: { color: colors.bg, fontWeight: '900' },
 });
-
-
-// Module-level fallback: sub-components that aren't theme-aware
-// keep rendering in dark mode until they're individually refactored to
-// use `useThemeColors()`.
-const colors = darkColors;
-const styles = makeStyles(darkColors);

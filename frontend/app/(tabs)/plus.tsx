@@ -144,7 +144,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     width: 180,
     height: 180,
     borderRadius: 90,
-    backgroundColor: 'rgba(139, 92, 246, 0.10)',
+    backgroundColor: 'rgba(225, 29, 72, 0.10)',
   },
   premiumIcon: {
     width: 44,

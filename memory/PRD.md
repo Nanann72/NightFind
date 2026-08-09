@@ -239,3 +239,15 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - Navigation ajoutée : friends.tsx (lignes tappables → /user/{id}), chat/[matchId].tsx (header testID chat-header-profile → profil du correspondant), search.tsx (résultat → /user/{id} au lieu de story-viewer).
 - api.ts : `getUserProfile(userId)`.
 - Tests : iteration_35.json — backend 5/5 pytest PASS (shape, 404, flow amitié complet + cleanup vérifié), frontend 100% PASS. Comptes démo Apple intacts.
+
+## ✅ SWIPE TINDER-STYLE COMPLET + REFONTE PREMIUM RUBY (juin 2026 — fork)
+### A. Fonctionnalités swipe (Tinder à 99%)
+- Backend server.py : POST /api/swipe/superlike (quota 1/j gratuit, 5/j premium — FREE_SUPERLIKES_PER_DAY/PREMIUM_SUPERLIKES_PER_DAY, 429 si épuisé), POST /api/swipe/rewind (premium only 402, 409 si le like a déjà matché, sinon supprime swipe+match_request et retourne le profil), POST /api/swipe/boost (premium only, boost_until=+30min, 1/j via last_boost_at, 409 si actif). /swipe/quota étendu (superlikes_limit/remaining, boost_active/until). MATCH INSTANTANÉ dans _user_swipe : si demande inverse pending → accept + création match + retour {matched:true, match_id, peer}. Deck : tri superliked_you d'abord puis boostés, flag superliked_you sur les profils.
+- Frontend swipe.tsx RÉÉCRIT : pile de cartes (2 derrière, scale/translateY animés), gesture haut=super like, tampons J'AIME/NOPE/SUPER LIKE, barre 5 boutons (rewind or, nope, super like bleu+badge compteur, like, boost or) EN POSITION ABSOLUE au-dessus de la tab bar (bottom insets+96, CARD_H capé par hauteur écran), modal plein écran "C'EST UN MATCH !" (avatars SlideIn + cœur + sparkles + CTA message/continuer), modal premium-feature (rewind/boost non-premium → paywall), badge "T'a super-liké", pill "Boost actif", bouton détails → /user/{id}.
+- Users test: swipetest.a/b/c@nightfinder.app / TestSwipe2026! (A premium, A-B matchés).
+### B. Refonte design premium (design_guidelines.json — Glass/Luxe Ruby)
+- theme.ts : marque VIOLET #8B5CF6 → RUBY #E11D48 (hover #F43F5E, pressed #BE123C), tertiary #FDA4AF, surfaces zinc (#09090B/#131316/#18181B/#27272A), gradients ruby. TOUS les violets hardcodés purgés (swipe, onboarding, paywall, my-songs, plus, index, PartnerUnlockModal).
+- Nouveaux composants DS /components/ui/ : Toast.tsx (ToastProvider+useToast monté dans _layout, variants success/error/warning/info, haptics), States.tsx (EmptyState/ErrorState avec Réessayer), ListRow.tsx (ListGroup+ListRow style réglages Apple), AppButton.tsx (variants primary/secondary/ghost/destructive + loading). Exportés dans ui/index.ts.
+- settings.tsx : style Apple groupé (cartes inset arrondies surfaceElevated, headers uppercase, dividers subtils, switches trackColor primary). Light mode vérifié OK.
+- Accueil : skeletons (home-skeleton, 3 cartes) + EmptyState avec CTA Rafraîchir. Profil : skeleton grille moments.
+- Tests : iteration_36.json — backend 5/5 PASS ; bug critique overlap boutons/tab-bar CORRIGÉ (vérifié par clic screenshot) ; violet paywall/partner modal corrigé ; gradient match modal → ruby nuit (#2b0a12).
