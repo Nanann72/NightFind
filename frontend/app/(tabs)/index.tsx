@@ -131,7 +131,7 @@ export default function Home() {
       {/* ── Header ─────────────────────────────── */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.h1} numberOfLines={1}>
+          <Text style={styles.h1} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
             {firstName ? t('home.greeting', { name: firstName }) : 'Night Finder'}
           </Text>
           <Text style={styles.subtitle}>{t('home.readyTonight')}</Text>
@@ -574,7 +574,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   h1: {
     color: colors.textPrimary,
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '700',
     letterSpacing: 0.2,
   },

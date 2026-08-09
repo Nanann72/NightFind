@@ -12,7 +12,6 @@
  *    I18nManager.forceRTL so flexbox flips horizontally.
  */
 import { I18n } from 'i18n-js';
-import * as Localization from 'expo-localization';
 import { I18nManager, Platform } from 'react-native';
 import { useEffect, useState, useCallback } from 'react';
 import { storage } from './storage';
@@ -37,7 +36,7 @@ export const SUPPORTED_LANGS = [
 
 export type LangCode = (typeof SUPPORTED_LANGS)[number]['code'];
 
-const STORAGE_KEY = 'nf_lang';
+const STORAGE_KEY = 'nf_lang_v2';
 const RTL_LANGS: LangCode[] = ['ar'];
 
 export const i18n = new I18n({ fr, en, es, de, it, pt, ar });
@@ -47,32 +46,17 @@ i18n.locale = 'fr';
 
 let listeners: Array<(lang: LangCode) => void> = [];
 
-function detectFromDevice(): LangCode {
-  try {
-    const locales = Localization.getLocales();
-    for (const loc of locales) {
-      const code = (loc.languageCode || '').toLowerCase();
-      if (SUPPORTED_LANGS.some((s) => s.code === code)) {
-        return code as LangCode;
-      }
-    }
-  } catch {}
-  return 'fr';
-}
-
 export async function initI18n(): Promise<LangCode> {
+  // French-first product: default to FR unless the user explicitly picked
+  // another language in Settings > Language. This avoids mixed FR/EN UIs
+  // on devices whose system locale is English.
   let chosen: LangCode = 'fr';
   try {
     const saved = await storage.get(STORAGE_KEY);
     if (saved && SUPPORTED_LANGS.some((s) => s.code === saved)) {
       chosen = saved as LangCode;
-    } else {
-      chosen = detectFromDevice();
-      try { await storage.set(STORAGE_KEY, chosen); } catch {}
     }
-  } catch {
-    chosen = detectFromDevice();
-  }
+  } catch {}
   // On first init we ONLY set the locale and (carefully) the RTL state
   // without ever calling forceRTL — that API requires a full app reload
   // and crashes if called during the initial mount cycle. RTL toggling

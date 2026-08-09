@@ -1,0 +1,76 @@
+{
+  "summary": "AUDIT FRONTEND COMPLET (mobile 390x844, reviewer premium + Emma non-premium). GRAND SUCCÈS iter36→37: le chevauchement action-bar × tab-bar sur /swipe est CORRIGÉ (actions y=686-748, tabs y=765-827, gap 17px, zIndex 30). Boutons action-* tous cliquables en vrai click (pas force=True) : action-like fait avancer la carte (Louise→Enzo), action-superlike décrémente le badge (5→4), action-boost + action-rewind cliquables sans crash. Palette Ruby #E11D48 propre partout — audit des couleurs violet rgba(139,92,246) / (124,58,237) / (167,139,250) sur /paywall /onboarding /login /register /chats /map /notifications /friends /search /favorites : 0 occurrence sur tous les écrans. /favorites et /search affichent des empty states propres. /user/user_demo_emma01 (Emma) rend proprement : avatar, stats (0 Amis / 0 Moments / 4 Check-ins / 0 J'aime), bouton 'Ajouter en ami', sections BIO/MUSIQUE/PHOTOS/MOMENTS. Modals settings row-edit-name → edit-name-input + save-name-btn fonctionnels. BUG CRITIQUE PERSISTANT (iter36 → iter37): /settings ne repeint PAS en mode Light. Après clic sur mode-light, le state 'Light' est bien appliqué (icône highlighted, label 'Light') MAIS le div racine du contenu settings garde bg rgb(9,9,11) (zinc dark). Confirmé via DOM inspection: le div de dépth=2 conserve bg zinc alors que /, /profile, /user/emma passent bien en rgb(255,255,255). settings.tsx utilise pourtant `const { colors } = useTheme()` (ligne 43) et `useMemo(() => makeStyles(colors), [colors])` (ligne 81) — donc le problème vient probablement du ThemeContext qui ne re-render pas le stack /settings, ou d'un `colors` mémorisé au niveau supérieur. AUTRES PROBLÈMES D'AFFICHAGE DÉTECTÉS: (a) /home header 'Good evening Apple 👋' se fait tronquer en 'Good evening A...' sur 390px width, à cause des 2 icônes header (notifications + filters) qui volent la largeur ; (b) MIXAGE DES LANGUES sur app française — /register affiche 'Create an account', 'Name', 'Email', 'Password (8+ characters)' en EN alors que 'S'inscrire', 'OU', 'Continuer avec Google', 'Déjà inscrit ?', 'Se connecter' sont en FR ; (c) /settings sections en majuscules 'YOUR ACCOUNT', 'YOUR NIGHT FINDER USAGE', 'PREMIUM', 'PREFERENCES', 'PRIVACY AND SECURITY' — en EN alors que reste du screen en FR ; (d) tab bar en EN ('Home / Map / More / Chats / Profile') alors que app FR ; (e) titre écran /settings 'Settings and activity' en EN. Aucun texte non-wrappé, aucune red screen error, aucun crash. Match modal non testé (voir action_items).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "settings.tsx background repaint",
+        "issue": "Mode Light ne repeint pas /settings. Après click sur mode-light: appearance picker montre 'Light' sélectionné et l'icône passe en ruby, mais le div racine du contenu reste bg rgb(9,9,11) (zinc dark). Autres écrans (/,/profile,/swipe,/user/emma) passent bien en rgb(255,255,255). settings.tsx utilise useTheme() ligne 43 mais le stack ne se re-render pas. Reference: /app/frontend/app/settings.tsx:43,81.",
+        "testID": "mode-light",
+        "priority": "HIGH"
+      },
+      {
+        "component": "(tabs)/index.tsx header greeting",
+        "issue": "Le titre 'Good evening {firstName} 👋' est TRONQUÉ à 'Good evening A...' sur mobile 390px lorsque le firstName est 'Apple' (5 char) car les 2 boutons d'action (notifications + filter) prennent trop de largeur à droite. Le ellipsis apparaît après une seule lettre du prénom, ce qui est inélégant. Réduire fontSize ou fournir plus de flex-shrink au titre.",
+        "testID": null,
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "register.tsx form labels",
+        "issue": "Mixage de langues FR/EN sur /register: 'Create an account', 'Find the best nights around you.', placeholders 'Name'/'Email'/'Password (8+ characters)' EN vs boutons 'S'inscrire', 'OU', 'Continuer avec Google', footer 'Déjà inscrit ? Se connecter' FR. Traduire les labels et placeholders en FR.",
+        "testID": null,
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "settings.tsx section headers",
+        "issue": "Sections en anglais uppercase alors que le reste du screen est en FR : 'YOUR ACCOUNT', 'YOUR NIGHT FINDER USAGE', 'PREMIUM', 'PREFERENCES', 'PRIVACY AND SECURITY'. Header d'écran 'Settings and activity' aussi en EN. Traduire en FR (VOTRE COMPTE / VOTRE UTILISATION / PRÉMIUM / PRÉFÉRENCES / CONFIDENTIALITÉ).",
+        "testID": null,
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "(tabs)/_layout.tsx tab labels",
+        "issue": "Tab bar affiche 'Home / Map / More / Chats / Profile' en EN sur toute l'app FR. Traduire (Accueil / Carte / Plus / Chats / Profil).",
+        "testID": null,
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/user/user_demo_emma01",
+        "issues": ["La ligne d'introduction sous MOMENTS 'Aucun moment récent' est visuellement coupée en bas de viewport ('à votre moment récent' apparaît partiellement — scroll requis mais texte est présent). Non bloquant."]
+      },
+      {
+        "screen": "/paywall",
+        "issues": ["Halo autour de la couronne premium en ruby foncé — cohérent avec la refonte Ruby, plus de traces violettes. OK."]
+      },
+      {
+        "screen": "/onboarding",
+        "issues": ["Écran vidéo fond + gradient dark rouge, texte 'Bienvenue sur Night Finder. L'application qui te ...' semble avoir une animation typewriter/fade — apparaît coupé mais probablement intentionnel."]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/tmp/i37_swipe_reviewer.png", "/tmp/i37_settings_dark.png", "/tmp/i37_settings_light.png", "/tmp/i37_settings_after_light.png", "/tmp/i37_d_home.png", "/tmp/i37_c_user_emma.png", "/tmp/i37_a_paywall.png", "/tmp/i37_a_register.png", "/tmp/i37_a_notifications.png", "/tmp/i37_b_favorites.png", "/tmp/i37_b_search.png", "/tmp/i37_b_chats.png"],
+  "action_items": [
+    "PRIORITÉ HAUTE: fix /settings light mode repaint. Vérifier que ThemeContext propage bien les colors au stack /settings. Options: (1) forcer un remount via key={mode} sur le container racine de settings.tsx ; (2) vérifier que themeContext utilise useState(mode) et re-render tous les consumers quand setMode() est appelé (pas un ref stable) ; (3) supprimer tout `useMemo` qui capturerait `colors` au mount sans dep.",
+    "Corriger la troncature du header /home 'Good evening {name}': soit flexShrink:1 + numberOfLines:1 avec plus d'espace, soit réduire fontSize, soit passer les icônes header sur une deuxième ligne ou en overflow menu.",
+    "Traduire en FR: /register (Create an account, placeholders Name/Email/Password), /settings section headers (YOUR ACCOUNT, etc.), tab bar labels (Home/Map/More/Chats/Profile), header 'Settings and activity'. Utiliser i18n déjà présent (`useTranslation()` dans settings.tsx ligne 25).",
+    "Match modal end-to-end non testé (nécessite création de 2 users temporaires via /api/auth/register + PUT /profile/swipe-fields + likes croisés). Non exécuté pour ne pas polluer la DB de démo — main agent peut soit valider via code review du composant match-modal, soit tester manuellement avec un script de setup/cleanup.",
+    "Le compte reviewer a un boost_active=true depuis les précédents tests (n'affecte pas la démo Apple, mais si intentionnel de partir clean, relancer seed_reviewer.py)."
+  ],
+  "critical_code_review_comments": [
+    "settings.tsx:43 — `const { mode, setMode, colors } = useTheme()` : colors devrait être un objet qui change quand mode change. Vérifier que themeContext expose bien `colors: mode==='light' ? lightColors : darkColors` calculé DANS le provider (pas en dehors) et que le provider re-render ses enfants quand setMode() est appelé.",
+    "settings.tsx:81 — `useMemo(() => makeStyles(colors), [colors])` OK, dépend bien de colors, donc styles se refont quand colors change. Si les styles ne changent pas visuellement, c'est colors qui ne change pas → problème dans ThemeContext.",
+    "register.tsx et (tabs)/_layout.tsx — pas encore intégrés à useTranslation(), harceler i18n.",
+    "swipe.tsx:1191-1192 (iter36) — Le dead code `const colors = darkColors; const styles = makeStyles(darkColors);` module-level est probablement toujours là ; à retirer.",
+    "Bon travail sur position:absolute + zIndex:30 pour la actions row de swipe — problème iter36 bien résolu."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not_tested (frontend-only requested)", "frontend": "88% — swipe totalement fonctionnel, toutes les navigations OK, empty states OK, palette Ruby OK. Restants: settings light mode + troncature home + mixage FR/EN."},
+  "seed_data_creation": "Aucune. Reviewer testé sans altération des données démo (nom conservé 'Apple Reviewer', visibility toggled puis remis).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reviewer login apple.reviewer@nightfinder.app / Reviewer2026! (localStorage nf_token+nf_user+nf_onboarding='done'). Bug persistant iter36→iter37: /settings ne repeint pas en Light — reproduire en (1) goto /settings ; (2) click mode-light ; (3) inspecter `getComputedStyle(document.querySelectorAll('div')[2]).backgroundColor` → doit être rgb(255,255,255) mais reste rgb(9,9,11). Fix vraisemblable dans /app/frontend/lib/themeContext.tsx (vérifier que le provider utilise useState/useEffect correctement). Autres écrans passent bien en light donc ThemeContext fonctionne pour eux — spécifique à settings.tsx. Match modal /swipe : pour tester, créer 2 users temp swipetestX/swipetestY, likes croisés, connecter Y puis action-like sur X → attendre `match-modal` visible avec `match-send-message` + `match-keep-swiping`. Cleanup DB (users/user_swipes/match_requests/matches).",
+  "rca_of_issue": "BUG /settings light mode repaint:\n- Symptôme: click mode-light change l'icône du appearance-picker (état visuel correct) mais le background du écran /settings reste zinc rgb(9,9,11). Autres écrans (/,/profile,/swipe,/user/*) passent bien en white rgb(255,255,255).\n- Reproduction: (1) login reviewer premium ; (2) navigate /settings ; (3) click [data-testid='mode-light'] ; (4) attendre 1500ms ; (5) inspecter DOM → div de contenu principal a bg rgb(9,9,11).\n- Impact: paramètre théoriquement clé (utilisateurs qui préfèrent light) — écran de config lui-même reste inutilisable en mode clair (contraste et cohérence brisés). Reste des screens OK.\n- Hypothèse RCA: soit `useTheme()` retourne un `colors` mémorisé (useRef ou useMemo au niveau du provider sans dep sur `mode`), soit le stack Expo Router de settings est monté hors du ThemeProvider (par ex. dans un modal presentation ou Stack séparé qui a son propre contexte).\n- Mitigation immédiate suggérée pour main agent: (a) vérifier /app/frontend/lib/themeContext.tsx que le provider fait bien `const colors = useMemo(() => mode==='light'?lightColors:darkColors, [mode])` et que le provider englobe le RootLayout (app/_layout.tsx) ; (b) forcer un remount avec `<View key={mode}>...</View>` en racine de settings.tsx pour valider hypothèse ; (c) logger `mode` et `colors.bg` dans settings.tsx pour voir si le hook renvoie bien la nouvelle valeur.\n\nBUG /home header troncature:\n- Symptôme: 'Good evening Apple 👋' → 'Good evening A...' sur 390px width.\n- Cause: fontSize trop grand ou pas assez de flex-shrink sur le Text par rapport aux 2 icons headers à droite.\n- Fix: appliquer numberOfLines={1} adjustsFontSizeToFit + réduire fontSize baseline, ou déplacer icons en overflow menu."
+}

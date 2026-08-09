@@ -251,3 +251,11 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - settings.tsx : style Apple groupé (cartes inset arrondies surfaceElevated, headers uppercase, dividers subtils, switches trackColor primary). Light mode vérifié OK.
 - Accueil : skeletons (home-skeleton, 3 cartes) + EmptyState avec CTA Rafraîchir. Profil : skeleton grille moments.
 - Tests : iteration_36.json — backend 5/5 PASS ; bug critique overlap boutons/tab-bar CORRIGÉ (vérifié par clic screenshot) ; violet paywall/partner modal corrigé ; gradient match modal → ruby nuit (#2b0a12).
+
+## ✅ AUDIT AFFICHAGE COMPLET + FIXES (iter 37, juin 2026)
+- Audit testing agent iteration_37 : swipe OK, profil public OK, réglages OK, thème OK sur la plupart des écrans.
+- FIX i18n : app désormais FRANÇAIS PAR DÉFAUT (plus de détection de langue device qui causait le mixage FR/EN). STORAGE_KEY passé à 'nf_lang_v2' (reset des anciennes détections auto). Le choix explicite dans /language reste respecté. detectFromDevice supprimé.
+- FIX accueil : titre "Bonsoir {name} 👋" ne tronque plus (fontSize 24 + adjustsFontSizeToFit minimumFontScale 0.72).
+- Settings light mode : FAUX POSITIF du testeur — vérifié blanc par screenshot (le testeur mesurait le div racine du Stack, pas l'écran).
+- MODAL MATCH vérifié E2E frontend : badge superliked-you → like → modal C'EST UN MATCH → "Envoyer un message" navigue vers /chat/{match_id}. Sparkle 💜→❤️.
+- Users test swipe : swipetest.a/.b/.c/.d@nightfinder.app / TestSwipe2026! (A premium; A-B matchés; C-D matchés).

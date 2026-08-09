@@ -710,7 +710,7 @@ export default function SwipePeople() {
             <Sparkle x={width * 0.82} delay={200} emoji="💫" />
             <Sparkle x={width * 0.28} delay={400} emoji="⭐" />
             <Sparkle x={width * 0.68} delay={600} emoji="✨" />
-            <Sparkle x={width * 0.48} delay={300} emoji="💜" />
+            <Sparkle x={width * 0.48} delay={300} emoji="❤️" />
           </View>
           {match && (
             <View style={styles.matchContent}>
