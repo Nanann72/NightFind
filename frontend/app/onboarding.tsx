@@ -220,7 +220,7 @@ const SCREENS: Screen[] = [
     kind: 'feature',
     bg: 'https://images.unsplash.com/photo-1574391884720-bbc049ec09ad?crop=entropy&cs=srgb&fm=jpg&q=85',
     icon: 'musical-notes',
-    accent: '#A78BFA',
+    accent: '#FDA4AF',
     eyebrow: '06 · Auto-Shazam',
     title: 'Le track qui joue ?\nIdentifié auto.',
     subtitle: 'Dès que tu arrives en club, on identifie automatiquement les morceaux du DJ. Plus jamais "c\'est quoi ce son ?".',

@@ -40,7 +40,7 @@ const P = {
   text: '#FFFFFF',
   textDim: '#A1A1AA',
   textFaint: '#5C5C64',
-  violet: '#8B5CF6',
+  violet: '#E11D48',
   violetSoft: 'rgba(139, 92, 246, 0.14)',
 };
 

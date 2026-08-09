@@ -16,12 +16,12 @@ import { Platform } from 'react-native';
 // ─────────────────────────────────────────────────────────
 
 const brand = {
-  primary: '#8B5CF6',
-  primaryHover: '#9D71F8',
-  primaryPressed: '#7C4DE8',
-  primarySoft: 'rgba(139, 92, 246, 0.14)',
+  primary: '#E11D48',
+  primaryHover: '#F43F5E',
+  primaryPressed: '#BE123C',
+  primarySoft: 'rgba(225, 29, 72, 0.14)',
   secondary: '#E6C15A',
-  tertiary: '#A78BFA',
+  tertiary: '#FDA4AF',
   success: '#34C759',
   warning: '#FF9F0A',
   danger: '#FF3B30',
@@ -33,13 +33,13 @@ const brand = {
 // ─────────────────────────────────────────────────────────
 
 export const darkColors = {
-  bg: '#050505',
-  surface: '#0F0F0F',
-  surfaceElevated: '#141414',
-  surfaceHigher: '#1F1F22',
-  glass: 'rgba(18, 18, 20, 0.72)',
-  glassStrong: 'rgba(18, 18, 20, 0.92)',
-  glassThin: 'rgba(18, 18, 20, 0.42)',
+  bg: '#09090B',
+  surface: '#131316',
+  surfaceElevated: '#18181B',
+  surfaceHigher: '#27272A',
+  glass: 'rgba(19, 19, 22, 0.75)',
+  glassStrong: 'rgba(19, 19, 22, 0.92)',
+  glassThin: 'rgba(19, 19, 22, 0.45)',
   textPrimary: '#FFFFFF',
   textSecondary: '#A1A1AA',
   textTertiary: '#5C5C64',
@@ -51,7 +51,7 @@ export const darkColors = {
   fillStrong: 'rgba(120, 120, 128, 0.24)',
   fillSubtle: 'rgba(120, 120, 128, 0.08)',
   ...brand,
-  tabBarBg: 'rgba(15, 15, 16, 0.82)',
+  tabBarBg: 'rgba(15, 15, 17, 0.82)',
   tabBarBorder: 'rgba(255, 255, 255, 0.08)',
   statusBarStyle: 'light' as 'light' | 'dark',
 };
@@ -191,9 +191,9 @@ export const motion = {
 // ─────────────────────────────────────────────────────────
 
 export const gradients = {
-  primary: ['#8B5CF6', '#7C4DE8'] as const,
-  primarySunset: ['#8B5CF6', '#6D28D9'] as const,
-  cyanGlow: ['#A78BFA', '#8B5CF6'] as const,
+  primary: ['#E11D48', '#BE123C'] as const,
+  primarySunset: ['#F43F5E', '#9F1239'] as const,
+  cyanGlow: ['#FDA4AF', '#E11D48'] as const,
   darkOverlay: ['rgba(0,0,0,0)', 'rgba(0,0,0,0.85)'] as const,
   darkOverlayStrong: ['rgba(0,0,0,0)', 'rgba(0,0,0,0.95)'] as const,
   topFade: ['rgba(0,0,0,0.55)', 'rgba(0,0,0,0)'] as const,

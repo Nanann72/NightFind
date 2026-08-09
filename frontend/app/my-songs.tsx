@@ -357,7 +357,7 @@ export default function MySongs() {
                           hitSlop={6}
                           testID={`deezer-${s.song_id}`}
                         >
-                          <FontAwesome5 name="deezer" size={13} color="#A78BFA" />
+                          <FontAwesome5 name="deezer" size={13} color="#FDA4AF" />
                         </TouchableOpacity>
                         {s.source === 'auto' ? (
                           <View style={styles.autoBadge}>
@@ -701,13 +701,13 @@ const ovStyles = StyleSheet.create({
     height: 96,
     borderRadius: 48,
     borderWidth: 2,
-    borderColor: '#8B5CF6',
+    borderColor: '#E11D48',
   },
   core: {
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#E11D48',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -1,0 +1,71 @@
+{
+  "summary": "Test end-to-end de (A) Tinder-style swipe (superlike/rewind/boost/instant-match) + (B) refonte Ruby #E11D48 / zinc / cartes groupées Apple. BACKEND (5/5 pytest passent — /app/backend/tests/test_swipe_v2_ruby.py): GET /api/swipe/quota renvoie superlikes_limit/remaining/boost_active/boost_until ; POST /swipe/rewind → 402 non-premium ; POST /swipe/boost → 402 non-premium et 200/409 premium ; deck accessible. FRONTEND (mobile 390x844): /swipe (reviewer premium) rend swipe-people-screen avec header 'SWIPE · Découvre du monde', pill 'Boost actif', quota 'Swipes illimités · Premium 💎 · 5 Super Likes', et les 5 boutons action (action-rewind/pass/superlike/like/boost) plus swipe-mode-all/club, swipe-card-menu, swipe-details-btn. Le premium-feature-modal (déclenché programmatiquement sur compte Emma non-premium via action-rewind) s'affiche correctement avec titre 'Rewind Premium', CTA 'Passer Premium' (ruby #E11D48) et 'Plus tard'. /settings: cartes groupées inset Apple-style, headers YOUR ACCOUNT / YOUR NIGHT FINDER USAGE / PREMIUM / PREFERENCES / PRIVACY AND SECURITY en majuscules, appearance-picker avec mode-system/mode-dark/mode-light, switch-visibility toggle fonctionne, row-edit-name → edit-name-input + save-name-btn fonctionnels. /(home), /profile, /paywall, /user/user_demo_emma01 rendent sans crash après passage à Ruby ; palette violet remplacée par ruby #E11D48 partout observé. CRITICAL BUG DÉTECTÉ (voir action_items): la barre d'actions de /swipe (5 boutons ronds) chevauche la barre d'onglets — les taps utilisateur réels sur action-rewind/pass/superlike/like/boost hit la tab bar (position absolue au-dessus) et déclenchent une navigation vers Home/Map/More/Chats/Profile au lieu du swipe. Confirmé par mesures BBox: actions y=749-811, tabs y=765-827 (~39px de recouvrement). Le seul moyen de tester ces boutons a été un dispatch DOM programmatique. Aucun compte démo n'a été modifié (test match modal non exécuté pour préserver Sofia pending — flow déjà validé via backend & code review).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "swipe.tsx `actions` row",
+        "issue": "La barre des 5 boutons Tinder-style chevauche la tab bar (y=749-811 vs tabs y=765-827, ~39px de recouvrement). Un vrai tap utilisateur sur action-rewind/pass/superlike/like/boost déclenche la navigation onglet (tab-discover/map/plus/chats/profile) au lieu de la swipe action. `paddingBottom: insets.bottom + 110` est insuffisant sur web (insets.bottom=0) car CARD_H (605px sur 390w) + header (~140px) pousse la barre d'actions jusqu'à y=750, la tab bar (absolute, bottom:0, ~62px) recouvre les boutons. Reproduit sur reviewer (action-like → carte swipée mais navigation /map ensuite) et sur Emma (action-rewind click ordinaire → navigation home au lieu du premium modal). Reference: /app/frontend/app/(tabs)/swipe.tsx:643.",
+        "testID": "action-rewind, action-pass, action-superlike, action-like, action-boost",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "settings.tsx appearance picker",
+        "issue": "Le sélecteur de thème (mode-light/mode-dark/mode-system) change le state (icône highlighted, label 'Light') mais le fond de /settings reste zinc dark — l'écran ne repeint pas en mode clair. Soit le composant utilise des styles statiques (darkColors) au lieu de useThemeColors(), soit le ThemeProvider n'englobe pas le stack de settings. À vérifier: la palette lightColors doit être appliquée quand mode=light.",
+        "testID": "mode-light",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "swipe action bar → tap propagation",
+        "issue": "Les taps sur les 5 action buttons naviguent vers les onglets au lieu de swiper. Impact: feature Tinder swipe INUTILISABLE via boutons sur web preview et probablement sur devices avec home indicator étroit. Seule le swipe geste (drag) fonctionne.",
+        "affected_testIDs": ["action-rewind", "action-pass", "action-superlike", "action-like", "action-boost"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "/paywall",
+        "issues": ["Le fond top du paywall garde un gradient légèrement violacé autour de la couronne premium (visible dans i36_paywall.png). À confirmer que c'est intentionnel (halo premium) et non un reliquat de l'ancienne palette violette."]
+      },
+      {
+        "screen": "/",
+        "issues": ["home-skeleton testID non détecté sur early load (soit le skeleton se termine trop vite, soit le testID n'est pas exposé). Contenu chargé OK, non bloquant."]
+      },
+      {
+        "screen": "/profile",
+        "issues": ["profile-moments-skeleton testID non détecté sur early load — même remarque que home. Content 'No Moments yet' + boutons Edit/Share OK."]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_swipe_v2_ruby.py",
+    "/app/test_reports/pytest/swipe_v2_ruby.xml"
+  ],
+  "action_items": [
+    "URGENT: corriger le chevauchement action-bar × tab-bar sur /swipe. Option 1: réduire CARD_H (par ex. min(560, width*1.45)) et/ou augmenter paddingBottom à ~180+insets.bottom. Option 2 (recommandée): positionner la actions row en position:'absolute', bottom: TAB_BAR_HEIGHT + insets.bottom + 12, left:0, right:0, avec zIndex > tab bar. Option 3: passer le screen en `unmountOnBlur` et rendre les actions dans un pointerEvents='box-only' container above la tab bar (via portal ou wrapper au-dessus du tab navigator).",
+    "Vérifier que /settings utilise useThemeColors() pour son fond principal — actuellement mode-light ne repeint pas la surface même si le state theme est bien 'light'.",
+    "Confirmer si le halo violacé du /paywall (autour de la couronne) est intentionnel ou reliquat de l'ancienne palette (voir screenshot i36_paywall.png).",
+    "Exposer / vérifier les testIDs home-skeleton et profile-moments-skeleton pour tests futurs (ou allonger le temps de skeleton en dev pour QA visuel)."
+  ],
+  "critical_code_review_comments": [
+    "swipe.tsx:643 — `paddingBottom: insets.bottom + 110` est insuffisant sur web (insets=0). CARD_H = min(620, width*1.55) ≈ 605px sur iPhone 12/13 mini (390w), ce qui laisse trop peu d'espace pour la actions row + tab bar. Refactor requis.",
+    "swipe.tsx:1191-1192 — module-level `const colors = darkColors; const styles = makeStyles(darkColors);` non-utilisés (le composant utilise déjà useMemo(makeStyles(useThemeColors()))). Dead code à retirer.",
+    "swipe.tsx:387 — goBack() fallback route '/(tabs)/plus' est ok mais pourrait retomber sur '/' pour cohérence.",
+    "swipe.tsx:452-459 — quota row montre `Super Like${(quota?.superlikes_remaining ?? 1) > 1 ? 's' : ''}` — bien géré (singulier/pluriel).",
+    "swipe.tsx:698 — le match modal utilise `LinearGradient` `#1a0a2e→#0d0518→#000` : encore une teinte violet-nuit. Cohérence Ruby suggère éventuellement passer sur zinc pur (#09090B→#000) ou ajouter une nuance rose."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_swipe_v2_ruby.py (nouveau — 5 tests smoke swipe v2)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "70% — actions bar bloque l'usage réel des boutons swipe"},
+  "seed_data_creation": "Aucune donnée seedée ni modifiée. Match modal Sofia non déclenché pour préserver le compte démo (flow déjà validé par backend + code review). Reviewer boost_active était déjà true de tests précédents (n'affecte pas les tests).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reviewer login: apple.reviewer@nightfinder.app / Reviewer2026! (localStorage: nf_token + nf_onboarding='done'). Base URL: https://fan-culture-app.preview.emergentagent.com. Tab bar hauteur ~62px sur web. Pour reproduire le bug tab-overlap: goto /swipe, mesurer bounding boxes de action-* et tab-* — les 5 buttons chevauchent tabs de ~39px. Fix suggéré: position absolute pour actions row avec bottom offset au-dessus du tab bar. Après fix, re-tester chaque action-* button en click ordinaire (pas force=True) et vérifier: action-like → carte part droite + res.matched si match ; action-pass → gauche ; action-superlike → haut + décrémente quota superlikes_remaining ; action-rewind (non-premium Emma) → premium-feature-modal ; action-boost (premium avec boost déjà actif) → Alert 'Boost déjà actif'.",
+  "rca_of_issue": "Bug tab-bar overlap sur /swipe:\n- Cause: CARD_H (605px) + header (~140px) + top padding (~10px) = 755px de contenu avant la actions row, sur un viewport 844px total. La actions row (62px de hauteur + paddingBottom:110 = 172px conceptuellement) déborde le viewport → les boutons se retrouvent physiquement à y=749-811, chevauchant la tab bar absolue (y=765-827).\n- Steps to reproduce: (1) login reviewer premium via /api/auth/login → stocker nf_token+nf_onboarding='done' en localStorage ; (2) goto /swipe ; (3) attendre swipe-people-screen ; (4) mesurer getBoundingClientRect() sur action-* et tab-* → constater overlap ; (5) tap action-like via un vrai click Playwright (sans force=True) → observer navigation vers un onglet.\n- Impact: la feature Tinder-style swipe est INUTILISABLE via boutons sur toute plateforme où le tab bar est absolute+top-most (i.e. web, Android sans safe-area suffisante, iPhone SE/mini). Seul le drag/geste fonctionne.\n- Mitigation immédiate: `position: 'absolute', bottom: TAB_BAR_HEIGHT + insets.bottom + 12, left: 0, right: 0, zIndex: 20` sur la actions row, OU wrapper les tabs dans un container avec pointerEvents='box-none' quand /swipe est actif."
+}

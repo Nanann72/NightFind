@@ -12,7 +12,7 @@ const P = {
   bg: 'rgba(5,5,5,0.88)',
   card: '#141414',
   border: 'rgba(255,255,255,0.1)',
-  violet: '#8B5CF6',
+  violet: '#E11D48',
   violetSoft: 'rgba(139,92,246,0.14)',
   text: '#fff',
   dim: '#A1A1AA',

@@ -442,7 +442,7 @@ export default function SwipePeople() {
           </View>
           {quota?.boost_active && (
             <View style={styles.boostPill} testID="boost-active-pill">
-              <Ionicons name="flash" size={13} color="#a855f7" />
+              <Ionicons name="flash" size={13} color="#E6C15A" />
               <Text style={styles.boostPillText}>Boost actif</Text>
             </View>
           )}
@@ -681,8 +681,8 @@ export default function SwipePeople() {
             <ActionButton
               onPress={onBoost}
               icon="flash"
-              color="#a855f7"
-              bg="rgba(168,85,247,0.12)"
+              color="#E6C15A"
+              bg="rgba(230,193,90,0.12)"
               size={48}
               iconSize={24}
               testID="action-boost"
@@ -885,11 +885,11 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: radius.full,
-    backgroundColor: 'rgba(168,85,247,0.14)',
+    backgroundColor: 'rgba(230,193,90,0.14)',
     borderWidth: 1,
-    borderColor: 'rgba(168,85,247,0.5)',
+    borderColor: 'rgba(230,193,90,0.5)',
   },
-  boostPillText: { color: '#a855f7', fontSize: 11, fontWeight: '900' },
+  boostPillText: { color: '#E6C15A', fontSize: 11, fontWeight: '900' },
   quotaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
   quotaText: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
   quotaDot: { color: colors.textTertiary, fontSize: 12 },

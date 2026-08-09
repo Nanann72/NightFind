@@ -31,6 +31,8 @@ import { PartnerUnlockModal } from '../../components/PartnerUnlockModal';
 import { LiveStatsBanner } from '../../components/LiveStatsBanner';
 import { SafeImage } from '../../components/SafeImage';
 import { HapticButton } from '../../components/ui/HapticButton';
+import { Skeleton } from '../../components/ui/Skeleton';
+import { EmptyState } from '../../components/ui/States';
 import { radius, spacing, type ThemeColors } from '../../lib/theme';
 import { useThemeColors } from '../../lib/themeContext';
 import { useTranslation } from '../../lib/i18n';
@@ -378,9 +380,24 @@ export default function Home() {
         }
         ListEmptyComponent={
           loading ? (
-            <ActivityIndicator color={colors.primary} style={{ marginTop: 60 }} />
+            <View style={{ paddingHorizontal: spacing.lg, gap: 16, marginTop: 4 }} testID="home-skeleton">
+              {[0, 1, 2].map((i) => (
+                <View key={i} style={{ gap: 10 }}>
+                  <Skeleton height={190} borderRadius={radius.xl} />
+                  <Skeleton width="55%" height={16} />
+                  <Skeleton width="35%" height={12} />
+                </View>
+              ))}
+            </View>
           ) : (
-            <Text style={styles.empty}>{t('home.empty')}</Text>
+            <EmptyState
+              icon="compass-outline"
+              title={t('home.empty')}
+              message="Élargis tes filtres ou rafraîchis pour découvrir de nouveaux lieux."
+              ctaLabel="Rafraîchir"
+              onCta={() => refresh()}
+              testID="home-empty-state"
+            />
           )
         }
         renderItem={({ item, index }) => (

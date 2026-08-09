@@ -25,6 +25,7 @@ import { api } from '../../lib/api';
 import { usePremium } from '../../lib/premium';
 import { useTabBarScroll } from '../../lib/tabBarScroll';
 import { useThemeColors } from '../../lib/themeContext';
+import { Skeleton as SkeletonUI } from '../../components/ui/Skeleton';
 import { useTranslation } from '../../lib/i18n';
 import { radius, spacing, type ThemeColors } from '../../lib/theme';
 
@@ -267,8 +268,12 @@ export default function Profile() {
         {/* GRID */}
         {activeTab === 'moments' ? (
           loadingMoments ? (
-            <View style={styles.gridEmpty}>
-              <ActivityIndicator color={colors.textTertiary} />
+            <View style={styles.grid} testID="profile-moments-skeleton">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <View key={i} style={styles.gridCell}>
+                  <SkeletonUI width="100%" height="100%" borderRadius={0} />
+                </View>
+              ))}
             </View>
           ) : myMoments.length === 0 ? (
             <View style={styles.gridEmpty}>

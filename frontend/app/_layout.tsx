@@ -9,6 +9,7 @@ import { AuthProvider } from '../lib/auth';
 import { ClubsProvider } from '../lib/clubs';
 import { PremiumProvider } from '../lib/premium';
 import { ThemeProvider, useTheme } from '../lib/themeContext';
+import { ToastProvider } from '../components/ui/Toast';
 import { TabBarScrollProvider } from '../lib/tabBarScroll';
 import { attachNotificationActionListeners } from '../lib/notificationsSetup';
 import { initI18n } from '../lib/i18n';
@@ -129,7 +130,9 @@ export default function RootLayout() {
               <PremiumProvider>
                 <ClubsProvider>
                   <TabBarScrollProvider>
-                    <ThemedRootContent />
+                    <ToastProvider>
+                      <ThemedRootContent />
+                    </ToastProvider>
                   </TabBarScrollProvider>
                 </ClubsProvider>
               </PremiumProvider>

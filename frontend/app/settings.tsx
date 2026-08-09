@@ -506,8 +506,8 @@ export default function Settings() {
               <Switch
                 value={visibility === 'clubs_only'}
                 onValueChange={toggleVisibility}
-                trackColor={{ false: colors.border, true: 'rgba(224,26,79,0.5)' }}
-                thumbColor={visibility === 'clubs_only' ? colors.primary : colors.textTertiary}
+                trackColor={{ false: colors.fillStrong, true: colors.primary }}
+                thumbColor="#fff"
                 testID="switch-visibility"
               />
             ),
@@ -521,8 +521,8 @@ export default function Settings() {
               <Switch
                 value={bgLocation}
                 onValueChange={toggleBg}
-                trackColor={{ false: colors.border, true: 'rgba(224,26,79,0.5)' }}
-                thumbColor={bgLocation ? colors.primary : colors.textTertiary}
+                trackColor={{ false: colors.fillStrong, true: colors.primary }}
+                thumbColor="#fff"
                 testID="switch-bg-location"
               />
             ),
@@ -820,10 +820,12 @@ const makeStyles = (colors: any) =>
       paddingBottom: 8,
     },
     sectionHeaderText: {
-      ...typography.subheadMedium,
-      color: colors.textPrimary,
+      ...typography.caption1Medium,
+      color: colors.textTertiary,
       fontWeight: '700',
-      letterSpacing: -0.2,
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+      marginLeft: 14,
     },
 
     profileCard: {
@@ -860,30 +862,31 @@ const makeStyles = (colors: any) =>
     },
     premiumChipText: { color: '#fff', fontSize: 9, fontWeight: '800', letterSpacing: 0.8 },
     group: {
-      backgroundColor: colors.surface,
-      marginHorizontal: 0,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
-      borderBottomColor: colors.border,
+      backgroundColor: colors.surfaceElevated,
+      marginHorizontal: spacing.md,
+      borderRadius: radius.lg,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.borderSubtle,
+      overflow: 'hidden',
     },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
-      paddingHorizontal: spacing.md,
+      paddingHorizontal: 14,
       paddingVertical: 12,
+      minHeight: 48,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.borderSubtle,
-      backgroundColor: colors.surface,
+      backgroundColor: 'transparent',
     },
     rowIcon: {
-      width: 32,
-      height: 32,
+      width: 30,
+      height: 30,
       borderRadius: 8,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.fill,
+      backgroundColor: colors.fillSubtle,
     },
     rowLabel: {
       color: colors.textPrimary,
@@ -992,7 +995,7 @@ const makeStyles = (colors: any) =>
       borderWidth: 1.5,
       borderColor: colors.border,
     },
-    musicTagActive: { backgroundColor: 'rgba(224,26,79,0.12)', borderColor: colors.primary },
+    musicTagActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
     musicEmoji: { fontSize: 14 },
     musicLabel: { color: colors.textSecondary, fontWeight: '700' },
     musicLabelActive: { color: colors.textPrimary },
