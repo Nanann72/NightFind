@@ -274,3 +274,12 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - DYNAMIC ISLAND / LIVE ACTIVITIES : NON implémenté — nécessite extension native WidgetKit non confirmée par le pipeline de build Emergent (réponse support). L'utilisateur doit contacter support@emergent.sh s'il veut aller plus loin. NE PAS ajouter de config plugin natif sans confirmation (risque de casser les builds App Store).
 - EN ATTENTE UTILISATEUR : google-services.json (Firebase, package com.nightfinder.app) à placer dans /app/frontend/google-services.json + câbler expo.android.googleServicesFile dans app.json. Clé APNs .p8 demandée à la génération du build.
 - Admin : admin@nightfinder.app / NightFinder2026!Admin.
+
+## ✅ PHASE POLISH PREMIUM (juin 2026 — iter 38, 100% PASS)
+- SafeImage.tsx RÉÉCRIT avec expo-image : cache memory-disk, blur-up (blurhash), transition fade 220ms, fallback neutre sombre + icône note (plus JAMAIS de photo générique Unsplash répétée en cas d'échec).
+- UX intelligente : lib/recentClubs.ts (AsyncStorage nf_recent_clubs_v1, max 8) + tracking dans club/[id].tsx + section "Récemment consultés" horizontale sur l'accueil (useFocusEffect).
+- Recherche moderne : historique (nf_recent_searches, max 8) affiché quand champ vide + bouton Effacer + re-tap relance (search.tsx).
+- Offline : lib/api.ts émet onNetworkStatus (fetch catch → setOffline) + pingBackend ; OfflineBanner.tsx global monté dans _layout (pill "Connexion perdue", re-ping 5s + AppState). L'app ne casse pas hors-ligne.
+- Micro-interactions : FavHeart (cœur favori) avec spring scale 1.35 + haptic léger + update optimiste (index.tsx).
+- Testing agent iteration_38 : 5/5 nouveautés PASS + 0 régression (swipe, chats, settings, moment-event, profil public). Bugs iter37 confirmés corrigés (i18n FR partout, light mode settings).
+- Backlog restant proposé : préférences de notifications par catégorie (backend filtering), réactions/réponses dans le chat, analytics privacy-first, context menus long-press.
