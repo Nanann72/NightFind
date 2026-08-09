@@ -3,7 +3,7 @@
  * Header → Recherche → Explorer la carte → Clubs proches →
  * Tendance ce soir → Personnes près de toi → Moments → Tous les clubs.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,20 +15,28 @@ import {
   TextInput,
   ScrollView,
   FlatList,
+  Platform,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import { useRouter } from 'expo-router';
+import Animated, {
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withSequence,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api, Club, FeedMoment, NearbyUser } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useClubs } from '../../lib/clubs';
+import { getRecentClubs, type RecentClub } from '../../lib/recentClubs';
 import { useLocation } from '../../lib/useLocation';
 import { useTabBarScroll } from '../../lib/tabBarScroll';
 import { useUnreadNotifications } from '../../lib/useUnreadNotifications';
 import { capturePartnerCodeFromUrl, claimPendingPartnerCode } from '../../lib/partner';
 import { PartnerUnlockModal } from '../../components/PartnerUnlockModal';
-import { LiveStatsBanner } from '../../components/LiveStatsBanner';
 import { MomentEventBanner } from '../../components/MomentEventBanner';
 import { PushPrimerModal } from '../../components/PushPrimerModal';
 import { SafeImage } from '../../components/SafeImage';
@@ -54,6 +62,12 @@ export default function Home() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { clubs, loading, favorites, refresh, toggleFavorite, filters, setFilters, setCoords } = useClubs();
+  const [recents, setRecents] = useState<RecentClub[]>([]);
+  useFocusEffect(
+    useCallback(() => {
+      getRecentClubs().then(setRecents).catch(() => {});
+    }, []),
+  );
   const loc = useLocation();
   const { onScroll: onScrollHide } = useTabBarScroll();
   const { unread } = useUnreadNotifications();
@@ -228,7 +242,31 @@ export default function Home() {
 
       {/* ── Live : ce soir sur Night Finder ────── */}
       <MomentEventBanner />
-      <LiveStatsBanner colors={colors} />
+
+      {/* ── Récemment consultés (UX intelligente) ─ */}
+      {recents.length > 0 && (
+        <View>
+          <SectionHeader title="Récemment consultés" colors={colors} />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[styles.hList, { marginBottom: 18 }]}
+          >
+            {recents.map((r) => (
+              <TouchableOpacity
+                key={r.club_id}
+                style={styles.recentCard}
+                activeOpacity={0.85}
+                onPress={() => router.push(`/club/${r.club_id}` as any)}
+                testID={`recent-club-${r.club_id}`}
+              >
+                <SafeImage uri={r.photo} style={styles.recentImg} />
+                <Text style={styles.recentName} numberOfLines={1}>{r.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {/* ── À la une (mises en avant payées) ───── */}
       {featured.length > 0 && (
@@ -421,6 +459,50 @@ export default function Home() {
 
 /* ────────────────────────────── Sub-components ── */
 
+/** Animated favourite heart — instant optimistic feedback + light haptic. */
+function FavHeart({
+  isFav,
+  onToggle,
+  style,
+  testID,
+}: {
+  isFav: boolean;
+  onToggle: () => void;
+  style?: any;
+  testID?: string;
+}) {
+  const colors = useThemeColors();
+  const scale = useSharedValue(1);
+  const aStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <TouchableOpacity
+      style={style}
+      hitSlop={10}
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+      onPress={() => {
+        scale.value = withSequence(
+          withSpring(1.35, { damping: 6, stiffness: 320 }),
+          withSpring(1, { damping: 9 }),
+        );
+        if (Platform.OS !== 'web') {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        }
+        onToggle();
+      }}
+    >
+      <Animated.View style={aStyle}>
+        <Ionicons
+          name={isFav ? 'heart' : 'heart-outline'}
+          size={20}
+          color={isFav ? colors.primary : '#fff'}
+        />
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
+
 function SectionHeader({
   title,
   action,
@@ -528,18 +610,12 @@ function ClubCard({
       <View style={styles.cardImageWrap}>
         <SafeImage uri={club.photos?.[0]} style={styles.cardImage} />
         <View style={styles.cardOverlay} />
-        <TouchableOpacity
+        <FavHeart
+          isFav={isFav}
+          onToggle={onToggleFav}
           style={styles.favBtn}
-          onPress={onToggleFav}
           testID={`fav-btn-${club.club_id}`}
-          hitSlop={10}
-        >
-          <Ionicons
-            name={isFav ? 'heart' : 'heart-outline'}
-            size={20}
-            color={isFav ? colors.primary : '#fff'}
-          />
-        </TouchableOpacity>
+        />
         {club.distance_km !== null && club.distance_km !== undefined && (
           <View style={styles.distanceBadge}>
             <Ionicons name="navigate" size={11} color="#fff" />
@@ -675,6 +751,9 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   chipText: { color: colors.textPrimary, fontSize: 13, fontWeight: '600', lineHeight: 18 },
   chipTextActive: { color: '#fff', fontWeight: '700' },
   hList: { paddingHorizontal: spacing.lg, gap: 12 },
+  recentCard: { width: 124 },
+  recentImg: { width: 124, height: 82, borderRadius: radius.md, marginBottom: 6 },
+  recentName: { color: colors.textSecondary, fontSize: 12, fontWeight: '600' },
   // Mini club card (Clubs proches)
   miniCard: {
     width: 190,

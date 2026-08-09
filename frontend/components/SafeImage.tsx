@@ -1,35 +1,55 @@
 /**
- * Image with automatic fallback when the remote URI fails to load.
- * Keeps the venue cards looking good even when an upstream photo URL is
- * temporarily broken (Unsplash 404, network error, etc.).
+ * Premium image with disk/memory caching (expo-image), blur-up placeholder,
+ * fade transition and an elegant neutral fallback when the source fails —
+ * no more misleading generic stock photo repeated across cards.
  */
 import { useState } from 'react';
-import { Image, ImageProps, ImageSourcePropType } from 'react-native';
+import { View, ViewStyle, StyleProp } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
 
 const BASE_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
 
-const DEFAULT_FALLBACK: ImageSourcePropType = {
-  uri:
-    'https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=1200&q=80',
-};
+// Subtle dark blurhash used while the real photo streams in.
+const BLURHASH = 'L03[xW9F00~q00%M-;IU00xu~qD%';
 
-type Props = Omit<ImageProps, 'source'> & {
+type Props = {
   uri?: string | null;
-  fallback?: ImageSourcePropType;
+  style?: StyleProp<ViewStyle>;
+  resizeMode?: 'cover' | 'contain';
+  testID?: string;
 };
 
 function resolveUri(uri?: string | null): string | null {
   if (!uri) return null;
-  // Absolute URL → as is. Backend proxy path → prefix with BASE_URL.
-  if (uri.startsWith('http://') || uri.startsWith('https://')) return uri;
+  if (uri.startsWith('http://') || uri.startsWith('https://') || uri.startsWith('data:')) return uri;
   if (uri.startsWith('/api/') && BASE_URL) return `${BASE_URL}${uri}`;
   return uri;
 }
 
-export function SafeImage({ uri, fallback = DEFAULT_FALLBACK, ...rest }: Props) {
+export function SafeImage({ uri, style, resizeMode = 'cover', testID }: Props) {
   const [failed, setFailed] = useState(false);
   const resolved = resolveUri(uri);
-  const source: ImageSourcePropType =
-    !resolved || failed ? fallback : { uri: resolved };
-  return <Image {...rest} source={source} onError={() => setFailed(true)} />;
+  if (!resolved || failed) {
+    return (
+      <View
+        style={[style, { backgroundColor: '#1C1C21', alignItems: 'center', justifyContent: 'center' }]}
+        testID={testID}
+      >
+        <Ionicons name="musical-notes" size={28} color="#3F3F46" />
+      </View>
+    );
+  }
+  return (
+    <ExpoImage
+      source={{ uri: resolved }}
+      style={style as any}
+      contentFit={resizeMode}
+      transition={220}
+      placeholder={{ blurhash: BLURHASH }}
+      cachePolicy="memory-disk"
+      onError={() => setFailed(true)}
+      testID={testID}
+    />
+  );
 }

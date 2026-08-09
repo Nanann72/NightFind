@@ -1,0 +1,47 @@
+{
+  "summary": "PHASE POLISH PREMIUM — audit frontend complet mobile 390x844 (reviewer premium). TOUTES LES NOUVEAUTÉS OK + AUCUNE RÉGRESSION. (1) FavHeart animé & persistant : clic sur fav-btn-club_6c802df155 → scale bounce 1→1.37, couleur passe à Ruby rgb(225,29,72), persiste après reload ✅. (2) Récemment consultés : après tap sur un club depuis home + retour, section 'Récemment consultés' apparaît avec vignette recent-club-{id}, re-tap rouvre le club ✅. (3) Historique recherche : /search taper 'Emma' (2 users trouvés), vider champ → 'Recherches récentes' visible avec bouton search-clear-history + recent-search-Emma, re-tap replaye la recherche, bouton 'Effacer' vide la liste ✅. (4) Bannière offline : context.set_offline(True) + clic notif-btn → banner testID='offline-banner' avec texte 'Connexion perdue — reconnexion…' visible, retour online → disparait en 2s ✅. (5) SafeImage : cartes 'Tendance ce soir' (Concrete, Le Syndicat) affichent de vraies photos via expo-image, pas de fallback générique ✅. (6) Bloc 'Ce soir sur Night Finder' ABSENT du body home ✅. REGRESSION passée : /moment-event 'AUCUN ÉVÉNEMENT EN COURS' clean, /user/user_demo_emma01 profil complet (Emma, 27, Paris, 4 check-ins, BIO+MUSIQUE), /swipe 5 boutons action présents y=686-741 (au-dessus tab bar y~765), /chats 2 match-row (Lucas, Emma), /settings light mode fonctionne (bg blanc, contenu lisible — bug iter37 CORRIGÉ), header 'Paramètres et activité' FR, sections FR ('VOTRE COMPTE', 'UTILISATION PERSONNELLE DE NIGHT FINDER', 'PRÉMIUM', 'PRÉFÉRENCES', 'CONFIDENTIALITÉ ET SÉCURITÉ'), tab bar FR (Accueil/Carte/Plus/Chats/Profil — bug iter37 CORRIGÉ), profile card compact 66px ✅. Home en FR (Bonsoir Apple 👋). Palette Ruby #E11D48 partout. Aucun texte non-wrappé, aucune red-screen error, aucun crash.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/notifications (offline)",
+        "issues": ["Quand la bannière offline apparaît via navigation, elle chevauche légèrement le titre de header 'Notifications' (positionnée top: insets.top+4). Sur pages avec grand titre en haut, superposition visible ~50% du titre. Cosmétique — la bannière est transitoire. Suggestion : décaler le contenu de la page si offline (padding-top additionnel) ou baisser la bannière un peu plus."]
+      },
+      {
+        "screen": "Home / Récemment consultés",
+        "issues": ["La vignette 'recent-club-Club Rex' apparaît très sombre (photo réelle de Club Rex qui est un club sombre — pas un bug SafeImage, mais un contraste faible qui peut faire croire à un fallback). Consider adding a subtle gradient overlay bas pour boost readability du texte 'Club Rex' au-dessus."]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/tmp/i38_home.png",
+    "/tmp/i38_swipe.png",
+    "/tmp/i38_chats.png",
+    "/tmp/i38_settings_dark.png",
+    "/tmp/i38_settings_light.png",
+    "/tmp/i38_moment_event.png",
+    "/tmp/i38_emma.png",
+    "/tmp/i38_offline_banner.png"
+  ],
+  "action_items": [
+    "OPTIONNEL — Décaler la bannière OfflineBanner pour éviter le chevauchement avec les headers d'écran (ex: baisser top à insets.top + header_height, ou pousser le contenu de la page vers le bas via un context). Non bloquant.",
+    "OPTIONNEL — Ajouter un gradient dark overlay sur les vignettes 'recent-club-*' pour améliorer le contraste du texte sur photos sombres. Non bloquant."
+  ],
+  "critical_code_review_comments": [
+    "OfflineBanner.tsx : implémentation propre, listener sur onNetworkStatus, retry pingBackend toutes les 5s + reprise sur AppState 'active'. pointerEvents='none' évite de bloquer l'UI en-dessous.",
+    "SafeImage.tsx : fallback élégant (backgroundColor #1C1C21 + icône musical-notes) — cohérent avec la charte Ruby dark. resolveUri gère bien absolute/relative /api URLs.",
+    "recentClubs.ts : MAX=8, filter dedupe sur club_id, timestamp viewed_at, storage local via AsyncStorage — implementation propre et testable.",
+    "search.tsx L46-65 : historique persisté dans 'nf_recent_searches' avec normalization lowercase + dedupe, MAX 8, min_length 2. saveRecent appelé uniquement si results.length>0 — évite de polluer l'historique avec des recherches sans résultat.",
+    "api.ts L214-239 : setOffline broadcast via un listener array; pingBackend utilise /api/stats/live (endpoint léger et fiable). Bien découplé de request()."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not_tested (frontend-only requested)", "frontend": "100% — toutes les 5 nouveautés POLISH PREMIUM validées, toutes les régressions passent, bugs iter37 (tab bar EN + settings EN + light mode) corrigés"},
+  "seed_data_creation": "Aucune. Test avec reviewer premium existant (apple.reviewer@nightfinder.app). FavHeart activé sur club_6c802df155 (Club Rex) — non nettoyé mais non impactant pour la démo.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reviewer login apple.reviewer@nightfinder.app / Reviewer2026!. Écosystème POLISH PREMIUM validé : FavHeart animé + persist, Recents, Search history, Offline banner, SafeImage. Bug iter37 /settings light mode CORRIGÉ (bg blanc effectivement appliqué). Bug iter37 mixage FR/EN sur settings + tab bar CORRIGÉ. Emma profile /user/user_demo_emma01 rend complet. Swipe layout OK (5 boutons y=686-741 au-dessus tab bar). /register n'a PAS été retesté cette itération — si iter37 avait signalé 'Create an account' 'Name' 'Email' 'Password' en EN, à revérifier séparément si besoin.",
+  "rca_of_issue": "N/A — aucun bug bloquant trouvé. Les deux observations design (bannière chevauche header, vignette recent sombre) sont cosmétiques."
+}

@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown, Layout } from 'react-native-reanimated';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, SearchUser } from '../lib/api';
 import { MUSIC_GENRES } from '../lib/musicGenres';
 import { radius, spacing, type ThemeColors } from '../lib/theme';
@@ -40,6 +41,28 @@ export default function UserSearch() {
   const [users, setUsers] = useState<SearchUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [recent, setRecent] = useState<string[]>([]);
+
+  useEffect(() => {
+    AsyncStorage.getItem('nf_recent_searches')
+      .then((raw) => setRecent(raw ? JSON.parse(raw) : []))
+      .catch(() => {});
+  }, []);
+
+  const saveRecent = useCallback((term: string) => {
+    const t = term.trim();
+    if (t.length < 2) return;
+    setRecent((prev) => {
+      const next = [t, ...prev.filter((r) => r.toLowerCase() !== t.toLowerCase())].slice(0, 8);
+      AsyncStorage.setItem('nf_recent_searches', JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
+  const clearRecent = useCallback(() => {
+    setRecent([]);
+    AsyncStorage.removeItem('nf_recent_searches').catch(() => {});
+  }, []);
 
   // Filters state
   const [city, setCity] = useState('');
@@ -84,9 +107,10 @@ export default function UserSearch() {
     try {
       const r = await api.usersSearch(trimmed, 30, filters);
       setUsers(r.users);
+      if (r.users.length > 0) saveRecent(trimmed);
     } catch { setUsers([]); }
     finally { setLoading(false); }
-  }, [q, ageIdx, city, selectedMusic, premiumOnly]);
+  }, [q, ageIdx, city, selectedMusic, premiumOnly, saveRecent]);
 
   useEffect(() => {
     const t = setTimeout(() => search(), 250);
@@ -266,14 +290,37 @@ export default function UserSearch() {
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           !loading ? (
-            <Animated.View entering={FadeIn} style={{ alignItems: 'center', paddingTop: 40 }}>
-              <Ionicons name="people-outline" size={38} color={colors.textTertiary} />
-              <Text style={styles.emptyText}>
-                {q.trim().length < 2 && activeFilterCount === 0
-                  ? 'Tape 2 lettres ou applique un filtre…'
-                  : 'Aucun profil trouvé'}
-              </Text>
-            </Animated.View>
+            q.trim().length < 2 && activeFilterCount === 0 && recent.length > 0 ? (
+              <Animated.View entering={FadeIn} style={{ paddingTop: 4 }}>
+                <View style={styles.recentHeader}>
+                  <Text style={styles.recentTitle}>Recherches récentes</Text>
+                  <TouchableOpacity onPress={clearRecent} testID="search-clear-history">
+                    <Text style={styles.clearBtn}>Effacer</Text>
+                  </TouchableOpacity>
+                </View>
+                {recent.map((r) => (
+                  <TouchableOpacity
+                    key={r}
+                    style={styles.recentRow}
+                    onPress={() => setQ(r)}
+                    testID={`recent-search-${r}`}
+                  >
+                    <Ionicons name="time-outline" size={16} color={colors.textTertiary} />
+                    <Text style={styles.recentText} numberOfLines={1}>{r}</Text>
+                    <Ionicons name="arrow-up-outline" size={14} color={colors.textQuaternary} style={{ transform: [{ rotate: '45deg' }] }} />
+                  </TouchableOpacity>
+                ))}
+              </Animated.View>
+            ) : (
+              <Animated.View entering={FadeIn} style={{ alignItems: 'center', paddingTop: 40 }}>
+                <Ionicons name="people-outline" size={38} color={colors.textTertiary} />
+                <Text style={styles.emptyText}>
+                  {q.trim().length < 2 && activeFilterCount === 0
+                    ? 'Tape 2 lettres ou applique un filtre…'
+                    : 'Aucun profil trouvé'}
+                </Text>
+              </Animated.View>
+            )
           ) : (
             <View style={{ paddingTop: 40, alignItems: 'center' }}>
               <ActivityIndicator color={colors.primary} />
@@ -287,6 +334,16 @@ export default function UserSearch() {
 
 const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+  recentHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 6, paddingHorizontal: 2,
+  },
+  recentTitle: { color: colors.textPrimary, fontSize: 14, fontWeight: '800' },
+  recentRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 11, paddingHorizontal: 2, minHeight: 44,
+  },
+  recentText: { color: colors.textSecondary, fontSize: 14, flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: spacing.md, paddingBottom: 8,

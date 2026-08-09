@@ -25,6 +25,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { api, Club } from '../../lib/api';
 import { useClubs } from '../../lib/clubs';
+import { trackClubView } from '../../lib/recentClubs';
 import { HapticButton } from '../../components/ui/HapticButton';
 import { radius, spacing, typography, type ThemeColors, darkColors } from '../../lib/theme';
 import { useThemeColors } from '../../lib/themeContext';
@@ -99,7 +100,16 @@ export default function ClubDetail() {
     if (!id) return;
     api
       .getClub(String(id))
-      .then(setClub)
+      .then((c) => {
+        setClub(c);
+        // Smart UX: remember recently viewed venues for quick re-access
+        trackClubView({
+          club_id: c.club_id,
+          name: c.name,
+          photo: (c.photos || [])[0] || null,
+          city: (c.address || '').split(',').pop()?.trim(),
+        }).catch(() => {});
+      })
       .catch(() => setClub(null))
       .finally(() => setLoading(false));
   }, [id]);

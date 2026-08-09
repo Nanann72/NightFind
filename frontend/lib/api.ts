@@ -206,6 +206,38 @@ export type ActiveFriend = {
   checked_in_at?: string;
 };
 
+// ── Network status (offline detection) ─────────────────────────────
+type NetListener = (offline: boolean) => void;
+const netListeners: NetListener[] = [];
+let _offline = false;
+
+function setOffline(v: boolean) {
+  if (_offline === v) return;
+  _offline = v;
+  netListeners.forEach((l) => {
+    try { l(v); } catch {}
+  });
+}
+
+export function onNetworkStatus(listener: NetListener): () => void {
+  netListeners.push(listener);
+  listener(_offline);
+  return () => {
+    const i = netListeners.indexOf(listener);
+    if (i >= 0) netListeners.splice(i, 1);
+  };
+}
+
+export async function pingBackend(): Promise<boolean> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/stats/live`, { method: 'GET' });
+    if (res.ok) setOffline(false);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
@@ -217,7 +249,15 @@ async function request<T>(
   };
   if (token) headers.Authorization = `Bearer ${token}`;
   const url = `${BASE_URL}/api${path}`;
-  const res = await fetch(url, { ...options, headers });
+  let res: Response;
+  try {
+    res = await fetch(url, { ...options, headers });
+  } catch (e) {
+    // Network-level failure (no connection) — flag offline, keep UI alive
+    setOffline(true);
+    throw e;
+  }
+  setOffline(false);
   if (!res.ok) {
     let detail = '';
     try {
