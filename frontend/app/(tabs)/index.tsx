@@ -29,6 +29,8 @@ import { useUnreadNotifications } from '../../lib/useUnreadNotifications';
 import { capturePartnerCodeFromUrl, claimPendingPartnerCode } from '../../lib/partner';
 import { PartnerUnlockModal } from '../../components/PartnerUnlockModal';
 import { LiveStatsBanner } from '../../components/LiveStatsBanner';
+import { MomentEventBanner } from '../../components/MomentEventBanner';
+import { PushPrimerModal } from '../../components/PushPrimerModal';
 import { SafeImage } from '../../components/SafeImage';
 import { HapticButton } from '../../components/ui/HapticButton';
 import { Skeleton } from '../../components/ui/Skeleton';
@@ -225,6 +227,7 @@ export default function Home() {
       </ScrollView>
 
       {/* ── Live : ce soir sur Night Finder ────── */}
+      <MomentEventBanner />
       <LiveStatsBanner colors={colors} />
 
       {/* ── À la une (mises en avant payées) ───── */}
@@ -411,6 +414,7 @@ export default function Home() {
           </Animated.View>
         )}
       />
+      <PushPrimerModal userId={user?.user_id} />
     </View>
   );
 }

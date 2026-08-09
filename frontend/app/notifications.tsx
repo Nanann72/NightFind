@@ -9,6 +9,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { clearBadge } from '../lib/badge';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
@@ -71,8 +72,11 @@ export default function Notifications() {
   useEffect(() => {
     load();
     // Mark all as read as soon as the user opens this screen — the badge in
-    // the top-right icon of Discover will clear on next poll.
-    api.notificationsMarkRead().catch(() => {});
+    // the top-right icon of Discover will clear on next poll, and the
+    // app-icon badge is cleared immediately.
+    api.notificationsMarkRead()
+      .then(() => clearBadge())
+      .catch(() => {});
   }, []);
 
   const groups: Group[] = useMemo(() => {

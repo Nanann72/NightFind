@@ -4073,6 +4073,80 @@ async def report_user(body: ReportBody, user: dict = Depends(get_current_user)):
     return {"ok": True, "report_id": report_id}
 
 
+# ==================== MOMENT EVENTS (BeReal-style) ==================== #
+
+class MomentEventTrigger(BaseModel):
+    duration_min: int = 10
+    title: Optional[str] = None
+
+
+@api_router.post("/admin/moment-events/trigger")
+async def trigger_moment_event(body: MomentEventTrigger, admin: dict = Depends(require_admin)):
+    """Start a BeReal-style event: everyone gets a push and has N minutes
+    to capture a Moment. The countdown is based on the SERVER end time."""
+    now = datetime.now(timezone.utc)
+    duration = max(2, min(120, body.duration_min))
+    event = {
+        "event_id": f"mev_{uuid.uuid4().hex[:10]}",
+        "title": body.title or "⚡ Moment Night Finder",
+        "starts_at": now,
+        "ends_at": now + timedelta(minutes=duration),
+        "duration_min": duration,
+        "created_at": now,
+        "created_by": admin["user_id"],
+    }
+    await db.moment_events.insert_one({**event})
+    # Push to all real users, chunked (max 100 recipients / call)
+    user_ids = [
+        u["user_id"]
+        async for u in db.users.find(
+            {"is_virtual": {"$ne": True}, "banned": {"$ne": True}},
+            {"_id": 0, "user_id": 1},
+        )
+    ]
+    sent = 0
+    for i in range(0, len(user_ids), 100):
+        chunk = user_ids[i:i + 100]
+        try:
+            await push_service.send_push(
+                recipients=chunk,
+                title=event["title"],
+                message=f"C'est maintenant ! Tu as {duration} minutes pour capturer ta soirée. 📸",
+                action_url="/moment-event",
+                idempotency_key=f"mev_{event['event_id']}_{i}",
+            )
+            sent += len(chunk)
+        except Exception as e:
+            logger.warning("moment event push chunk failed: %s", e)
+    event.pop("_id", None)
+    return {
+        "ok": True,
+        "event": {**event, "starts_at": event["starts_at"].isoformat(), "ends_at": event["ends_at"].isoformat(), "created_at": event["created_at"].isoformat()},
+        "notified": sent,
+        "total_users": len(user_ids),
+    }
+
+
+@api_router.get("/moment-events/current")
+async def current_moment_event(user: dict = Depends(get_current_user)):
+    """Latest event still relevant (active, or ended < 10 min ago).
+    Returns server_time so all devices compute the SAME remaining time."""
+    now = datetime.now(timezone.utc)
+    ev = await db.moment_events.find_one(
+        {"ends_at": {"$gt": now - timedelta(minutes=10)}},
+        {"_id": 0},
+        sort=[("created_at", -1)],
+    )
+    if ev:
+        for k in ("starts_at", "ends_at", "created_at"):
+            v = ev.get(k)
+            if v is not None:
+                if getattr(v, "tzinfo", None) is None:
+                    v = v.replace(tzinfo=timezone.utc)
+                ev[k] = v.isoformat()
+    return {"event": ev, "server_time": now.isoformat()}
+
+
 @api_router.get("/users/{user_id}/profile")
 async def get_user_public_profile(user_id: str, user: dict = Depends(get_current_user)):
     """Detailed public profile of another user: bio, photos, stats,

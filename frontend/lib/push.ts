@@ -10,13 +10,17 @@ import { api } from './api';
  * - No-op on web.
  * - Requests notification permission first; aborts silently if denied.
  */
-export async function registerForPush(userId: string): Promise<boolean> {
+export async function registerForPush(
+  userId: string,
+  opts: { interactive?: boolean } = {},
+): Promise<boolean> {
   if (Platform.OS === 'web') return false;
   if (!userId) return false;
   try {
     const settings = await Notifications.getPermissionsAsync();
     let granted = settings.granted;
-    if (!granted && settings.canAskAgain) {
+    if (!granted && settings.canAskAgain && opts.interactive) {
+      // Native prompt is only shown from the "Restez informé" primer screen
       const req = await Notifications.requestPermissionsAsync();
       granted = req.granted;
     }

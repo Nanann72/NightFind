@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { ScrollView, Text } from 'react-native';
+import { ScrollView, Text, AppState } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -12,6 +12,7 @@ import { ThemeProvider, useTheme } from '../lib/themeContext';
 import { ToastProvider } from '../components/ui/Toast';
 import { TabBarScrollProvider } from '../lib/tabBarScroll';
 import { attachNotificationActionListeners } from '../lib/notificationsSetup';
+import { syncBadge } from '../lib/badge';
 import { initI18n } from '../lib/i18n';
 import { colors } from '../lib/theme';
 
@@ -113,8 +114,15 @@ export default function RootLayout() {
     }, 2000);
 
     const detach = attachNotificationActionListeners();
+    // Sync the iOS/Android app-icon badge with the unread count whenever
+    // the app comes back to the foreground.
+    syncBadge();
+    const badgeSub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') syncBadge();
+    });
     return () => {
       clearTimeout(t);
+      badgeSub.remove();
       try {
         detach?.();
       } catch {}

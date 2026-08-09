@@ -264,6 +264,13 @@ export const api = {
   },
   notificationsUnread: () =>
     request<{ unread: number }>('/notifications/unread-count'),
+  momentEventCurrent: () =>
+    request<{ event: { event_id: string; title: string; starts_at: string; ends_at: string; duration_min: number } | null; server_time: string }>('/moment-events/current'),
+  adminTriggerMomentEvent: (duration_min = 10) =>
+    request<{ ok: boolean; event: any; notified: number; total_users: number }>('/admin/moment-events/trigger', {
+      method: 'POST',
+      body: JSON.stringify({ duration_min }),
+    }),
   statsLive: () => request<LiveStats>('/stats/live'),
   notificationsMarkRead: () =>
     request<{ ok: boolean; updated: number }>('/notifications/mark-read', { method: 'POST' }),
