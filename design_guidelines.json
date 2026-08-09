@@ -1,185 +1,156 @@
 {
-  "project_name": "Night Finder",
-  "app_type": "mobile_web_app",
-  "theme_archetype": {
-    "theme": "dark",
-    "archetype_id": 5,
-    "archetype_name": "Luxury",
-    "accents": "Electric & Neon (Archetype 7)",
-    "rationale": "For a premium nightclub discovery app comparable to Resy/Airbnb, we use a Luxury cinematic dark base (Archetype 5) mixed with selective high-energy neon accents (Archetype 7) to reflect nightlife energy without feeling cheap or cluttered. The design avoids pure black, utilizing a deep obsidian base."
-  },
-  "colors": {
-    "background": {
-      "base": "#09090B",
-      "description": "Deepest Obsidian (Tailwind Zinc 950) - not pure black. Keeps interface rich."
-    },
-    "surface": {
-      "default": "#18181B",
-      "elevated": "#27272A",
-      "glass": "rgba(24, 24, 27, 0.7)",
-      "description": "Zinc 900 and 800 for cards, bottom sheets, and elevated elements."
-    },
-    "brand_accents": {
-      "primary": "#E01A4F",
-      "primary_label": "Magenta Pink",
-      "primary_usage": "Main CTA buttons, Swipe 'Like' actions, Heart icons",
-      "secondary": "#F2C94C",
-      "secondary_label": "Warm Gold",
-      "secondary_usage": "VIP tags, Rating stars, Premium events",
-      "tertiary": "#00F0FF",
-      "tertiary_label": "Cyan",
-      "tertiary_usage": "Map markers, 'Open Now' indicators, active tab indicator"
-    },
-    "text": {
-      "primary": "#F8FAFC",
-      "secondary": "#A1A1AA",
-      "tertiary": "#52525B",
-      "inverse": "#09090B"
-    },
-    "borders": {
-      "subtle": "rgba(255,255,255,0.1)",
-      "focus": "#E01A4F"
-    }
+  "app_name": "Night Finder",
+  "personality": "6 Glass / Luxe (with iOS-Native Clean structure)",
+  "personality_one_liner": "An immersive, cinematic nightlife and dating experience driven by liquid glass, deep contrast, and premium ruby accents.",
+  "color": {
+    "surface": "#09090B",
+    "onSurface": "#FFFFFF",
+    "surfaceSecondary": "#18181B",
+    "onSurfaceSecondary": "#E4E4E7",
+    "surfaceTertiary": "#27272A",
+    "onSurfaceTertiary": "#A1A1AA",
+    "surfaceInverse": "#FFFFFF",
+    "onSurfaceInverse": "#09090B",
+    "brand": "#E11D48",
+    "brandPrimary": "#E11D48",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#BE123C",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#4C0519",
+    "onBrandTertiary": "#FDA4AF",
+    "success": "#14532D",
+    "onSuccess": "#FFFFFF",
+    "warning": "#78350F",
+    "onWarning": "#FFFFFF",
+    "error": "#7F1D1D",
+    "onError": "#FFFFFF",
+    "info": "#27272A",
+    "onInfo": "#FFFFFF",
+    "border": "#27272A",
+    "borderStrong": "#3F3F46",
+    "divider": "#27272A"
   },
   "typography": {
-    "primary_family": "Outfit",
-    "primary_fallback": "sans-serif",
-    "secondary_family": "Manrope",
-    "secondary_fallback": "sans-serif",
+    "displayFontFamily": "Geist",
+    "textFontFamily": "Geist",
     "scale": {
-      "h1": "text-4xl sm:text-5xl font-black tracking-tighter",
-      "h2": "text-2xl sm:text-3xl font-bold tracking-tight",
-      "h3": "text-xl font-semibold tracking-tight",
-      "h4": "text-lg font-medium",
-      "body": "text-base font-normal leading-relaxed text-zinc-300",
-      "small": "text-sm font-medium tracking-wide text-zinc-400",
-      "overline": "text-xs font-bold uppercase tracking-[0.2em] text-zinc-500"
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
     }
   },
-  "spacing_and_layout": {
-    "philosophy": "Generous Spacing Philosophy. Use large padding for screens to feel premium.",
-    "screen_padding": "px-6 py-8",
-    "card_padding": "p-4 or p-6",
-    "gap": "gap-6",
-    "border_radius": {
-      "cards": "rounded-3xl",
-      "buttons": "rounded-full",
-      "chips": "rounded-full",
-      "bottom_sheet": "rounded-t-3xl"
-    },
-    "glassmorphism": {
-      "bottom_tab_bar": "backdrop-blur-xl bg-zinc-950/70 border-t border-white/10 saturate-150",
-      "top_nav": "backdrop-blur-xl bg-zinc-950/70 border-b border-white/10 saturate-150"
-    }
+  "spacing": {
+    "rule": "Generous vertical breathing room. Cards never flush to screen edges, use lg (16pt) margin. Thumb zone respected for primary CTAs.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
   },
-  "components": {
-    "swipe_card": {
-      "layout": "Absolute positioned stack. Full bleed image.",
-      "gradient_overlay": "bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent",
-      "interaction": "framer-motion drag. Rotate on drag. Opacity overlays for 'Like' (Magenta) and 'Nope' (Zinc).",
-      "metadata": "Anchored to bottom: Club Name (H2), Distance, Music Genres (Chips)."
-    },
-    "chips": {
-      "style": "bg-white/10 backdrop-blur-md border border-white/5 text-white text-xs px-3 py-1 rounded-full"
-    },
-    "map_markers": {
-      "style": "Cyan (#00F0FF) glow effect on dark map theme. Custom HTML markers if React Leaflet, or styled SVGs."
-    },
-    "bottom_tab_bar": {
-      "items": ["Discover", "Map", "Swipe", "Events", "Profile"],
-      "active_state": "Text and Icon colored Cyan (#00F0FF). Inactive is Zinc-500."
-    }
+  "radius_tokens": {
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "pill": 999
   },
-  "screens": {
-    "Onboarding": [
-      "Screen 1: Discover. Full screen background image. H1 text.",
-      "Screen 2: Swipe. Interactive preview.",
-      "Screen 3: Geolocation prompt with Gold accent button."
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": "true",
+    "do's": [
+      "Use heavily for the floating Liquid Glass Tab Bar, Bottom Sheets, and Swipe Card overlays.",
+      "Pair blur with a translucent tinted base (>=75% opacity of surface in dark mode) to ensure foreground text is WCAG AAA readable.",
+      "Use on sticky top segmented headers when content scrolls beneath."
     ],
-    "Auth": "Email/Google. Minimalist. Glassmorphism inputs. Bottom sheet style on top of blurred background.",
-    "Home_Discovery": "Vertical feed. 'Open Now' pulse animations. Premium club cards.",
-    "Map": "Interactive map (React Leaflet or Mapbox). Dark theme styling. Floating search/filter pill at top.",
-    "Swipe": "Tinder-style deck. 80vh card height. Floating action buttons at bottom (X and Heart).",
-    "Club_Detail": "Hero image gallery with parallax. Sticky header on scroll. 'Reserve' or 'Add to Favorites' fixed bottom bar.",
-    "Filters": "Bottom sheet modal. Distance slider. Music genre multi-select chips.",
-    "Events": "List of upcoming parties. Calendar row at top. Event cards with DJ names and entry price.",
-    "Favorites": "Grid of saved clubs.",
-    "Profile": "Avatar, Settings list, Music Preferences.",
-    "Notifications": "Chronological list of alerts (Promotions, new events)."
-  },
-  "animations": {
-    "micro_interactions": {
-      "button_press": "scale-95 transition-transform",
-      "heart_burst": "Scale up to 1.5, rotate slightly, fade out (framer-motion)",
-      "list_stagger": "Fade in and slide up (y: 20 -> 0) with 0.1s staggerChildren"
-    }
-  },
-  "icons": {
-    "library": "lucide-react",
-    "rules": "Use stroke-width 1.5 or 2. No emojis. Consistent sizing (w-6 h-6 for tabs)."
-  },
-  "images": {
-    "paris_nightclubs": [
-      {
-        "url": "https://images.pexels.com/photos/31923252/pexels-photo-31923252.jpeg",
-        "description": "DJ Neon Booth - Club Rex"
-      },
-      {
-        "url": "https://images.pexels.com/photos/14577027/pexels-photo-14577027.jpeg",
-        "description": "DJ Mixing - L'Arc Paris"
-      },
-      {
-        "url": "https://images.unsplash.com/photo-1578736641330-3155e606cd40?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODd8MHwxfHNlYXJjaHw0fHxwYXJ0eSUyMGNyb3dkJTIwY2x1YmJpbmclMjBkYXJrfGVufDB8fHx8MTc4MDQ5ODMzM3ww&ixlib=rb-4.1.0&q=85",
-        "description": "Green Lasers - Concrete"
-      },
-      {
-        "url": "https://images.unsplash.com/photo-1545128485-c400e7702796?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODd8MHwxfHNlYXJjaHwzfHxwYXJ0eSUyMGNyb3dkJTIwY2x1YmJpbmclMjBkYXJrfGVufDB8fHx8MTc4MDQ5ODMzM3ww&ixlib=rb-4.1.0&q=85",
-        "description": "Dark Party Room - Silencio"
-      },
-      {
-        "url": "https://images.unsplash.com/photo-1630395822970-acd6a691d97e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODd8MHwxfHNlYXJjaHwxfHxwYXJ0eSUyMGNyb3dkJTIwY2x1YmJpbmclMjBkYXJrfGVufDB8fHx8MTc4MDQ5ODMzM3ww&ixlib=rb-4.1.0&q=85",
-        "description": "Concert Crowd - La Machine du Moulin Rouge"
-      },
-      {
-        "url": "https://images.unsplash.com/photo-1581417478175-a9ef18f210c2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODd8MHwxfHNlYXJjaHwyfHxwYXJ0eSUyMGNyb3dkJTIwY2x1YmJpbmclMjBkYXJrfGVufDB8fHx8MTc4MDQ5ODMzM3ww&ixlib=rb-4.1.0&q=85",
-        "description": "Stage Lights - Wanderlust"
-      },
-      {
-        "url": "https://images.pexels.com/photos/5191480/pexels-photo-5191480.jpeg",
-        "description": "Silhouettes - Djoon"
-      },
-      {
-        "url": "https://images.pexels.com/photos/3696396/pexels-photo-3696396.jpeg",
-        "description": "Thrilled Crowd - Faust"
-      },
-      {
-        "url": "https://images.unsplash.com/photo-1708449530105-ea7d453a6f89?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHwzfHxuaWdodGNsdWIlMjBkcmlua3MlMjBwYXJ0eXxlbnwwfHx8fDE3ODA0OTgzNTF8MA&ixlib=rb-4.1.0&q=85",
-        "description": "Sparklers VIP - Matignon"
-      },
-      {
-        "url": "https://images.unsplash.com/photo-1569924995012-c4c706bfcd51?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHwyfHxuaWdodGNsdWIlMjBkcmlua3MlMjBwYXJ0eXxlbnwwfHx8fDE3ODA0OTgzNTF8MA&ixlib=rb-4.1.0&q=85",
-        "description": "Bar Scene - Le Syndicat"
-      },
-      {
-        "url": "https://images.unsplash.com/photo-1579450887097-6def9f204eeb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHw0fHxuaWdodGNsdWIlMjBkcmlua3MlMjBwYXJ0eXxlbnwwfHx8fDE3ODA0OTgzNTF8MA&ixlib=rb-4.1.0&q=85",
-        "description": "Neon Portrait - Le Comptoir Général"
-      },
-      {
-        "url": "https://images.pexels.com/photos/15648325/pexels-photo-15648325.jpeg",
-        "description": "Colorful Drink - Pachamama"
-      }
+    "dont's": [
+      "Never blur body text regions, form fields, or standard list rows.",
+      "Never apply glass without the underlying tint layer to guarantee contrast."
     ]
   },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-blur",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Home Feed",
+      "purpose": "Curated discovery of clubs, events, and people nearby using large cinematic cards.",
+      "states": {
+        "loading": "Skeleton loaders with shimmer matching exact card dimensions.",
+        "empty": "Premium glass empty state with Ruby-tinted Phosphor icon and 'Explore Nearby' CTA.",
+        "error": "Elegant glass pane with a simple error message and a 'Retry' button, NO stack trace."
+      },
+      "layout": "Top sticky segmented tabs (Tonight / Nearby / Map) with glassmorphism. Large edge-to-edge (minus lg margin) visual cards. Each card has a full-bleed background photo, mandatory 3-stop vertical gradient scrim (transparent to 80% surface), and frosted glass metadata pill at the bottom left."
+    },
+    {
+      "name": "Swipe / Dating",
+      "purpose": "Tinder-style immersive profile exploration and matching.",
+      "states": {
+        "loading": "Full screen shimmer skeleton of the photo and bottom card.",
+        "empty": "Abstract blurred glass background with 'No more profiles nearby' message.",
+        "error": "Readable error message over an abstract background."
+      },
+      "layout": "Full-bleed profile photo behind the safe area. A frosted glass card floats in the bottom 30% containing name, age, and bio. Circular glass control buttons (Rewind, Pass, Super Like, Like) float above the tab bar. Text layered on photo MUST use the 3-stop gradient scrim."
+    },
+    {
+      "name": "Profile",
+      "purpose": "Personal identity, stats, and 'Moments' grid.",
+      "states": {
+        "loading": "Skeleton grid and avatar.",
+        "empty": "Empty grid state with 'Share a moment' CTA.",
+        "error": "Standard elegant error state."
+      },
+      "layout": "Instagram-style header with integrated avatar, followed by separated Apple-style Glass cards for stats and bio. A seamless 3-column grid for 'Moments'. Sticky glass header on scroll."
+    },
+    {
+      "name": "Settings",
+      "purpose": "Comprehensive app configurations, grouped Apple-style.",
+      "states": {
+        "loading": "List row skeletons.",
+        "empty": "N/A",
+        "error": "Standard elegant error state."
+      },
+      "layout": "Organized categories (Account, Security, Notifications, Appearance) using iOS 26 style grouped lists. surfaceSecondary for row backgrounds, sm or md radius, internal dividers only, right chevrons, and native system toggles. No full-width borders."
+    }
+  ],
+  "images": {
+    "club_hero_card": {
+      "url": "https://images.unsplash.com/photo-1545128485-c400e7702796?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTF8MHwxfHNlYXJjaHwyfHxuaWdodGNsdWIlMjBjcm93ZCUyMGRhbmNpbmd8ZW58MHx8fHwxNzg2MjM1Mjg3fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "people partying inside room with red neon lighting"
+    },
+    "swipe_empty_state": {
+      "url": "https://images.unsplash.com/photo-1724405143873-cdaa5cac918e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAxODF8MHwxfHNlYXJjaHwyfHxwcmVtaXVtJTIwZ2xhc3Ntb3JwaGlzbSUyMGFic3RyYWN0JTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3ODYyMzUyODd8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "abstract premium glassmorphism background"
+    }
+  },
+  "haptics": {
+    "tab_change": "light",
+    "swipe_like": "success",
+    "swipe_pass": "medium",
+    "super_like": "heavy",
+    "button_press": "light",
+    "moment_capture": "heavy"
+  },
   "instructions_to_main_agent": [
-    "This is a mobile web app acting like a native app. Build it mobile-first (max-w-md mx-auto h-screen overflow-hidden relative) to simulate a mobile device if viewed on desktop.",
-    "Use react-router-dom for screen transitions.",
-    "Build the Swipe screen using framer-motion (drag='x', useTransform for rotation and opacity overlays).",
-    "Ensure the bottom tab bar is fixed at the bottom with z-50 and glassmorphism styling.",
-    "All interactive elements MUST have data-testid attributes (e.g., data-testid='tab-discover', data-testid='swipe-like-btn').",
-    "Use lucide-react for all icons.",
-    "Apply the Typography scales precisely. Do NOT use default Inter font for headings.",
-    "For the map, if react-leaflet is used, ensure the tile layer is a dark theme variant (e.g., CartoDB Dark Matter).",
-    "Do NOT use pure white or pure black. Use the hex codes provided in this JSON.",
-    "Implement tactile feedback (scale animations on click) for all buttons and cards."
+    "NUCLEAR COLOR RULE: Remove all instances of the previous violet/purple (#8B5CF6). Implement the new Premium Ruby (#E11D48) as the primary brand color to match the Glass/Luxe nightlife aesthetic. Do not use any blues, purples, or indigo.",
+    "Implement a true Dark Mode as the default premium experience (Surface: #09090B), alongside a refined Light Mode (Surface: #FFFFFF, Secondary: #F4F4F5). Do not simply invert colors.",
+    "MANDATORY SCRIM: Whenever text sits on top of an image (e.g., Home club cards, Swipe dating cards), you MUST insert a 3-stop vertical `expo-linear-gradient` (transparent -> 20% surfaceInverse -> 80%+ surfaceInverse) between the image and the text. Without this, contrast fails.",
+    "Liquid Glass Tab Bar: The bottom tab bar must be floating (margins on sides and bottom) and utilize `expo-blur` with a translucent tint. Ensure safe areas are respected beneath it.",
+    "Animations & Micro-interactions: Use `react-native-reanimated` for spring interactions on buttons (scale down to 0.96 on press), swipe gestures for Tinder cards, and smooth bottom sheet drag indicators.",
+    "Settings Screen: Model exactly after iOS Apple Settings. Use grouped list rows (`surfaceSecondary`), grouped border radii, and internal subtle dividers. Do not reinvent the settings layout.",
+    "Skeleton Loaders: Never show a blank white screen. All loading states must use a shimmer effect over shapes that match the final loaded content (e.g., full card shapes, circular avatars)."
   ]
 }

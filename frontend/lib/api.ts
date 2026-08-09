@@ -420,7 +420,7 @@ export const api = {
       '/swipe/quota',
     ),
   swipeLike: (target_user_id: string) =>
-    request<{ ok: boolean; already_swiped?: boolean }>('/swipe/like', {
+    request<{ ok: boolean; already_swiped?: boolean; matched?: boolean; match_id?: string; peer?: { user_id: string; name: string; photo?: string | null } }>('/swipe/like', {
       method: 'POST',
       body: JSON.stringify({ target_user_id }),
     }),
@@ -429,6 +429,15 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ target_user_id }),
     }),
+  swipeSuperlike: (target_user_id: string) =>
+    request<{ ok: boolean; already_swiped?: boolean; matched?: boolean; match_id?: string; peer?: { user_id: string; name: string; photo?: string | null } }>('/swipe/superlike', {
+      method: 'POST',
+      body: JSON.stringify({ target_user_id }),
+    }),
+  swipeRewind: () =>
+    request<{ ok: boolean; action: string; profile: any }>('/swipe/rewind', { method: 'POST' }),
+  swipeBoost: () =>
+    request<{ ok: boolean; boost_until: string; duration_min: number }>('/swipe/boost', { method: 'POST' }),
   updateSwipeFields: (body: {
     dob?: string;
     bio?: string;

@@ -1226,6 +1226,9 @@ async def record_swipe(body: SwipeAction, user: dict = Depends(get_current_user)
 # ===================== User-to-user Swipe (Tinder-like) ===================== #
 
 FREE_DAILY_SWIPE_LIMIT = 10
+FREE_SUPERLIKES_PER_DAY = 1
+PREMIUM_SUPERLIKES_PER_DAY = 5
+BOOST_DURATION_MIN = 30
 
 
 def _today_start_utc() -> datetime:
@@ -1275,15 +1278,42 @@ async def _today_swipes_count(user_id: str) -> int:
     })
 
 
+async def _today_superlikes_count(user_id: str) -> int:
+    return await db.user_swipes.count_documents({
+        "user_id": user_id,
+        "action": "superlike",
+        "created_at": {"$gte": _today_start_utc()},
+    })
+
+
+def _boost_active(u: dict) -> bool:
+    bu = u.get("boost_until")
+    if not bu:
+        return False
+    if getattr(bu, "tzinfo", None) is None:
+        bu = bu.replace(tzinfo=timezone.utc)
+    return bu > datetime.now(timezone.utc)
+
+
 @api_router.get("/swipe/quota")
 async def swipe_quota(user: dict = Depends(get_current_user)):
     used = await _today_swipes_count(user["user_id"])
     is_prem = bool(user.get("is_premium"))
+    sl_limit = PREMIUM_SUPERLIKES_PER_DAY if is_prem else FREE_SUPERLIKES_PER_DAY
+    sl_used = await _today_superlikes_count(user["user_id"])
+    boost_until = user.get("boost_until")
+    boost_active = _boost_active(user)
     return {
         "used_today": used,
         "limit": None if is_prem else FREE_DAILY_SWIPE_LIMIT,
         "is_premium": is_prem,
         "remaining": None if is_prem else max(0, FREE_DAILY_SWIPE_LIMIT - used),
+        "superlikes_limit": sl_limit,
+        "superlikes_remaining": max(0, sl_limit - sl_used),
+        "boost_active": boost_active,
+        "boost_until": (
+            boost_until.isoformat() if boost_active and hasattr(boost_until, "isoformat") else None
+        ),
     }
 
 
@@ -1353,13 +1383,23 @@ async def swipe_deck(
         },
         {"_id": 0},
     ).limit(50)
-    deck: list[dict] = []
+    candidates: list[dict] = []
     async for u in cursor:
         if not _is_profile_complete_for_swipe(u):
             continue
-        deck.append(_profile_for_swipe(u))
-        if len(deck) >= 10:
-            break
+        candidates.append(u)
+    # Users who super-liked me float to the top (Tinder-style), then boosted
+    sl_rows = await db.match_requests.find(
+        {"to_user_id": user["user_id"], "status": "pending", "superlike": True},
+        {"_id": 0, "from_user_id": 1},
+    ).to_list(50)
+    sl_ids = {r["from_user_id"] for r in sl_rows}
+    candidates.sort(key=lambda u: (u["user_id"] not in sl_ids, not _boost_active(u)))
+    candidates = candidates[:10]
+    deck = [_profile_for_swipe(u) for u in candidates]
+    for p in deck:
+        if p["user_id"] in sl_ids:
+            p["superliked_you"] = True
     return deck
 
 
@@ -1377,10 +1417,73 @@ async def swipe_pass(body: UserSwipeBody, user: dict = Depends(get_current_user)
     return await _user_swipe(body.target_user_id, "pass", user)
 
 
+@api_router.post("/swipe/superlike")
+async def swipe_superlike(body: UserSwipeBody, user: dict = Depends(get_current_user)):
+    """Tinder-style Super Like — daily quota (1 free / 5 premium)."""
+    sl_limit = PREMIUM_SUPERLIKES_PER_DAY if user.get("is_premium") else FREE_SUPERLIKES_PER_DAY
+    used = await _today_superlikes_count(user["user_id"])
+    if used >= sl_limit:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Plus de Super Likes aujourd'hui ({sl_limit}/jour). Reviens demain !",
+        )
+    return await _user_swipe(body.target_user_id, "superlike", user)
+
+
+@api_router.post("/swipe/rewind")
+async def swipe_rewind(user: dict = Depends(get_current_user)):
+    """Undo the last swipe (Premium only). Returns the profile to re-stack."""
+    if not user.get("is_premium"):
+        raise HTTPException(status_code=402, detail="Le Rewind est réservé aux membres Premium.")
+    last = await db.user_swipes.find_one(
+        {"user_id": user["user_id"]}, sort=[("created_at", -1)]
+    )
+    if not last:
+        raise HTTPException(status_code=404, detail="Aucun swipe à annuler.")
+    target_id = last["target_user_id"]
+    # If the like already turned into a match, don't undo it
+    if last.get("action") in ("like", "superlike"):
+        mr = await db.match_requests.find_one(
+            {"from_user_id": user["user_id"], "to_user_id": target_id}
+        )
+        if mr and mr.get("status") == "accepted":
+            raise HTTPException(status_code=409, detail="Impossible : vous avez déjà matché.")
+        if mr and mr.get("status") == "pending":
+            await db.match_requests.delete_one({"request_id": mr["request_id"]})
+    await db.user_swipes.delete_one({"swipe_id": last["swipe_id"]})
+    target = await db.users.find_one({"user_id": target_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="Profil introuvable")
+    return {"ok": True, "action": last.get("action"), "profile": _profile_for_swipe(target)}
+
+
+@api_router.post("/swipe/boost")
+async def swipe_boost(user: dict = Depends(get_current_user)):
+    """Boost (Premium only) — profile shown first in decks for 30 min. 1/day."""
+    if not user.get("is_premium"):
+        raise HTTPException(status_code=402, detail="Le Boost est réservé aux membres Premium.")
+    if _boost_active(user):
+        raise HTTPException(status_code=409, detail="Un Boost est déjà actif.")
+    today = _today_start_utc()
+    lb = user.get("last_boost_at")
+    if lb is not None:
+        if getattr(lb, "tzinfo", None) is None:
+            lb = lb.replace(tzinfo=timezone.utc)
+        if lb >= today:
+            raise HTTPException(status_code=429, detail="Tu as déjà utilisé ton Boost aujourd'hui.")
+    now = datetime.now(timezone.utc)
+    until = now + timedelta(minutes=BOOST_DURATION_MIN)
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"boost_until": until, "last_boost_at": now}},
+    )
+    return {"ok": True, "boost_until": until.isoformat(), "duration_min": BOOST_DURATION_MIN}
+
+
 async def _user_swipe(target_user_id: str, action: str, user: dict) -> dict:
     if target_user_id == user["user_id"]:
         raise HTTPException(status_code=400, detail="On ne se swipe pas soi-même")
-    if action not in ("like", "pass"):
+    if action not in ("like", "pass", "superlike"):
         raise HTTPException(status_code=400, detail="Action invalide")
     target = await db.users.find_one({"user_id": target_user_id}, {"_id": 0})
     if not target:
@@ -1406,8 +1509,61 @@ async def _user_swipe(target_user_id: str, action: str, user: dict) -> dict:
         "action": action,
         "created_at": datetime.now(timezone.utc),
     })
-    if action == "like":
-        # Create or refresh a match request (the target will see it in inbox)
+    if action in ("like", "superlike"):
+        is_super = action == "superlike"
+        # ---- INSTANT MATCH (Tinder-style): the target already liked me ----
+        reverse = await db.match_requests.find_one(
+            {"from_user_id": target_user_id, "to_user_id": user["user_id"], "status": "pending"}
+        )
+        if reverse:
+            await db.match_requests.update_one(
+                {"request_id": reverse["request_id"]},
+                {"$set": {"status": "accepted", "accepted_at": datetime.now(timezone.utc)}},
+            )
+            pair_a, pair_b = sorted([user["user_id"], target_user_id])
+            existing_m = await db.matches.find_one({"user_a": pair_a, "user_b": pair_b})
+            if existing_m:
+                match_id = existing_m["match_id"]
+            else:
+                match_id = f"mt_{uuid.uuid4().hex[:10]}"
+                await db.matches.insert_one({
+                    "match_id": match_id,
+                    "user_a": pair_a,
+                    "user_b": pair_b,
+                    "created_at": datetime.now(timezone.utc),
+                    "last_message_at": datetime.now(timezone.utc),
+                })
+            my_name = user.get("name") or "Quelqu'un"
+            await db.notifications.insert_one({
+                "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+                "user_id": target_user_id,
+                "title": "C'est un match ! 💞",
+                "body": f"{my_name} t'a liké en retour. Lance la conversation !",
+                "type": "match_accepted",
+                "data": {"match_id": match_id, "with_user_id": user["user_id"]},
+                "created_at": datetime.now(timezone.utc),
+            })
+            try:
+                await push_service.send_push(
+                    recipients=[target_user_id],
+                    title="C'est un match ! 💞",
+                    message=f"{my_name} t'a liké en retour !",
+                    action_url=f"/chat/{match_id}",
+                    idempotency_key=f"ma_{match_id}",
+                )
+            except Exception as e:
+                logger.warning("push (instant match) failed: %s", e)
+            return {
+                "ok": True,
+                "matched": True,
+                "match_id": match_id,
+                "peer": {
+                    "user_id": target_user_id,
+                    "name": target.get("name", ""),
+                    "photo": (target.get("photos") or [None])[0],
+                },
+            }
+        # ---- No mutual like yet: create/refresh a match request ----
         mr_id = f"mr_{uuid.uuid4().hex[:10]}"
         await db.match_requests.update_one(
             {"from_user_id": user["user_id"], "to_user_id": target_user_id},
@@ -1419,33 +1575,39 @@ async def _user_swipe(target_user_id: str, action: str, user: dict) -> dict:
                     "status": "pending",
                     "created_at": datetime.now(timezone.utc),
                 },
+                **({"$set": {"superlike": True}} if is_super else {}),
             },
             upsert=True,
         )
         sender_name = user.get("name") or (
             f"@{user.get('username')}" if user.get("username") else "Quelqu'un"
         )
+        notif_title = "⭐ Quelqu'un t'a super-liké !" if is_super else "Quelqu'un veut te matcher 💘"
+        notif_body = (
+            f"{sender_name} t'a envoyé un Super Like !" if is_super
+            else f"{sender_name} a aimé ton profil."
+        )
         # Normal flow: in-app notification to the real target user
         await db.notifications.insert_one({
             "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
             "user_id": target_user_id,
-            "title": "Quelqu'un veut te matcher 💘",
-            "body": f"{sender_name} a aimé ton profil.",
+            "title": notif_title,
+            "body": notif_body,
             "type": "match_request",
-            "data": {"from_user_id": user["user_id"]},
+            "data": {"from_user_id": user["user_id"], "superlike": is_super},
             "created_at": datetime.now(timezone.utc),
         })
         try:
             await push_service.send_push(
                 recipients=[target_user_id],
-                title="Quelqu'un veut te matcher 💘",
-                message=f"{sender_name} a aimé ton profil.",
+                title=notif_title,
+                message=notif_body,
                 action_url="/match-requests",
                 idempotency_key=f"mr_{user['user_id']}_{target_user_id}",
             )
         except Exception as e:
             logger.warning("push (match_request) failed: %s", e)
-    return {"ok": True}
+    return {"ok": True, "matched": False}
 
 
 # ===================== Profile / Swipe fields ===================== #
@@ -1557,7 +1719,7 @@ async def list_match_requests(user: dict = Depends(get_current_user)):
     for it in items:
         p = umap.get(it["from_user_id"])
         if p:
-            out.append({**p, "request_id": it["request_id"], "created_at": it.get("created_at")})
+            out.append({**p, "request_id": it["request_id"], "created_at": it.get("created_at"), "superlike": bool(it.get("superlike"))})
     return out
 
 
