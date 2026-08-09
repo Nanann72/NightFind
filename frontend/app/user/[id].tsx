@@ -342,7 +342,20 @@ export default function UserPublicProfile() {
           {previewMoment && (
             <View style={styles.previewCard}>
               {momentImg(previewMoment) ? (
-                <Image source={{ uri: momentImg(previewMoment)! }} style={styles.previewImage} resizeMode="cover" />
+                <View>
+                  <Image source={{ uri: momentImg(previewMoment)! }} style={styles.previewImage} resizeMode="cover" />
+                  {!!previewMoment.selfie && (
+                    <Image
+                      source={{
+                        uri: String(previewMoment.selfie).startsWith('data:')
+                          ? previewMoment.selfie
+                          : `data:image/jpeg;base64,${previewMoment.selfie}`,
+                      }}
+                      style={styles.previewSelfie}
+                      resizeMode="cover"
+                    />
+                  )}
+                </View>
               ) : null}
               <View style={styles.previewMeta}>
                 {!!previewMoment.club_name && (
@@ -510,6 +523,17 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     backgroundColor: colors.surfaceElevated,
   },
   previewImage: { width: '100%', aspectRatio: 3 / 4 },
+  previewSelfie: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    width: 92,
+    height: 122,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#fff',
+    backgroundColor: '#000',
+  },
   previewMeta: { padding: 14, gap: 4 },
   previewClub: { color: colors.textPrimary, fontSize: 15, fontWeight: '900' },
   previewCaption: { color: colors.textSecondary, fontSize: 13, lineHeight: 19 },

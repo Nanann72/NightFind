@@ -506,8 +506,19 @@ export default function Profile() {
                       ? raw
                       : `data:image/jpeg;base64,${raw}`)
                   : null;
+                const rawSelfie = previewMoment.selfie;
+                const selfie = rawSelfie
+                  ? (typeof rawSelfie === 'string' && rawSelfie.startsWith('data:')
+                      ? rawSelfie
+                      : `data:image/jpeg;base64,${rawSelfie}`)
+                  : null;
                 return img ? (
-                  <Image source={{ uri: img }} style={styles.previewImage} resizeMode="contain" />
+                  <View>
+                    <Image source={{ uri: img }} style={styles.previewImage} resizeMode="cover" />
+                    {selfie && (
+                      <Image source={{ uri: selfie }} style={styles.previewSelfie} resizeMode="cover" />
+                    )}
+                  </View>
                 ) : (
                   <View style={[styles.previewImage, { alignItems: 'center', justifyContent: 'center' }]}>
                     <Ionicons name="image" size={48} color={colors.textTertiary} />

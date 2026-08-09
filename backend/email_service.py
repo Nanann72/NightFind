@@ -18,8 +18,10 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 resend.api_key = os.environ.get("RESEND_API_KEY", "").strip().strip(chr(34)).strip(chr(39))
-FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev")
-FROM_NAME = os.environ.get("RESEND_FROM_NAME", "Night Finder")
+# French-first product: always default to the Night Finder domain sender
+# (production env may not define RESEND_FROM_EMAIL — never fall back to resend.dev).
+FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "contact@nightfinder.app").strip().strip('"').strip("'") or "contact@nightfinder.app"
+FROM_NAME = os.environ.get("RESEND_FROM_NAME", "Night Finder").strip().strip('"').strip("'") or "Night Finder"
 APP_PUBLIC_URL = os.environ.get("APP_PUBLIC_URL", "https://nightfinder.app")
 APP_SCHEME = os.environ.get("APP_SCHEME", "nightfinder")
 
@@ -48,7 +50,7 @@ def _wrap_email(inner_html: str) -> str:
   <div class="wrap">
     <div class="card">
       <div class="logo">NIGHT FINDER</div>
-      <div class="tagline">Discover the night · Live it fully</div>
+      <div class="tagline">Découvre la nuit · Vis-la à fond</div>
       {inner_html}
       <div class="foot">
         Vous n'êtes pas à l'origine de cette demande&nbsp;? Ignorez simplement cet email — votre compte reste sécurisé.<br/>

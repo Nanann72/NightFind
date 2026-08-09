@@ -259,3 +259,9 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - Settings light mode : FAUX POSITIF du testeur — vérifié blanc par screenshot (le testeur mesurait le div racine du Stack, pas l'écran).
 - MODAL MATCH vérifié E2E frontend : badge superliked-you → like → modal C'EST UN MATCH → "Envoyer un message" navigue vers /chat/{match_id}. Sparkle 💜→❤️.
 - Users test swipe : swipetest.a/.b/.c/.d@nightfinder.app / TestSwipe2026! (A premium; A-B matchés; C-D matchés).
+
+## ✅ FIX MOMENTS + EMAILS PROD (juin 2026)
+- Moments : modal preview (profile.tsx + user/[id].tsx) passé en plein cadre 3:4 resizeMode cover (fini la bande étroite avec bandes noires) + selfie BeReal en PiP haut-gauche (bordure blanche) quand m.selfie existe.
+- Email prod : email_service.py — FROM_EMAIL default 'onboarding@resend.dev' → 'contact@nightfinder.app' (la prod n'a pas RESEND_FROM_EMAIL dans ses env vars → fallback résolu code-side, nécessite Publish). Tagline email traduite en FR.
+- Liens support : legal_pages utilise déjà support@nightfinder.app. Pour que les URLs /support /privacy /reset soient sur nightfinder.app, l'utilisateur doit CONNECTER SON DOMAINE CUSTOM au déploiement (panneau Publish) — action utilisateur.
+- Moment démo seedé pour Emma (Club Rex, expire +4h).
