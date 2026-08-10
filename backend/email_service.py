@@ -18,11 +18,16 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 resend.api_key = os.environ.get("RESEND_API_KEY", "").strip().strip(chr(34)).strip(chr(39))
-# French-first product: always default to the Night Finder domain sender
-# (production env may not define RESEND_FROM_EMAIL — never fall back to resend.dev).
-FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "contact@nightfinder.app").strip().strip('"').strip("'") or "contact@nightfinder.app"
+# French-first product: always send from the Night Finder domain.
+# Guard: even if a stale production env var still points to resend.dev
+# (e.g. onboarding@resend.dev), we force the official sender.
+_raw_from = os.environ.get("RESEND_FROM_EMAIL", "").strip().strip('"').strip("'")
+if not _raw_from or "resend.dev" in _raw_from:
+    _raw_from = "support@nightfinder.app"
+FROM_EMAIL = _raw_from
 FROM_NAME = os.environ.get("RESEND_FROM_NAME", "Night Finder").strip().strip('"').strip("'") or "Night Finder"
-APP_PUBLIC_URL = os.environ.get("APP_PUBLIC_URL", "https://nightfinder.app")
+APP_PUBLIC_URL = os.environ.get("APP_PUBLIC_URL", "https://nightfinder.app").rstrip("/")
+SUPPORT_PUBLIC_URL = os.environ.get("SUPPORT_PUBLIC_URL", "https://nightfinder.support").rstrip("/")
 APP_SCHEME = os.environ.get("APP_SCHEME", "nightfinder")
 
 FROM_ADDRESS = f"{FROM_NAME} <{FROM_EMAIL}>"

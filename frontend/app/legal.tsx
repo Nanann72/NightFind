@@ -9,7 +9,7 @@ import { useThemeColors } from '../lib/themeContext';
 const APP_NAME = 'Night Finder';
 const COMPANY = '[Nom de la société — à compléter]';
 const ADDRESS = '[Adresse du siège social — à compléter]';
-const EMAIL = 'contact@nightfinder.app';
+const EMAIL = 'support@nightfinder.app';
 const SIRET = '[Numéro SIRET — à compléter]';
 const PUBLICATION_DIR = '[Directeur de publication — à compléter]';
 const HOST = 'Emergent Cloud (Kubernetes)';
@@ -153,13 +153,13 @@ const DOCS: Record<string, { title: string; body: string }> = {
   legal: { title: 'Mentions Légales', body: LEGAL },
 };
 
-export default function LegalDoc() {
+export default function LegalDoc({ docOverride }: { docOverride?: string } = {}) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const params = useLocalSearchParams<{ doc?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const docKey = (params.doc as string) || 'cgu';
+  const docKey = docOverride || (params.doc as string) || 'cgu';
   const doc = DOCS[docKey] || DOCS.cgu;
 
   return (

@@ -5,10 +5,14 @@ App Store Connect "Privacy Policy URL" requirement is satisfied.
 """
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
 router = APIRouter()
+
+SUPPORT_PUBLIC_URL = os.environ.get("SUPPORT_PUBLIC_URL", "https://nightfinder.support").rstrip("/")
 
 _BASE_CSS = """
 :root { color-scheme: dark; }
@@ -73,10 +77,10 @@ _HEADER = """
 </div>
 """
 
-_FOOTER = """
+_FOOTER = f"""
 <footer>
   © 2026 Night Finder — Tous droits réservés.<br>
-  <a href="/privacy">Confidentialité</a> · <a href="/terms">Conditions d'utilisation</a>
+  <a href="{SUPPORT_PUBLIC_URL}/">Support</a> · <a href="{SUPPORT_PUBLIC_URL}/privacy">Confidentialité</a> · <a href="{SUPPORT_PUBLIC_URL}/terms">Conditions d'utilisation</a>
 </footer>
 """
 

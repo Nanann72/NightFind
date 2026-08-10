@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { useRouter } from 'expo-router';
+import { View, StyleSheet, Text, TouchableOpacity, Platform } from 'react-native';
+import { useRouter, Redirect } from 'expo-router';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -133,6 +133,16 @@ export default function Index() {
   }));
   const rootStyle = useAnimatedStyle(() => ({ opacity: rootOpacity.value }));
   const barStyle = useAnimatedStyle(() => ({ width: progress.value * BAR_WIDTH }));
+
+  // Domaine support (web) : nightfinder.support/ affiche la page Support,
+  // pas l'application.
+  if (
+    Platform.OS === 'web' &&
+    typeof window !== 'undefined' &&
+    window.location.hostname.endsWith('nightfinder.support')
+  ) {
+    return <Redirect href={'/support' as any} />;
+  }
 
   if (startupError) {
     return (
