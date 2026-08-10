@@ -1006,14 +1006,49 @@ async def list_clubs(
 @api_router.get("/places/photo")
 async def proxy_place_photo(name: str = Query(...), max_width: int = 1200):
     """Stream a Google Places photo through our backend so the API key stays
-    server-side."""
+    server-side. Mobile-friendly: width clamped, recompressed to JPEG and
+    cached (in Mongo + HTTP Cache-Control) so cards load instantly."""
     if http_client is None:
         raise HTTPException(status_code=503, detail="Service not ready")
+    max_width = min(max_width, 720)
+    cache_key = f"{name}:{max_width}"
+    cached = await db.photo_cache.find_one({"_id": cache_key})
+    if cached:
+        return StreamingResponse(
+            io.BytesIO(cached["data"]),
+            media_type=cached.get("ctype", "image/jpeg"),
+            headers={"Cache-Control": "public, max-age=604800, immutable"},
+        )
     result = await places_service.fetch_place_photo(http_client, name, max_width)
     if not result:
         raise HTTPException(status_code=404, detail="Photo not available")
     content, ctype = result
-    return StreamingResponse(io.BytesIO(content), media_type=ctype)
+    # Recompress heavy payloads (Google can return >1.5MB PNGs) → JPEG q72
+    if len(content) > 220_000:
+        try:
+            from PIL import Image as PILImage
+            im = PILImage.open(io.BytesIO(content)).convert("RGB")
+            if im.width > max_width:
+                im = im.resize((max_width, int(im.height * max_width / im.width)))
+            buf = io.BytesIO()
+            im.save(buf, "JPEG", quality=72, optimize=True)
+            content, ctype = buf.getvalue(), "image/jpeg"
+        except Exception:  # noqa: BLE001
+            pass
+    if len(content) < 1_000_000:
+        try:
+            await db.photo_cache.update_one(
+                {"_id": cache_key},
+                {"$set": {"data": content, "ctype": ctype, "cached_at": datetime.now(timezone.utc)}},
+                upsert=True,
+            )
+        except Exception:  # noqa: BLE001
+            pass
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type=ctype,
+        headers={"Cache-Control": "public, max-age=604800, immutable"},
+    )
 
 
 @api_router.get("/clubs/{club_id}")

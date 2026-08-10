@@ -14,6 +14,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Defs, RadialGradient, Stop, Circle } from 'react-native-svg';
 import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../lib/auth';
@@ -123,7 +124,7 @@ export default function Index() {
     transform: [{ scale: logoScale.value * pulse.value }],
   }));
   const haloStyle = useAnimatedStyle(() => ({
-    opacity: halo.value * 0.12,
+    opacity: halo.value,
     transform: [{ scale: 0.9 + halo.value * 0.1 + (pulse.value - 1) * 2 }],
   }));
   const nameStyle = useAnimatedStyle(() => ({
@@ -166,8 +167,19 @@ export default function Index() {
         pointerEvents="none"
       />
       <View style={styles.center}>
-        {/* Soft halo behind the logo — subtle depth, not a big glow */}
-        <Animated.View style={[styles.halo, haloStyle]} pointerEvents="none" />
+        {/* Soft radial halo behind the logo — true radial gradient (never square) */}
+        <Animated.View style={[styles.halo, haloStyle]} pointerEvents="none">
+          <Svg width={320} height={320}>
+            <Defs>
+              <RadialGradient id="haloGrad" cx="50%" cy="50%" r="50%">
+                <Stop offset="0%" stopColor={colors.primary} stopOpacity="0.32" />
+                <Stop offset="55%" stopColor={colors.primary} stopOpacity="0.10" />
+                <Stop offset="100%" stopColor={colors.primary} stopOpacity="0" />
+              </RadialGradient>
+            </Defs>
+            <Circle cx="160" cy="160" r="160" fill="url(#haloGrad)" />
+          </Svg>
+        </Animated.View>
         {fontsLoaded && (
           <Animated.Text style={[styles.nf, logoStyle]} allowFontScaling={false}>
             NF
@@ -191,20 +203,13 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   halo: {
+    // Pure transparent wrapper — the glow comes ONLY from the SVG radial gradient,
+    // so it fades to zero smoothly with no square/hard edges.
     position: 'absolute',
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    backgroundColor: colors.primary,
-    opacity: 0.4,
-    // Soft radial feel via huge shadow + low opacity
-    shadowColor: colors.primary,
-    shadowOpacity: 0.9,
-    shadowRadius: 80,
-    shadowOffset: { width: 0, height: 0 },
-    transform: [{ scale: 1 }],
-    // The View itself is mostly transparent — only its glow reads
-    ...StyleSheet.flatten({ opacity: 0.14 }),
+    width: 320,
+    height: 320,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   nf: {
     color: colors.textPrimary,
