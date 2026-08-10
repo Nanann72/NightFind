@@ -11,6 +11,7 @@ import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
 import { useAuth } from '../lib/auth';
 import { LocationRequired } from './LocationRequired';
+import { SafeImage } from './SafeImage';
 
 const DARK_MAP_STYLE = [
   { elementType: 'geometry', stylers: [{ color: '#0f0f12' }] },
@@ -230,7 +231,7 @@ export default function MapImpl() {
           style={styles.bottomCard}
           testID={`map-selected-${selected.club_id}`}
         >
-          <Image source={{ uri: selected.photos[0] }} style={styles.bottomImage} />
+          <SafeImage uri={selected.photos[0]} width={320} style={styles.bottomImage} />
           <View style={styles.bottomContent}>
             <Text style={styles.bottomName}>{selected.name}</Text>
             <Text style={styles.bottomMeta}>

@@ -9,6 +9,7 @@ import {
   ActivityIndicator, Alert, Image, Modal, KeyboardAvoidingView, Platform, Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { SafeImage } from '../components/SafeImage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -365,7 +366,7 @@ export default function OwnerDashboard() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.sm }}>
               {photos.map((p, i) => (
                 <View key={i} style={styles.photoBox}>
-                  <Image source={{ uri: p }} style={styles.photo} />
+                  <SafeImage uri={p} width={320} style={styles.photo} />
                   <TouchableOpacity
                     style={styles.photoRemove}
                     onPress={() => setPhotos((prev) => prev.filter((_, j) => j !== i))}

@@ -17,7 +17,7 @@ import httpx
 import jwt
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response, StreamingResponse
 import io
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr, Field
@@ -1021,7 +1021,14 @@ async def proxy_place_photo(name: str = Query(...), max_width: int = 1200):
         )
     result = await places_service.fetch_place_photo(http_client, name, max_width)
     if not result:
-        raise HTTPException(status_code=404, detail="Photo not available")
+        # Clé Google invalide/quota (403) ou photo disparue : au lieu d'un 404
+        # (= carte grise dans l'app), on redirige vers une photo d'ambiance
+        # déterministe par lieu pour que chaque bar garde un visuel différent.
+        return RedirectResponse(
+            url=places_service._fallback_photo(name.split("/photos/")[0]),
+            status_code=302,
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
     content, ctype = result
     # Recompress heavy payloads (Google can return >1.5MB PNGs) → JPEG q72
     if len(content) > 220_000:

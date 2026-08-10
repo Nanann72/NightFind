@@ -17,19 +17,30 @@ type Props = {
   uri?: string | null;
   style?: StyleProp<ViewStyle>;
   resizeMode?: 'cover' | 'contain';
+  /** Largeur max demandée au backend pour les photos Google Places (perf réseau). */
+  width?: number;
   testID?: string;
 };
 
-function resolveUri(uri?: string | null): string | null {
+function resolveUri(uri?: string | null, width?: number): string | null {
   if (!uri) return null;
   if (uri.startsWith('http://') || uri.startsWith('https://') || uri.startsWith('data:')) return uri;
-  if (uri.startsWith('/api/') && BASE_URL) return `${BASE_URL}${uri}`;
+  if (uri.startsWith('/api/')) {
+    let path = uri;
+    // Vignettes : demande une image plus légère au proxy photo (cache par taille).
+    if (width && path.startsWith('/api/places/photo')) {
+      path = path.includes('max_width=')
+        ? path.replace(/max_width=\d+/, `max_width=${width}`)
+        : `${path}&max_width=${width}`;
+    }
+    return BASE_URL ? `${BASE_URL}${path}` : path;
+  }
   return uri;
 }
 
-export function SafeImage({ uri, style, resizeMode = 'cover', testID }: Props) {
+export function SafeImage({ uri, style, resizeMode = 'cover', width, testID }: Props) {
   const [failed, setFailed] = useState(false);
-  const resolved = resolveUri(uri);
+  const resolved = resolveUri(uri, width);
   if (!resolved || failed) {
     return (
       <View

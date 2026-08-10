@@ -27,6 +27,7 @@ import { api, Club } from '../../lib/api';
 import { useClubs } from '../../lib/clubs';
 import { trackClubView } from '../../lib/recentClubs';
 import { HapticButton } from '../../components/ui/HapticButton';
+import { SafeImage } from '../../components/SafeImage';
 import { radius, spacing, typography, type ThemeColors, darkColors } from '../../lib/theme';
 import { useThemeColors } from '../../lib/themeContext';
 
@@ -194,7 +195,7 @@ export default function ClubDetail() {
       >
         <View style={styles.heroWrap}>
           <Animated.View style={[styles.heroImgWrap, heroAnimStyle]}>
-            <Image source={{ uri: club.photos[0] }} style={styles.hero} />
+            <SafeImage uri={club.photos[0]} style={styles.hero} />
           </Animated.View>
           <View style={styles.heroOverlay} />
           <HapticButton

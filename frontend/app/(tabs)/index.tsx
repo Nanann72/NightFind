@@ -3,7 +3,7 @@
  * Header → Recherche → Explorer la carte → Clubs proches →
  * Tendance ce soir → Personnes près de toi → Moments → Tous les clubs.
  */
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -260,7 +260,7 @@ export default function Home() {
                 onPress={() => router.push(`/club/${r.club_id}` as any)}
                 testID={`recent-club-${r.club_id}`}
               >
-                <SafeImage uri={r.photo} style={styles.recentImg} />
+                <SafeImage uri={r.photo} width={320} style={styles.recentImg} />
                 <Text style={styles.recentName} numberOfLines={1}>{r.name}</Text>
               </TouchableOpacity>
             ))}
@@ -298,6 +298,8 @@ export default function Home() {
             horizontal
             data={nearby}
             keyExtractor={(c) => `near-${c.club_id}`}
+            initialNumToRender={4}
+            windowSize={5}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.hList}
             renderItem={({ item }) => (
@@ -315,6 +317,8 @@ export default function Home() {
             horizontal
             data={trending}
             keyExtractor={(c) => `trend-${c.club_id}`}
+            initialNumToRender={4}
+            windowSize={5}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.hList}
             renderItem={({ item }) => (
@@ -375,6 +379,8 @@ export default function Home() {
             horizontal
             data={moments}
             keyExtractor={(m) => m.moment_id}
+            initialNumToRender={4}
+            windowSize={5}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.hList}
             renderItem={({ item }) => (
@@ -410,6 +416,10 @@ export default function Home() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 140 }}
         scrollEventThrottle={16}
+        initialNumToRender={5}
+        maxToRenderPerBatch={6}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS !== 'web'}
         onScroll={(e) => onScrollHide(e.nativeEvent.contentOffset.y)}
         ListHeaderComponent={Header}
         refreshControl={
@@ -442,7 +452,9 @@ export default function Home() {
           )
         }
         renderItem={({ item, index }) => (
-          <Animated.View entering={FadeInDown.delay(Math.min(index, 8) * 40).springify().damping(18)}>
+          <Animated.View
+            entering={index < 8 ? FadeInDown.delay(index * 40).springify().damping(18) : undefined}
+          >
             <ClubCard
               club={item}
               isFav={favorites.has(item.club_id)}
@@ -539,12 +551,12 @@ const sectionStyles = StyleSheet.create({
   action: { fontSize: 13, fontWeight: '600' },
 });
 
-function MiniClubCard({ club, onPress }: { club: Club; onPress: () => void }) {
+const MiniClubCard = memo(function MiniClubCard({ club, onPress }: { club: Club; onPress: () => void }) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <TouchableOpacity style={styles.miniCard} activeOpacity={0.9} onPress={onPress} testID={`near-card-${club.club_id}`}>
-      <SafeImage uri={club.photos?.[0]} style={styles.miniImage} />
+      <SafeImage uri={club.photos?.[0]} width={480} style={styles.miniImage} />
       {club.promoted && (
         <View style={styles.sponsoredChip}>
           <Text style={styles.sponsoredText}>Sponsorisé</Text>
@@ -562,14 +574,14 @@ function MiniClubCard({ club, onPress }: { club: Club; onPress: () => void }) {
       </View>
     </TouchableOpacity>
   );
-}
+}, (prev, next) => prev.club === next.club);
 
-function TrendCard({ club, onPress }: { club: Club; onPress: () => void }) {
+const TrendCard = memo(function TrendCard({ club, onPress }: { club: Club; onPress: () => void }) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <TouchableOpacity style={styles.trendCard} activeOpacity={0.9} onPress={onPress} testID={`trend-card-${club.club_id}`}>
-      <SafeImage uri={club.photos?.[0]} style={styles.trendImage} />
+      <SafeImage uri={club.photos?.[0]} width={480} style={styles.trendImage} />
       <View style={styles.trendOverlay} />
       <View style={styles.trendBody}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -585,9 +597,9 @@ function TrendCard({ club, onPress }: { club: Club; onPress: () => void }) {
       </View>
     </TouchableOpacity>
   );
-}
+}, (prev, next) => prev.club === next.club);
 
-function ClubCard({
+const ClubCard = memo(function ClubCard({
   club,
   isFav,
   onToggleFav,
@@ -608,7 +620,7 @@ function ClubCard({
       testID={`club-card-${club.club_id}`}
     >
       <View style={styles.cardImageWrap}>
-        <SafeImage uri={club.photos?.[0]} style={styles.cardImage} />
+        <SafeImage uri={club.photos?.[0]} width={640} style={styles.cardImage} />
         <View style={styles.cardOverlay} />
         <FavHeart
           isFav={isFav}
@@ -638,7 +650,7 @@ function ClubCard({
       </View>
     </TouchableOpacity>
   );
-}
+}, (prev, next) => prev.club === next.club && prev.isFav === next.isFav);
 
 /* ────────────────────────────── Styles ── */
 

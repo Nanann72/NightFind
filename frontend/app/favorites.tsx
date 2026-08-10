@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  Image,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
@@ -13,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api, Club } from '../lib/api';
+import { SafeImage } from '../components/SafeImage';
 import { useClubs } from '../lib/clubs';
 import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
@@ -83,7 +83,7 @@ export default function Favorites() {
             activeOpacity={0.9}
             testID={`fav-row-${item.club_id}`}
           >
-            <Image source={{ uri: item.photos[0] }} style={styles.image} />
+            <SafeImage uri={item.photos[0]} width={320} style={styles.image} />
             <View style={styles.rowBody}>
               <Text style={styles.name}>{item.name}</Text>
               <Text style={styles.meta}>

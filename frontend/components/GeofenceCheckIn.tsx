@@ -5,10 +5,10 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { SafeImage } from './SafeImage';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -221,7 +221,7 @@ export function GeofenceCheckIn() {
         <View style={styles.backdrop} />
         <Animated.View entering={FadeInDown.duration(450)} style={styles.card} testID="geofence-card">
           <View style={styles.heroWrap}>
-            <Image source={{ uri: candidate.photos[0] }} style={styles.hero} />
+            <SafeImage uri={candidate.photos[0]} width={640} style={styles.hero} />
             <View style={styles.heroOverlay} />
             <Animated.View entering={FadeIn.delay(200)} style={[styles.musicBadge, pulseStyle]}>
               <Ionicons name="musical-notes" size={18} color={colors.bg} />
