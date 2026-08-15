@@ -17,8 +17,12 @@ import { api, Club } from './api';
 
 const DETECT_INTERVAL_MS = 90 * 1000; // 90s between detections
 const SESSION_DURATION_MS = 10 * 60 * 1000; // stop after 10 min
-const SAMPLE_DURATION_MS = 10000; // 10 seconds — Audd recommends 8-12s
-const RETRY_SAMPLE_DURATION_MS = 12000; // Auto-retry uses a longer sample for better hit rate
+const SAMPLE_DURATION_MS = 8000; // background live-listening sample
+// Shazam-like fast scan: 5s first pass — Audd identifies most tracks with 4-6s.
+const FAST_SAMPLE_MS = 5000;
+// The retry sample RECORDS IN PARALLEL while the 1st API call is in flight,
+// so a no-match retry costs only ~4 extra seconds instead of 12.
+const RETRY_SAMPLE_MS = 9000;
 
 /**
  * Optimized recording options for music recognition.
@@ -32,7 +36,7 @@ function buildRecognitionRecordingOptions(ExpoAudio: any) {
     extension: '.m4a',
     sampleRate: 44100,
     numberOfChannels: 1,
-    bitRate: 128000,
+    bitRate: 64000,
     android: {
       outputFormat: 'mpeg4',
       audioEncoder: 'aac',
@@ -73,6 +77,142 @@ export type ScanResult = {
   errorMessage?: string;
 };
 
+type CancelToken = { cancelled: boolean };
+
+/** Record a mic sample and return it as base64 (or a typed error).
+ *  Supports early cancellation (checked every 250ms) so a parallel retry
+ *  recording can be aborted the moment the first pass matches. */
+async function recordSampleBase64(
+  durationMs: number,
+  cancel?: CancelToken,
+): Promise<{ base64?: string; error?: ScanResult; aborted?: boolean }> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ExpoAudio = require('expo-audio');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const AudioModule = require('expo-audio/build/AudioModule').default;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const FileSystem = require('expo-file-system');
+
+  // 1. Permissions
+  const permission = await ExpoAudio.requestRecordingPermissionsAsync();
+  if (!permission?.granted) {
+    return {
+      error: {
+        ok: false,
+        reason: 'no-mic-permission',
+        errorMessage:
+          'Autorise le microphone dans les réglages pour identifier la musique.',
+      },
+    };
+  }
+
+  // 2. Activate recording audio mode
+  await ExpoAudio.setAudioModeAsync({
+    allowsRecording: true,
+    playsInSilentMode: true,
+  });
+
+  // 3. Build recorder — instantiate AudioRecorder directly (no public
+  //    createAudioRecorder API in expo-audio 1.1+)
+  const RecorderClass =
+    AudioModule?.AudioRecorder ||
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('expo-audio').AudioRecorder;
+  if (!RecorderClass) {
+    throw new Error('AudioRecorder class unavailable in expo-audio module');
+  }
+  const recorder = new RecorderClass(buildRecognitionRecordingOptions(ExpoAudio));
+  await recorder.prepareToRecordAsync();
+  recorder.record();
+  // Sleep in 250ms slices so cancellation frees the mic immediately.
+  const started = Date.now();
+  while (Date.now() - started < durationMs) {
+    if (cancel?.cancelled) break;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  await recorder.stop();
+  if (cancel?.cancelled) return { aborted: true };
+  const uri: string | null = recorder.uri;
+  if (!uri) {
+    return {
+      error: {
+        ok: false,
+        reason: 'no-audio-recorded',
+        errorMessage:
+          "Impossible d'enregistrer l'audio. Vérifie que le micro fonctionne.",
+      },
+    };
+  }
+
+  // 4. Read file as base64 — modern API: new File(uri).base64()
+  let base64 = '';
+  try {
+    if (FileSystem?.File) {
+      const file = new FileSystem.File(uri);
+      base64 = await file.base64();
+    } else if (typeof FileSystem?.readAsStringAsync === 'function') {
+      base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType?.Base64 || 'base64',
+      });
+    } else {
+      throw new Error('No FileSystem.base64 API available');
+    }
+  } catch (readErr: any) {
+    throw new Error(
+      `Lecture audio impossible : ${String(readErr?.message || readErr)}`,
+    );
+  }
+  // Silence/short-buffer heuristic proportional to duration (~3 chars/ms of
+  // base64 for mono AAC@64kbps music; near-silence compresses far below).
+  const minLen = Math.min(30_000, Math.floor(durationMs * 2.5));
+  if (!base64 || base64.length < minLen) {
+    return {
+      error: {
+        ok: false,
+        reason: 'no-audio-recorded',
+        errorMessage:
+          "Le micro n'a presque rien capté. Rapproche ton téléphone de la source sonore et réessaie.",
+      },
+    };
+  }
+  if (base64.length > MAX_BASE64_LENGTH) {
+    return {
+      error: {
+        ok: false,
+        reason: 'error',
+        errorMessage:
+          "L'échantillon audio est trop volumineux. Réessaie — si le problème persiste, redémarre l'application.",
+      },
+    };
+  }
+  return { base64 };
+}
+
+/** Send a sample to the backend → Audd.io and map the response. */
+async function recogniseSample(club: Club, base64: string): Promise<ScanResult> {
+  const resp: any = await api.recognizeAudio(club.club_id, base64);
+  if (resp?.ok === false) {
+    return {
+      ok: false,
+      recognised: false,
+      reason: 'audd-not-recognised',
+      errorMessage:
+        resp?.error_message ||
+        'Service de reconnaissance temporairement indisponible. Réessaie plus tard.',
+    };
+  }
+  return {
+    ok: true,
+    recognised: !!resp?.recognised,
+    title: resp?.song?.title || resp?.title,
+    artist: resp?.song?.artist || resp?.artist,
+    reason: resp?.recognised ? undefined : 'audd-not-recognised',
+    errorMessage: resp?.recognised
+      ? undefined
+      : 'Aucune musique reconnue. Essaie de rapprocher ton téléphone de la source sonore.',
+  };
+}
+
 async function recordAndRecognise(
   club: Club,
   returnResult = false,
@@ -87,127 +227,13 @@ async function recordAndRecognise(
     };
   }
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const ExpoAudio = require('expo-audio');
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const AudioModule = require('expo-audio/build/AudioModule').default;
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const FileSystem = require('expo-file-system');
-
-    // 1. Permissions
-    const permission = await ExpoAudio.requestRecordingPermissionsAsync();
-    if (!permission?.granted) {
-      return {
-        ok: false,
-        reason: 'no-mic-permission',
-        errorMessage:
-          'Autorise le microphone dans les réglages pour identifier la musique.',
-      };
+    const sample = await recordSampleBase64(sampleDurationMs);
+    if (sample.error) return sample.error;
+    if (!sample.base64) {
+      return { ok: false, reason: 'no-audio-recorded', errorMessage: 'Fichier audio vide.' };
     }
-
-    // 2. Activate recording audio mode
-    await ExpoAudio.setAudioModeAsync({
-      allowsRecording: true,
-      playsInSilentMode: true,
-    });
-
-    // 3. Build recorder — instantiate AudioRecorder directly (no public
-    //    createAudioRecorder API in expo-audio 1.1+)
-    const RecorderClass =
-      AudioModule?.AudioRecorder ||
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      require('expo-audio').AudioRecorder;
-    if (!RecorderClass) {
-      throw new Error('AudioRecorder class unavailable in expo-audio module');
-    }
-    const recorder = new RecorderClass(buildRecognitionRecordingOptions(ExpoAudio));
-    await recorder.prepareToRecordAsync();
-    recorder.record();
-    await new Promise((r) => setTimeout(r, sampleDurationMs));
-    await recorder.stop();
-    const uri: string | null = recorder.uri;
-    if (!uri) {
-      return {
-        ok: false,
-        reason: 'no-audio-recorded',
-        errorMessage:
-          "Impossible d'enregistrer l'audio. Vérifie que le micro fonctionne.",
-      };
-    }
-
-    // 4. Read file as base64 — modern API: new File(uri).base64()
-    let base64 = '';
-    try {
-      if (FileSystem?.File) {
-        const file = new FileSystem.File(uri);
-        base64 = await file.base64();
-      } else if (typeof FileSystem?.readAsStringAsync === 'function') {
-        base64 = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType?.Base64 || 'base64',
-        });
-      } else {
-        throw new Error('No FileSystem.base64 API available');
-      }
-    } catch (readErr: any) {
-      throw new Error(
-        `Lecture audio impossible : ${String(readErr?.message || readErr)}`,
-      );
-    }
-    if (!base64) {
-      return {
-        ok: false,
-        reason: 'no-audio-recorded',
-        errorMessage: 'Fichier audio vide.',
-      };
-    }
-    // Heuristic silence/short-buffer detection. 10s of mono AAC@64kbps is
-    // ~80 KB raw (~107 KB base64). Significantly less means the mic was muted
-    // or the recording was truncated → skip the API call to save quota.
-    if (base64.length < 30_000) {
-      return {
-        ok: false,
-        reason: 'no-audio-recorded',
-        errorMessage:
-          "Le micro n'a presque rien capté. Rapproche ton téléphone de la source sonore et réessaie.",
-      };
-    }
-    // Oversized = codec fell back to uncompressed audio; sending it would
-    // waste bandwidth and get rejected. Clear actionable message instead.
-    if (base64.length > MAX_BASE64_LENGTH) {
-      return {
-        ok: false,
-        reason: 'error',
-        errorMessage:
-          "L'échantillon audio est trop volumineux. Réessaie — si le problème persiste, redémarre l'application.",
-      };
-    }
-
-    // 5. Send to backend → Audd.io
-    const resp: any = await api.recognizeAudio(club.club_id, base64);
-    if (returnResult) {
-      // Backend may surface an Audd API error (e.g. quota, auth) — show it.
-      if (resp?.ok === false) {
-        return {
-          ok: false,
-          recognised: false,
-          reason: 'audd-not-recognised',
-          errorMessage:
-            resp?.error_message ||
-            'Service de reconnaissance temporairement indisponible. Réessaie plus tard.',
-        };
-      }
-      return {
-        ok: true,
-        recognised: !!resp?.recognised,
-        title: resp?.song?.title || resp?.title,
-        artist: resp?.song?.artist || resp?.artist,
-        reason: resp?.recognised ? undefined : 'audd-not-recognised',
-        errorMessage: resp?.recognised
-          ? undefined
-          : 'Aucune musique reconnue. Essaie de rapprocher ton téléphone de la source sonore.',
-      };
-    }
-    return { ok: true };
+    const result = await recogniseSample(club, sample.base64);
+    return returnResult ? result : { ok: true };
   } catch (e: any) {
     const msg = String(e?.message || e || 'Erreur inconnue').slice(0, 200);
     if (typeof console !== 'undefined') {
@@ -217,21 +243,59 @@ async function recordAndRecognise(
   }
 }
 
-/** One-shot Shazam-like scan with auto-retry on no-match.
- *  Strategy: 1st pass = 10s sample. If not recognised, retry once with a 12s
- *  sample for better hit rate in noisy environments (clubs). */
+/** Shazam-like fast scan.
+ *  Pass 1 : 5s sample → sent immediately (most tracks match here → ~6s total).
+ *  While the API call is in flight, a longer 9s sample is ALREADY recording in
+ *  parallel — on a no-match we only wait for the tail of that recording
+ *  instead of starting a brand-new 12s capture (old flow: up to ~27s). */
 export async function scanOnce(club: Club): Promise<ScanResult> {
-  const first = await recordAndRecognise(club, true, SAMPLE_DURATION_MS);
-  // Only retry on a clean "no-match" — not on permission denials, silent mic,
-  // network errors, or Audd quota issues (those will fail the retry too and
-  // burn user time).
-  if (first.ok && first.recognised === false && first.reason === 'audd-not-recognised') {
-    const second = await recordAndRecognise(club, true, RETRY_SAMPLE_DURATION_MS);
-    return second.ok && second.recognised
+  if (Platform.OS === 'web') {
+    return {
+      ok: false,
+      reason: 'native-only',
+      errorMessage:
+        "L'écoute audio nécessite l'app native (iOS/Android). Indisponible sur le web.",
+    };
+  }
+  try {
+    // Pass 1 — fast 5s capture
+    const p1 = await recordSampleBase64(FAST_SAMPLE_MS);
+    if (p1.error) return p1.error;
+    if (!p1.base64) {
+      return { ok: false, reason: 'no-audio-recorded', errorMessage: 'Fichier audio vide.' };
+    }
+
+    // Start the longer retry recording NOW, in parallel with the API call.
+    const cancel: CancelToken = { cancelled: false };
+    const p2Promise = recordSampleBase64(RETRY_SAMPLE_MS, cancel).catch(
+      () => ({}) as Awaited<ReturnType<typeof recordSampleBase64>>,
+    );
+
+    const first = await recogniseSample(club, p1.base64);
+    if (first.recognised) {
+      cancel.cancelled = true; // free the mic immediately
+      return first;
+    }
+    // Hard failure (quota, réseau, service down) : retrying would fail too.
+    if (!first.ok) {
+      cancel.cancelled = true;
+      return first;
+    }
+
+    // Clean no-match → the longer sample is already almost done recording.
+    const p2 = await p2Promise;
+    if (p2.error || !p2.base64) return first;
+    const second = await recogniseSample(club, p2.base64);
+    return second.recognised
       ? second
       : { ...second, errorMessage: second.errorMessage || first.errorMessage };
+  } catch (e: any) {
+    const msg = String(e?.message || e || 'Erreur inconnue').slice(0, 200);
+    if (typeof console !== 'undefined') {
+      console.warn('[audioRecognition] scan error:', msg);
+    }
+    return { ok: false, reason: 'error', errorMessage: msg };
   }
-  return first;
 }
 
 export function startLiveListening(club: Club): void {
