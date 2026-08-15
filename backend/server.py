@@ -3055,6 +3055,7 @@ async def list_active_friends(user: dict = Depends(get_current_user)):
 class AudioRecognizeBody(BaseModel):
     club_id: str
     audio_base64: str  # raw audio bytes encoded as base64 (mp3/m4a/wav, <= 1MB)
+    fast: bool = False  # fast path: skip ffmpeg preprocessing (1st Shazam pass)
 
 
 def _preprocess_club_audio(raw: bytes) -> tuple[bytes, str]:
@@ -3125,18 +3126,25 @@ async def recognize_audio(
     if len(raw) > 5_000_000:
         raise HTTPException(status_code=413, detail="Audio sample too large (max 5MB)")
 
-    # Anti-saturation : répare l'écrêtage des enregistrements en club bruyant
-    cleaned, ext = await asyncio.to_thread(_preprocess_club_audio, raw)
+    # Anti-saturation : répare l'écrêtage des enregistrements en club bruyant.
+    # Fast path (1er essai Shazam) : on saute ffmpeg (~1s gagnée) — le
+    # pré-traitement complet n'est appliqué qu'au 2e essai si le 1er échoue.
+    if body.fast:
+        cleaned, ext = raw, "m4a"
+    else:
+        cleaned, ext = await asyncio.to_thread(_preprocess_club_audio, raw)
 
     try:
         files = {"file": (f"sample.{ext}", cleaned, f"audio/{ext}")}
         data = {
             "api_token": audd_token,
-            "return": "spotify,apple_music,deezer,musicbrainz",
+            # Fast pass: skip enrichment lookups for lower Audd latency
+            "return": "spotify" if body.fast else "spotify,apple_music,deezer,musicbrainz",
             "accurate_offsets": "true",  # Better match precision for noisy club samples
         }
         r = await http_client.post(
-            "https://api.audd.io/", data=data, files=files, timeout=25.0
+            "https://api.audd.io/", data=data, files=files,
+            timeout=10.0 if body.fast else 25.0,
         )
     except Exception as exc:
         logging.warning("Audd error: %s", exc)

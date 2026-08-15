@@ -18,11 +18,12 @@ import { api, Club } from './api';
 const DETECT_INTERVAL_MS = 90 * 1000; // 90s between detections
 const SESSION_DURATION_MS = 10 * 60 * 1000; // stop after 10 min
 const SAMPLE_DURATION_MS = 8000; // background live-listening sample
-// Shazam-like fast scan: 5s first pass — Audd identifies most tracks with 4-6s.
-const FAST_SAMPLE_MS = 5000;
+// Shazam-like fast scan: 3s first pass — the minimum for a reliable audio
+// fingerprint. Sent WITHOUT server preprocessing → total ≈ 4-5s on a match.
+const FAST_SAMPLE_MS = 3000;
 // The retry sample RECORDS IN PARALLEL while the 1st API call is in flight,
-// so a no-match retry costs only ~4 extra seconds instead of 12.
-const RETRY_SAMPLE_MS = 9000;
+// so a no-match retry costs only a few extra seconds.
+const RETRY_SAMPLE_MS = 7000;
 
 /**
  * Optimized recording options for music recognition.
@@ -61,6 +62,22 @@ function buildRecognitionRecordingOptions(ExpoAudio: any) {
 const MAX_BASE64_LENGTH = 2_800_000; // ≈ 2.1 MB raw
 
 const sessions = new Map<string, ReturnType<typeof setInterval>>();
+
+/** Pre-warm the mic pipeline (permission check + audio mode) so the actual
+ *  scan starts recording instantly when the user taps the button (~0.5s
+ *  saved). Call it when the scan screen mounts. Never throws. */
+export async function prewarmRecognition(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const ExpoAudio = require('expo-audio');
+    const perm = await ExpoAudio.getRecordingPermissionsAsync();
+    if (!perm?.granted) return; // don't prompt from a prewarm — only on tap
+    await ExpoAudio.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+  } catch {
+    // best effort only
+  }
+}
 
 export type ScanResult = {
   ok: boolean;
@@ -188,9 +205,10 @@ async function recordSampleBase64(
   return { base64 };
 }
 
-/** Send a sample to the backend → Audd.io and map the response. */
-async function recogniseSample(club: Club, base64: string): Promise<ScanResult> {
-  const resp: any = await api.recognizeAudio(club.club_id, base64);
+/** Send a sample to the backend → Audd.io and map the response.
+ *  fast=true skips server-side ffmpeg preprocessing (~1s faster). */
+async function recogniseSample(club: Club, base64: string, fast = false): Promise<ScanResult> {
+  const resp: any = await api.recognizeAudio(club.club_id, base64, fast);
   if (resp?.ok === false) {
     return {
       ok: false,
@@ -244,10 +262,10 @@ async function recordAndRecognise(
 }
 
 /** Shazam-like fast scan.
- *  Pass 1 : 5s sample → sent immediately (most tracks match here → ~6s total).
- *  While the API call is in flight, a longer 9s sample is ALREADY recording in
- *  parallel — on a no-match we only wait for the tail of that recording
- *  instead of starting a brand-new 12s capture (old flow: up to ~27s). */
+ *  Pass 1 : 3s sample → sent immediately without server preprocessing
+ *  (most tracks match here → ~4-5s total).
+ *  While the API call is in flight, a longer 7s sample is ALREADY recording in
+ *  parallel — on a no-match we only wait for the tail of that recording. */
 export async function scanOnce(club: Club): Promise<ScanResult> {
   if (Platform.OS === 'web') {
     return {
@@ -271,7 +289,7 @@ export async function scanOnce(club: Club): Promise<ScanResult> {
       () => ({}) as Awaited<ReturnType<typeof recordSampleBase64>>,
     );
 
-    const first = await recogniseSample(club, p1.base64);
+    const first = await recogniseSample(club, p1.base64, true);
     if (first.recognised) {
       cancel.cancelled = true; // free the mic immediately
       return first;

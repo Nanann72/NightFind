@@ -798,13 +798,13 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  // Audd.io audio recognition
-  recognizeAudio: (club_id: string, audio_base64: string) =>
+  // Audd.io audio recognition — fast=true skips server-side preprocessing
+  recognizeAudio: (club_id: string, audio_base64: string, fast = false) =>
     request<{ ok: boolean; recognised: boolean; song_id?: string; title?: string; artist?: string }>(
       '/recognize/audio',
       {
         method: 'POST',
-        body: JSON.stringify({ club_id, audio_base64 }),
+        body: JSON.stringify({ club_id, audio_base64, fast }),
       },
     ),
 

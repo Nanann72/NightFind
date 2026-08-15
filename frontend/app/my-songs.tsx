@@ -27,7 +27,7 @@ import Animated, {
 import { api } from '../lib/api';
 import { useLocation } from '../lib/useLocation';
 import { useClubs } from '../lib/clubs';
-import { scanOnce } from '../lib/audioRecognition';
+import { scanOnce, prewarmRecognition } from '../lib/audioRecognition';
 import { radius, spacing, type ThemeColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
 
@@ -75,6 +75,11 @@ export default function MySongs() {
   const pulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulse.value }],
   }));
+
+  // Pré-chauffe le pipeline micro → le scan démarre instantanément au tap.
+  useEffect(() => {
+    prewarmRecognition();
+  }, []);
 
   useEffect(() => {
     if (scanning) {
