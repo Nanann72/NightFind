@@ -811,6 +811,24 @@ export const api = {
   // Notifications
   listNotifications: () => request<any[]>('/notifications'),
 
+  // Encaissement verres -10% (Stripe Connect) ----------------------
+  ownerPaymentsOnboarding: () =>
+    request<{ url: string; account_id: string }>('/owner/payments/onboarding', { method: 'POST' }),
+  ownerPaymentsStatus: () =>
+    request<{ configured: boolean; onboarded: boolean; charges_enabled: boolean; payouts_enabled?: boolean }>(
+      '/owner/payments/status',
+    ),
+  ownerChargeDrink: (code: string, amount_cents: number) =>
+    request<{ ok: boolean; order_id: string; checkout_url: string; amount_original: number; amount_discounted: number; platform_fee: number }>(
+      '/owner/drinks/charge',
+      { method: 'POST', body: JSON.stringify({ code, amount_cents }) },
+    ),
+  ownerDrinkOrder: (order_id: string) =>
+    request<{ order_id: string; status: string; amount_discounted: number }>(`/owner/drinks/orders/${order_id}`),
+  ownerDrinksSummary: () =>
+    request<{ drinks_paid: number; revenue_cents: number; orders: any[] }>('/owner/drinks/summary'),
+
+
   // Club Moments (live-photo) ---------------------------------------
   uploadMoment: (clubId: string, image: string, caption?: string, selfie?: string) =>
     request<any>(`/clubs/${clubId}/moments`, {

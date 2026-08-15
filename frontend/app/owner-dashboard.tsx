@@ -275,6 +275,25 @@ export default function OwnerDashboard() {
               <StatCard icon="musical-notes-outline" value={stats?.songs ?? 0} label="Musiques" />
             </View>
 
+            {/* Encaissement verres -10% (Stripe) */}
+            <Text style={styles.sectionTitle}>Encaissements 💶</Text>
+            <TouchableOpacity
+              style={styles.chargeBtn}
+              onPress={() => router.push('/owner-charge' as any)}
+              testID="owner-charge-btn"
+            >
+              <View style={styles.chargeIcon}>
+                <Ionicons name="cash-outline" size={20} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.chargeTitle}>Encaisser un verre -10%</Text>
+                <Text style={styles.chargeSub}>
+                  Scanne le coupon du client, il paie par carte — l&apos;argent arrive sur ton compte
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+            </TouchableOpacity>
+
             {/* Code -10% invités */}
             {partner && (
               <>
@@ -589,6 +608,18 @@ const makeStyles = (colors: ThemeColors) =>
       marginTop: spacing.xl, marginBottom: spacing.sm,
     },
     statsRow: { flexDirection: 'row', gap: spacing.sm },
+    chargeBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      backgroundColor: colors.surface, borderRadius: radius.lg,
+      padding: spacing.md, borderWidth: 1, borderColor: colors.border,
+      minHeight: 48,
+    },
+    chargeIcon: {
+      width: 42, height: 42, borderRadius: 21, backgroundColor: colors.primary,
+      alignItems: 'center', justifyContent: 'center',
+    },
+    chargeTitle: { color: colors.textPrimary, fontSize: 14.5, fontWeight: '800' },
+    chargeSub: { color: colors.textSecondary, fontSize: 12, marginTop: 2, lineHeight: 16 },
     statCard: {
       flex: 1, backgroundColor: colors.surface, borderRadius: radius.lg,
       padding: spacing.sm, alignItems: 'center', gap: 3,

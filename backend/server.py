@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import math
 import asyncio
+import json
 import os
 import secrets
 import hashlib
@@ -5322,6 +5323,325 @@ async def owner_redeem_coupon(body: OwnerRedeemBody, user: dict = Depends(get_cu
         {"$set": {"status": "used", "used_at": now, "redeemed_by": user["user_id"]}},
     )
     return {"ok": True, "coupon_id": coupon["coupon_id"], "discount_pct": coupon.get("discount_pct", 10)}
+
+
+# ============================================================
+# ENCAISSEMENT VERRES -10% — STRIPE CONNECT (marketplace)
+# Le patron scanne le QR du coupon client → saisit le montant →
+# le client paie (CB/Apple Pay via Stripe Checkout) → l'argent va
+# sur le compte Stripe du bar, Night Finder garde une commission.
+# ============================================================
+import stripe as _stripe
+
+STRIPE_SECRET_KEY = (
+    os.environ.get("STRIPE_SECRET_KEY", "").strip().strip('"')
+    or os.environ.get("STRIPE_API_KEY", "").strip().strip('"')
+)
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "").strip().strip('"')
+# Commission plateforme (Night Finder) sur chaque verre encaissé — 10% par défaut
+PLATFORM_FEE_RATE = float(os.environ.get("PLATFORM_FEE_RATE", "0.10"))
+_stripe.api_key = STRIPE_SECRET_KEY
+
+
+def _stripe_connect_ready() -> bool:
+    """Vraie clé Stripe requise — la clé de test Emergent ne supporte pas Connect."""
+    return STRIPE_SECRET_KEY.startswith("sk_") and STRIPE_SECRET_KEY != "sk_test_emergent"
+
+
+def _require_stripe():
+    if not _stripe_connect_ready():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Paiements non configurés. Ajoute ta clé Stripe (STRIPE_SECRET_KEY) "
+                "avec Connect activé — dashboard.stripe.com → Développeurs → Clés API."
+            ),
+        )
+
+
+def _public_base(request: Request) -> str:
+    proto = request.headers.get("x-forwarded-proto", "https")
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host", "")
+    return f"{proto}://{host}"
+
+
+@api_router.post("/owner/payments/onboarding")
+async def owner_payments_onboarding(request: Request, user: dict = Depends(get_current_user)):
+    """Crée (ou récupère) le compte Stripe Express du bar + lien d'onboarding KYC/IBAN."""
+    _require_stripe()
+    club = await _get_owned_club(user)
+    account_id = club.get("stripe_account_id")
+    try:
+        if not account_id:
+            account = await asyncio.to_thread(
+                _stripe.Account.create,
+                type="express",
+                country="FR",
+                email=user.get("email"),
+                capabilities={
+                    "card_payments": {"requested": True},
+                    "transfers": {"requested": True},
+                },
+                business_profile={"product_description": f"Bar/club — {club.get('name', '')}"},
+            )
+            account_id = account.id
+            await _update_owned_club(club["club_id"], {"$set": {"stripe_account_id": account_id}})
+        base = _public_base(request)
+        link = await asyncio.to_thread(
+            _stripe.AccountLink.create,
+            account=account_id,
+            type="account_onboarding",
+            refresh_url=f"{base}/api/payments/onboarding-refresh",
+            return_url=f"{base}/api/payments/onboarding-done",
+        )
+    except _stripe.error.StripeError as exc:  # type: ignore[attr-defined]
+        logging.warning("Stripe onboarding error: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Erreur Stripe : {getattr(exc, 'user_message', None) or str(exc)}")
+    return {"url": link.url, "account_id": account_id}
+
+
+@api_router.get("/owner/payments/status")
+async def owner_payments_status(user: dict = Depends(get_current_user)):
+    club = await _get_owned_club(user)
+    account_id = club.get("stripe_account_id")
+    if not _stripe_connect_ready():
+        return {"configured": False, "onboarded": False, "charges_enabled": False}
+    if not account_id:
+        return {"configured": True, "onboarded": False, "charges_enabled": False}
+    try:
+        account = await asyncio.to_thread(_stripe.Account.retrieve, account_id)
+    except _stripe.error.StripeError:  # type: ignore[attr-defined]
+        return {"configured": True, "onboarded": False, "charges_enabled": False}
+    return {
+        "configured": True,
+        "onboarded": bool(account.get("details_submitted")),
+        "charges_enabled": bool(account.get("charges_enabled")),
+        "payouts_enabled": bool(account.get("payouts_enabled")),
+        "currently_due": (account.get("requirements") or {}).get("currently_due", []),
+    }
+
+
+class ChargeDrinkBody(BaseModel):
+    code: str  # code du coupon -10% du client (scanné ou saisi)
+    amount_cents: int  # prix NORMAL du verre en centimes (avant remise)
+
+
+@api_router.post("/owner/drinks/charge")
+async def owner_charge_drink(body: ChargeDrinkBody, request: Request, user: dict = Depends(get_current_user)):
+    """Crée un paiement Stripe Checkout pour UN verre avec -10%.
+    Retourne l'URL de paiement que le client scanne (QR) sur le téléphone du patron."""
+    _require_stripe()
+    club = await _get_owned_club(user)
+    account_id = club.get("stripe_account_id")
+    if not account_id:
+        raise HTTPException(status_code=409, detail="Crée d'abord ton compte de paiement Stripe.")
+
+    # Montant : 1€ à 500€, défini côté patron mais borné serveur
+    if not (100 <= body.amount_cents <= 50_000):
+        raise HTTPException(status_code=400, detail="Montant invalide (entre 1€ et 500€).")
+
+    # Coupon : doit appartenir à CE bar, être disponible et non expiré
+    coupon = await db.partner_coupons.find_one({"code": body.code.strip().upper()})
+    if not coupon or coupon.get("club_id") != club["club_id"]:
+        raise HTTPException(status_code=404, detail="Coupon introuvable pour ton établissement.")
+    if coupon["status"] == "used":
+        raise HTTPException(status_code=409, detail="Coupon déjà utilisé.")
+    now = datetime.now(timezone.utc)
+    exp = coupon.get("expires_at")
+    if exp and (exp.replace(tzinfo=timezone.utc) if exp.tzinfo is None else exp) < now:
+        raise HTTPException(status_code=410, detail="Coupon expiré.")
+
+    account = await asyncio.to_thread(_stripe.Account.retrieve, account_id)
+    if not account.get("charges_enabled"):
+        raise HTTPException(status_code=409, detail="Ton compte Stripe n'est pas encore validé (KYC en cours).")
+
+    discount_pct = int(coupon.get("discount_pct", 10))
+    discounted = round(body.amount_cents * (100 - discount_pct) / 100)
+    fee = round(discounted * PLATFORM_FEE_RATE)
+
+    order_id = f"drk_{uuid.uuid4().hex[:12]}"
+    base = _public_base(request)
+    try:
+        session = await asyncio.to_thread(
+            _stripe.checkout.Session.create,
+            mode="payment",
+            line_items=[{
+                "price_data": {
+                    "currency": "eur",
+                    "product_data": {
+                        "name": f"🍸 Verre — {club.get('name', 'Bar')} (-{discount_pct}%)",
+                    },
+                    "unit_amount": discounted,
+                },
+                "quantity": 1,
+            }],
+            payment_intent_data={
+                "application_fee_amount": fee,
+                "transfer_data": {"destination": account_id},
+            },
+            metadata={"order_id": order_id, "club_id": club["club_id"], "coupon_id": coupon["coupon_id"]},
+            success_url=f"{base}/api/payments/success?order_id={order_id}",
+            cancel_url=f"{base}/api/payments/cancelled",
+        )
+    except _stripe.error.StripeError as exc:  # type: ignore[attr-defined]
+        logging.warning("Stripe checkout error: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Erreur Stripe : {getattr(exc, 'user_message', None) or str(exc)}")
+
+    await db.drink_orders.insert_one({
+        "order_id": order_id,
+        "club_id": club["club_id"],
+        "owner_id": user["user_id"],
+        "coupon_id": coupon["coupon_id"],
+        "coupon_code": coupon["code"],
+        "customer_user_id": coupon.get("user_id"),
+        "amount_original": body.amount_cents,
+        "amount_discounted": discounted,
+        "platform_fee": fee,
+        "discount_pct": discount_pct,
+        "currency": "eur",
+        "status": "pending",
+        "checkout_session_id": session.id,
+        "created_at": now,
+    })
+    return {
+        "ok": True,
+        "order_id": order_id,
+        "checkout_url": session.url,
+        "amount_original": body.amount_cents,
+        "amount_discounted": discounted,
+        "platform_fee": fee,
+    }
+
+
+async def _finalize_drink_order(order: dict) -> None:
+    """Marque la commande payée + consomme le coupon (1 seul verre) + stats."""
+    now = datetime.now(timezone.utc)
+    res = await db.drink_orders.update_one(
+        {"order_id": order["order_id"], "status": "pending"},
+        {"$set": {"status": "paid", "paid_at": now}},
+    )
+    if res.modified_count == 0:
+        return  # déjà finalisée (webhook + polling peuvent arriver en double)
+    await db.partner_coupons.update_one(
+        {"coupon_id": order["coupon_id"]},
+        {"$set": {"status": "used", "used_at": now, "redeemed_by": order["owner_id"], "order_id": order["order_id"]}},
+    )
+    await db.club_stats.update_one(
+        {"club_id": order["club_id"]},
+        {"$inc": {"drinks_paid": 1, "drinks_revenue_cents": order["amount_discounted"] - order["platform_fee"]}},
+        upsert=True,
+    )
+
+
+@api_router.get("/owner/drinks/orders/{order_id}")
+async def owner_drink_order(order_id: str, user: dict = Depends(get_current_user)):
+    """Statut d'un encaissement (le patron sonde cet endpoint pendant que le
+    client paie). Vérification autoritaire tirée de Stripe si encore pending."""
+    club = await _get_owned_club(user)
+    order = await db.drink_orders.find_one({"order_id": order_id, "club_id": club["club_id"]}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Commande introuvable")
+    if order["status"] == "pending" and _stripe_connect_ready():
+        try:
+            session = await asyncio.to_thread(
+                _stripe.checkout.Session.retrieve, order["checkout_session_id"]
+            )
+            if session.get("payment_status") == "paid":
+                await _finalize_drink_order(order)
+                order["status"] = "paid"
+            elif session.get("status") == "expired":
+                await db.drink_orders.update_one(
+                    {"order_id": order_id, "status": "pending"}, {"$set": {"status": "expired"}}
+                )
+                order["status"] = "expired"
+        except _stripe.error.StripeError:  # type: ignore[attr-defined]
+            pass
+    return order
+
+
+@api_router.get("/owner/drinks/summary")
+async def owner_drinks_summary(user: dict = Depends(get_current_user)):
+    club = await _get_owned_club(user)
+    stats = await db.club_stats.find_one({"club_id": club["club_id"]}, {"_id": 0}) or {}
+    recent = await db.drink_orders.find(
+        {"club_id": club["club_id"]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(20)
+    return {
+        "drinks_paid": stats.get("drinks_paid", 0),
+        "revenue_cents": stats.get("drinks_revenue_cents", 0),
+        "orders": recent,
+    }
+
+
+@api_router.post("/stripe/webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    signature = request.headers.get("stripe-signature", "")
+    if STRIPE_WEBHOOK_SECRET:
+        try:
+            event = _stripe.Webhook.construct_event(payload, signature, STRIPE_WEBHOOK_SECRET)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid webhook signature")
+        data = event["data"]["object"]
+        etype = event["type"]
+    else:
+        # Pas de secret webhook configuré : on n'applique JAMAIS le payload
+        # directement — on re-vérifie auprès de Stripe (source autoritaire).
+        try:
+            body = json.loads(payload)
+            etype = body.get("type", "")
+            data = (body.get("data") or {}).get("object") or {}
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid payload")
+    if etype == "checkout.session.completed":
+        order_id = (data.get("metadata") or {}).get("order_id")
+        if order_id:
+            order = await db.drink_orders.find_one({"order_id": order_id}, {"_id": 0})
+            if order and order["status"] == "pending":
+                if STRIPE_WEBHOOK_SECRET:
+                    if data.get("payment_status") == "paid":
+                        await _finalize_drink_order(order)
+                elif _stripe_connect_ready():
+                    session = await asyncio.to_thread(
+                        _stripe.checkout.Session.retrieve, order["checkout_session_id"]
+                    )
+                    if session.get("payment_status") == "paid":
+                        await _finalize_drink_order(order)
+    return {"received": True}
+
+
+_PAYMENT_PAGE_CSS = """
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#09090B;color:#F4F4F5;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:24px}
+.card{max-width:380px}.emoji{font-size:64px}.h{font-size:24px;font-weight:800;margin:16px 0 8px}.p{color:#A1A1AA;font-size:15px;line-height:22px}
+"""
+
+
+@app.get("/api/payments/success", response_class=HTMLResponse)
+async def payment_success_page(order_id: str = ""):
+    return f"""<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Paiement confirmé</title><style>{_PAYMENT_PAGE_CSS}</style></head>
+<body><div class="card"><div class="emoji">🎉</div><div class="h">Paiement confirmé !</div>
+<p class="p">Ton verre à -10% est payé. Montre cet écran au bar si besoin.<br><br>Santé ! 🍸</p></div></body></html>"""
+
+
+@app.get("/api/payments/cancelled", response_class=HTMLResponse)
+async def payment_cancelled_page():
+    return f"""<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Paiement annulé</title><style>{_PAYMENT_PAGE_CSS}</style></head>
+<body><div class="card"><div class="emoji">😕</div><div class="h">Paiement annulé</div>
+<p class="p">Aucun montant n'a été débité. Tu peux redemander un QR de paiement au bar.</p></div></body></html>"""
+
+
+@app.get("/api/payments/onboarding-done", response_class=HTMLResponse)
+async def onboarding_done_page():
+    return f"""<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Compte créé</title><style>{_PAYMENT_PAGE_CSS}</style></head>
+<body><div class="card"><div class="emoji">✅</div><div class="h">Compte de paiement configuré</div>
+<p class="p">Retourne dans l'app Night Finder → Mon établissement → Encaissements pour vérifier ton statut et commencer à encaisser.</p></div></body></html>"""
+
+
+@app.get("/api/payments/onboarding-refresh", response_class=HTMLResponse)
+async def onboarding_refresh_page():
+    return f"""<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lien expiré</title><style>{_PAYMENT_PAGE_CSS}</style></head>
+<body><div class="card"><div class="emoji">🔄</div><div class="h">Lien expiré</div>
+<p class="p">Retourne dans l'app Night Finder et relance la configuration du compte de paiement.</p></div></body></html>"""
 
 
 

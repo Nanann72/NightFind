@@ -6,6 +6,7 @@ import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity } fr
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import QRCode from 'react-native-qrcode-svg';
 import { api } from '../lib/api';
 import { SafeImage } from '../components/SafeImage';
 import { radius, spacing, type ThemeColors } from '../lib/theme';
@@ -106,7 +107,14 @@ export default function Advantages() {
                 ) : null}
               </View>
               {item.status === 'available' ? (
-                <Text style={styles.hint}>Montre ce code au bar pour profiter de ta réduction 🍸</Text>
+                <>
+                  <View style={styles.qrWrap} testID={`coupon-qr-${item.coupon_id}`}>
+                    <QRCode value={item.code} size={130} backgroundColor="#FFFFFF" color="#000000" />
+                  </View>
+                  <Text style={styles.hint}>
+                    Fais scanner ce QR au bar (ou montre le code) pour payer ton verre à -10% 🍸
+                  </Text>
+                </>
               ) : null}
             </View>
           );
@@ -156,6 +164,13 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   statusText: { fontSize: 12, fontWeight: '700' },
   expiry: { color: colors.textTertiary, fontSize: 12 },
   hint: { color: colors.textSecondary, fontSize: 12, marginTop: 12, textAlign: 'center' },
+  qrWrap: {
+    alignSelf: 'center',
+    backgroundColor: '#fff',
+    padding: 10,
+    borderRadius: 14,
+    marginTop: 14,
+  },
   emptyWrap: { alignItems: 'center', marginTop: 80, paddingHorizontal: 30, gap: 12 },
   emptyIcon: {
     width: 72, height: 72, borderRadius: 36, backgroundColor: colors.surfaceElevated,
