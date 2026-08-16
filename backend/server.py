@@ -2109,6 +2109,11 @@ class CommentBody(BaseModel):
 async def _enrich_moment(m: dict, viewer_id: str) -> dict:
     """Attach counts + viewer-specific state (liked_by_me) to a moment doc."""
     mid = m.get("moment_id")
+    # Legacy fix: selfies uploaded as RAW base64 (no data: prefix) render as a
+    # black square on the client — normalize to a data URI here.
+    selfie = m.get("selfie")
+    if selfie and not selfie.startswith(("data:", "http")):
+        m["selfie"] = f"data:image/jpeg;base64,{selfie}"
     likes = await db.moment_likes.count_documents({"moment_id": mid})
     comments = await db.moment_comments.count_documents({"moment_id": mid})
     liked_by_me = await db.moment_likes.find_one(
@@ -2154,10 +2159,11 @@ async def moments_feed(
     club_ids = list({m.get("club_id") for m in moments if m.get("club_id")})
     name_map: dict = {}
     if club_ids:
-        async for c in db.clubs.find(
-            {"club_id": {"$in": club_ids}}, {"_id": 0, "club_id": 1, "name": 1}
-        ):
-            name_map[c["club_id"]] = c.get("name")
+        for coll in (db.clubs, db.places):
+            async for c in coll.find(
+                {"club_id": {"$in": club_ids}}, {"_id": 0, "club_id": 1, "name": 1}
+            ):
+                name_map.setdefault(c["club_id"], c.get("name"))
 
     for m in moments:
         m["club_name"] = name_map.get(m.get("club_id"))

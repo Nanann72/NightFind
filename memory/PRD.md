@@ -304,3 +304,14 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - Frontend : /owner-charge (étapes onboarding→scan(expo-camera QR)→montant→QR paiement(qrcode-svg)+polling 2.5s→succès), bouton "Encaisser un verre -10%" dans owner-dashboard, QR du code coupon ajouté dans advantages.tsx.
 - ⚠️ CLÉ REQUISE : STRIPE_SECRET_KEY (vraie clé, Connect activé) — la clé emergent sk_test_emergent est EXCLUE par _stripe_connect_ready(). Sans clé → 503 explicite + warning UI. STRIPE_WEBHOOK_SECRET optionnel (recommandé prod). Testé : endpoints 503 corrects, écrans OK (screenshots), QR coupon rendu.
 - Test owner : lucas.demo@nightfinder.app (owned_club gp_ChIJQUPlmeRx5kcRgdLD_VS7-h4), coupon reviewer NF-REVIEW1.
+
+## ✅ FIX SELFIE NOIR + BEREAL DRAG/SWAP + LIEU CHECK-IN (juin 2026)
+- BUG selfie noir : moment-capture envoyait le selfie en base64 BRUT sans préfixe data:image → Image ne décodait pas. Fix double : (1) capture → selfie redimensionné 480w en data-URI, (2) backend _enrich_moment normalise les anciens selfies bruts (fixe les posts prod existants après redéploiement, sans toucher aux données).
+- Composite "brûlé" supprimé (compositeImages retiré de moment-capture) : la photo principale reste propre, le selfie est un overlay UI.
+- feed.tsx : composant BeRealPhoto — vignette selfie DÉPLAÇABLE (Gesture.Pan clampé) + TAP pour ÉCHANGER photo principale/vignette (Gesture.Exclusive pan/tap, haptics). testID selfie-thumb-{moment_id}.
+- Lieu check-in : moments_feed cherchait club_name uniquement dans db.clubs → ajout lookup db.places (clubs gp_) → "📍 {club}" s'affiche sous le nom (style Instagram). Testé E2E via screenshots (moment test mmt_test_bereal, club Péniche Marcounet, swap vérifié).
+
+## STRIPE CONNECT — CLÉ LIVE CONFIGURÉE (août 2026)
+- L'utilisateur a fourni sa clé sk_live_ (dans backend/.env STRIPE_SECRET_KEY). Vérifié en lecture seule : compte FR acct_1SielP2MZcLi95JS, charges_enabled=True, Connect ACTIVÉ (1 compte connecté existant). /api/owner/payments/status → configured:true.
+- ⚠️ Clé LIVE = vrai argent : PAS de tests automatisés de paiement (pas de carte 4242 en live). E2E complet possible uniquement avec une clé sk_test_ (proposée à l'utilisateur) ou avec un vrai paiement sur téléphone.
+- Prod : l'utilisateur doit ajouter STRIPE_SECRET_KEY dans Deployment Panel → Secrets puis redéployer.

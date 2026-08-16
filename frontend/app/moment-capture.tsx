@@ -189,21 +189,22 @@ export default function MomentCapture() {
 
       setStep('compositing');
       if (front?.base64) {
-        setFrontPhoto(front.base64);
         buzz('medium');
-        const composite = await compositeImages(back, front);
-        if (composite) {
-          setCompositeUri(composite.uri);
-          setCompositeB64(composite.base64);
-        } else {
-          setCompositeUri(back.uri);
-          setCompositeB64(`data:image/jpeg;base64,${back.base64}`);
+        // Selfie séparé (overlay déplaçable/échangeable côté feed) — on ne
+        // "brûle" plus le selfie dans la photo principale.
+        try {
+          const small = await ImageManipulator.manipulateAsync(
+            front.uri,
+            [{ resize: { width: 480 } }],
+            { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+          );
+          setFrontPhoto(`data:image/jpeg;base64,${small.base64}`);
+        } catch {
+          setFrontPhoto(`data:image/jpeg;base64,${front.base64}`);
         }
-      } else {
-        // Selfie impossible → on publie quand même la photo arrière
-        setCompositeUri(back.uri);
-        setCompositeB64(`data:image/jpeg;base64,${back.base64}`);
       }
+      setCompositeUri(back.uri);
+      setCompositeB64(`data:image/jpeg;base64,${back.base64}`);
       setStep('preview');
       buzz('success');
     } catch (e: any) {
@@ -297,96 +298,26 @@ export default function MomentCapture() {
       }
       setFrontPhoto(front.base64);
 
-      // ---- Step 3: Composite (back + selfie thumbnail overlay) ----
+      // ---- Step 3: selfie en data-URI léger (pas de composite brûlé) ----
       setStep('compositing');
-      const composite = await compositeImages(back, front);
-      if (composite) {
-        setCompositeUri(composite.uri);
-        setCompositeB64(composite.base64);
-      } else {
-        // Fallback: post back only
-        setCompositeUri(back.uri);
-        setCompositeB64(`data:image/jpeg;base64,${back.base64}`);
+      try {
+        const small = await ImageManipulator.manipulateAsync(
+          front.uri,
+          [{ resize: { width: 480 } }],
+          { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+        );
+        setFrontPhoto(`data:image/jpeg;base64,${small.base64}`);
+      } catch {
+        setFrontPhoto(`data:image/jpeg;base64,${front.base64}`);
       }
+      setCompositeUri(back.uri);
+      setCompositeB64(`data:image/jpeg;base64,${back.base64}`);
       setStep('preview');
       buzz('success');
     } catch (e: any) {
       setError(e?.message || "Échec de la capture");
       setStep('idle');
       buzz('error');
-    }
-  };
-
-  /**
-   * Overlays the selfie as a small thumbnail in the top-left corner
-   * of the main photo (BeReal-style). Returns local URI + base64 dataURI.
-   * Uses expo-image-manipulator's overlay operation (SDK 54+).
-   */
-  const compositeImages = async (
-    main: { uri: string; base64: string; width: number; height: number },
-    selfie: { uri: string; base64: string; width: number; height: number },
-  ): Promise<{ uri: string; base64: string } | null> => {
-    try {
-      // Target composite width for reasonable payload size
-      const TARGET_W = 1080;
-      const targetH = Math.round((main.height / main.width) * TARGET_W);
-
-      // Resize main to target width
-      const resizedMain = await ImageManipulator.manipulateAsync(
-        main.uri,
-        [{ resize: { width: TARGET_W } }],
-        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG, base64: false },
-      );
-
-      // Selfie thumbnail: ~28% of main width, rounded
-      const thumbW = Math.round(TARGET_W * 0.28);
-      const thumbH = Math.round(thumbW * (selfie.height / selfie.width));
-      const resizedSelfie = await ImageManipulator.manipulateAsync(
-        selfie.uri,
-        [{ resize: { width: thumbW, height: thumbH } }],
-        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG, base64: false },
-      );
-
-      // If overlay is supported (SDK 54+), use it. Otherwise return base64 of
-      // both concatenated so backend can display them separately.
-      // @ts-ignore — some versions expose `composite` / overlay via the new API.
-      const maybeComposite = (ImageManipulator as any).composite || (ImageManipulator as any).overlayAsync;
-      if (typeof maybeComposite === 'function') {
-        const overlayed = await maybeComposite({
-          base: resizedMain.uri,
-          overlays: [
-            {
-              uri: resizedSelfie.uri,
-              x: Math.round(TARGET_W * 0.04),
-              y: Math.round(targetH * 0.04),
-              width: thumbW,
-              height: thumbH,
-              borderRadius: Math.round(thumbW * 0.14),
-            },
-          ],
-          compress: 0.8,
-          format: 'jpeg',
-          base64: true,
-        });
-        if (overlayed?.base64) {
-          return { uri: overlayed.uri, base64: `data:image/jpeg;base64,${overlayed.base64}` };
-        }
-      }
-
-      // Fallback: return only the resized main image. The selfie is still
-      // sent alongside via the `selfie` field on upload so the backend can
-      // stitch server-side if needed.
-      const withBase64 = await ImageManipulator.manipulateAsync(
-        resizedMain.uri,
-        [],
-        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG, base64: true },
-      );
-      return {
-        uri: withBase64.uri,
-        base64: `data:image/jpeg;base64,${withBase64.base64}`,
-      };
-    } catch {
-      return null;
     }
   };
 

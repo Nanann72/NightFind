@@ -17,11 +17,104 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  runOnJS,
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { api, FeedMoment, StoryHighlight, MomentComment } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { radius, spacing, type ThemeColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
+
+/** Photo BeReal : selfie en vignette DÉPLAÇABLE (drag) + TAP pour échanger
+ *  la vignette et la photo principale — comme BeReal. */
+function BeRealPhoto({ image, selfie, momentId }: { image: string; selfie?: string | null; momentId: string }) {
+  const [swapped, setSwapped] = useState(false);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  const tx = useSharedValue(0);
+  const ty = useSharedValue(0);
+  const startX = useSharedValue(0);
+  const startY = useSharedValue(0);
+
+  const thumbW = size.w * 0.28;
+  const thumbH = thumbW * (4 / 3);
+  const maxX = Math.max(0, size.w - thumbW - 24);
+  const maxY = Math.max(0, size.h - thumbH - 24);
+
+  const toggleSwap = useCallback(() => {
+    setSwapped((s) => !s);
+    if (Platform.OS !== 'web') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    }
+  }, []);
+
+  const pan = Gesture.Pan()
+    .minDistance(6)
+    .onStart(() => {
+      startX.value = tx.value;
+      startY.value = ty.value;
+    })
+    .onUpdate((e) => {
+      tx.value = Math.min(Math.max(startX.value + e.translationX, 0), maxX);
+      ty.value = Math.min(Math.max(startY.value + e.translationY, 0), maxY);
+    });
+  const tap = Gesture.Tap().onEnd(() => {
+    runOnJS(toggleSwap)();
+  });
+  const gesture = Gesture.Exclusive(pan, tap);
+
+  const thumbAnim = useAnimatedStyle(() => ({
+    transform: [{ translateX: tx.value }, { translateY: ty.value }],
+  }));
+
+  const mainUri = swapped && selfie ? selfie : image;
+  const thumbUri = swapped ? image : selfie;
+
+  return (
+    <View
+      style={brStyles.wrap}
+      onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+    >
+      <Image source={{ uri: mainUri }} style={brStyles.photo} resizeMode="cover" />
+      {thumbUri ? (
+        <GestureDetector gesture={gesture}>
+          <Animated.View
+            style={[brStyles.thumb, { width: thumbW, height: thumbH }, thumbAnim]}
+            testID={`selfie-thumb-${momentId}`}
+          >
+            <Image source={{ uri: thumbUri }} style={brStyles.thumbImg} resizeMode="cover" />
+          </Animated.View>
+        </GestureDetector>
+      ) : null}
+    </View>
+  );
+}
+
+const brStyles = StyleSheet.create({
+  wrap: { position: 'relative', width: '100%', aspectRatio: 1, backgroundColor: '#101014' },
+  photo: { width: '100%', height: '100%' },
+  thumb: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#fff',
+    overflow: 'hidden',
+    backgroundColor: '#101014',
+    // Ombre douce pour détacher la vignette (iOS)
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 5,
+  },
+  thumbImg: { width: '100%', height: '100%' },
+});
 
 const timeAgo = (iso: string): string => {
   const d = new Date(iso);
@@ -128,13 +221,8 @@ export default function MomentFeed() {
         <Text style={styles.headerTime}>{timeAgo(m.created_at)}</Text>
       </View>
 
-      {/* Photo (+ selfie overlay) */}
-      <View style={styles.photoWrap}>
-        <Image source={{ uri: m.image }} style={styles.photo} resizeMode="cover" />
-        {m.selfie && (
-          <Image source={{ uri: m.selfie }} style={styles.selfieOverlay} resizeMode="cover" />
-        )}
-      </View>
+      {/* Photo BeReal : selfie déplaçable + tap pour échanger */}
+      <BeRealPhoto image={m.image} selfie={m.selfie} momentId={m.moment_id} />
 
       {/* Actions */}
       <View style={styles.actionsRow}>
@@ -377,14 +465,6 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   headerName: { color: colors.textPrimary, fontWeight: '800', fontSize: 13 },
   headerClub: { color: colors.textSecondary, fontSize: 11 },
   headerTime: { color: colors.textSecondary, fontSize: 12 },
-  photoWrap: { position: 'relative', width: '100%', aspectRatio: 1 },
-  photo: { width: '100%', height: '100%', backgroundColor: colors.surface },
-  selfieOverlay: {
-    position: 'absolute', top: 12, left: 12,
-    width: '28%', aspectRatio: 3 / 4, borderRadius: 12,
-    borderWidth: 2, borderColor: '#fff',
-    backgroundColor: colors.surface,
-  },
   actionsRow: { flexDirection: 'row', paddingHorizontal: 10, paddingTop: 8, gap: 6 },
   actionBtn: { padding: 6 },
   captionArea: { paddingHorizontal: spacing.md, paddingTop: 4, paddingBottom: 12, gap: 4 },
