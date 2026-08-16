@@ -315,3 +315,8 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - L'utilisateur a fourni sa clé sk_live_ (dans backend/.env STRIPE_SECRET_KEY). Vérifié en lecture seule : compte FR acct_1SielP2MZcLi95JS, charges_enabled=True, Connect ACTIVÉ (1 compte connecté existant). /api/owner/payments/status → configured:true.
 - ⚠️ Clé LIVE = vrai argent : PAS de tests automatisés de paiement (pas de carte 4242 en live). E2E complet possible uniquement avec une clé sk_test_ (proposée à l'utilisateur) ou avec un vrai paiement sur téléphone.
 - Prod : l'utilisateur doit ajouter STRIPE_SECRET_KEY dans Deployment Panel → Secrets puis redéployer.
+
+## STRIPE WEBHOOK CONFIGURÉ (août 2026)
+- STRIPE_WEBHOOK_SECRET (whsec_) configuré en preview .env. Webhook Stripe créé par l'utilisateur → https://fan-culture-app.emergent.host/api/stripe/webhook, événement checkout.session.completed.
+- FIX : stripe SDK v15 — event["data"]["object"] n'est pas un dict (StripeObject sans .get) → conversion json.loads(str(obj)) dans stripe_webhook. Testé : signature valide=200, invalide=400.
+- ⚠️ L'utilisateur doit mettre STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET dans Deployment Panel → Secrets puis REDÉPLOYER (le webhook pointe vers la prod).

@@ -5588,7 +5588,12 @@ async def stripe_webhook(request: Request):
             event = _stripe.Webhook.construct_event(payload, signature, STRIPE_WEBHOOK_SECRET)
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid webhook signature")
-        data = event["data"]["object"]
+        raw_obj = event["data"]["object"]
+        if isinstance(raw_obj, dict):
+            data = raw_obj
+        else:
+            # StripeObject (non-dict selon la version du SDK) → JSON natif
+            data = json.loads(str(raw_obj))
         etype = event["type"]
     else:
         # Pas de secret webhook configuré : on n'applique JAMAIS le payload
