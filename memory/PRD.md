@@ -326,3 +326,8 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - Feed : header du post cliquable (avatar+nom → /user/{id}), bouton pill « S'abonner » / « Abonné ✓ » (optimiste + haptics, masqué sur ses propres posts, testID follow-btn-{moment_id}).
 - Profil public /user/[id] : bouton follow + compteur « X abonnés » sous l'identité (testID profile-follow-btn).
 - Testé E2E : curl (toggle/info/self-400) + screenshots (feed + profil).
+
+## ✅ FIX "Already read" + REFRESH STATUT STRIPE (août 2026)
+- BUG PROD : api.ts request() lisait le corps d'erreur 2x (res.json() puis res.text()) → TypeError "Already read" masquait la vraie erreur. Fix : lecture unique res.text() puis JSON.parse.
+- owner-charge.tsx : AppState listener → re-vérifie automatiquement le statut Stripe quand l'app revient au premier plan (retour de Safari après onboarding). État intermédiaire "Validation en cours ⏳" quand onboarded=true mais charges_enabled=false. refreshStatus(silent) ne remplace pas un flux scan/paiement en cours.
+- ⚠️ Correctif à REDÉPLOYER pour la prod. Stories : amélioration demandée par l'utilisateur mais message tronqué — détails à clarifier.

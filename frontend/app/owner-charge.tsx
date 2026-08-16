@@ -17,6 +17,7 @@ import {
   ScrollView,
   Platform,
   Linking,
+  AppState,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -48,20 +49,34 @@ export default function OwnerCharge() {
   const scannedRef = useRef(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const refreshStatus = useCallback(async () => {
+  const refreshStatus = useCallback(async (silent = false) => {
     try {
       const s = await api.ownerPaymentsStatus();
       setPayStatus(s);
-      setStep(s.charges_enabled ? 'scan' : 'onboarding');
+      setStep((prev) => {
+        // Ne pas écraser un flux en cours (scan/montant/paiement)
+        if (prev === 'loading' || prev === 'onboarding' || prev === 'scan') {
+          return s.charges_enabled ? (prev === 'onboarding' || prev === 'loading' ? 'scan' : prev) : 'onboarding';
+        }
+        return prev;
+      });
     } catch (e: any) {
-      Alert.alert('Erreur', e?.message || 'Impossible de vérifier ton compte de paiement.');
-      setStep('onboarding');
+      if (!silent) {
+        Alert.alert('Erreur', e?.message || 'Impossible de vérifier ton compte de paiement.');
+      }
+      setStep((prev) => (prev === 'loading' ? 'onboarding' : prev));
     }
   }, []);
 
   useEffect(() => {
     refreshStatus();
+    // Retour dans l'app après l'onboarding Stripe (Safari) → re-vérifie
+    // automatiquement le statut du compte.
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshStatus(true);
+    });
     return () => {
+      sub.remove();
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [refreshStatus]);
@@ -199,13 +214,19 @@ export default function OwnerCharge() {
           {step === 'onboarding' && (
             <View style={styles.card}>
               <View style={styles.bigIcon}>
-                <Ionicons name="card-outline" size={30} color={colors.primary} />
+                <Ionicons
+                  name={payStatus?.onboarded ? 'hourglass-outline' : 'card-outline'}
+                  size={30}
+                  color={colors.primary}
+                />
               </View>
-              <Text style={styles.cardTitle}>Compte de paiement requis</Text>
+              <Text style={styles.cardTitle}>
+                {payStatus?.onboarded ? 'Validation en cours ⏳' : 'Compte de paiement requis'}
+              </Text>
               <Text style={styles.cardText}>
-                Pour recevoir l&apos;argent des verres payés dans l&apos;app, crée ton compte de
-                paiement sécurisé Stripe (identité + IBAN, ~5 min). Les fonds sont versés
-                directement sur ton compte bancaire.
+                {payStatus?.onboarded
+                  ? "Ton dossier Stripe a bien été envoyé — la validation prend généralement quelques minutes. Le statut se met à jour automatiquement quand tu reviens dans l'app."
+                  : "Pour recevoir l'argent des verres payés dans l'app, crée ton compte de paiement sécurisé Stripe (identité + IBAN, ~5 min). Les fonds sont versés directement sur ton compte bancaire."}
               </Text>
               {payStatus?.configured === false ? (
                 <Text style={styles.warnText}>
@@ -228,7 +249,7 @@ export default function OwnerCharge() {
                   </>
                 )}
               </TouchableOpacity>
-              <TouchableOpacity onPress={refreshStatus} style={styles.linkBtn} testID="refresh-status-btn">
+              <TouchableOpacity onPress={() => refreshStatus()} style={styles.linkBtn} testID="refresh-status-btn">
                 <Text style={styles.linkText}>J&apos;ai terminé — vérifier mon statut</Text>
               </TouchableOpacity>
             </View>

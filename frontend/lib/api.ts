@@ -260,12 +260,18 @@ async function request<T>(
   }
   setOffline(false);
   if (!res.ok) {
+    // Lire le corps UNE seule fois (sinon "Already read"), puis tenter JSON
     let detail = '';
     try {
-      const j = await res.json();
-      detail = j.detail || JSON.stringify(j);
+      const raw = await res.text();
+      try {
+        const j = JSON.parse(raw);
+        detail = j.detail || JSON.stringify(j);
+      } catch {
+        detail = raw.slice(0, 200);
+      }
     } catch {
-      detail = await res.text();
+      detail = '';
     }
     const err: any = new Error(detail || `HTTP ${res.status}`);
     err.status = res.status;
