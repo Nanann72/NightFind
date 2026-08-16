@@ -38,6 +38,7 @@ export default function UserPublicProfile() {
   const [error, setError] = useState<string | null>(null);
   const [previewMoment, setPreviewMoment] = useState<any | null>(null);
   const [friendBusy, setFriendBusy] = useState(false);
+  const [follow, setFollow] = useState<{ following: boolean; followers_count: number } | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -45,12 +46,30 @@ export default function UserPublicProfile() {
       const p = await api.getUserProfile(String(id));
       setProfile(p);
       setError(null);
+      if (!p?.is_me) {
+        api.followInfo(String(id)).then(setFollow).catch(() => {});
+      }
     } catch (e: any) {
       setError(e?.message || 'Profil introuvable');
     } finally {
       setLoading(false);
     }
   }, [id]);
+
+  const onToggleFollow = useCallback(async () => {
+    if (!id || !follow) return;
+    const prev = follow;
+    setFollow({
+      following: !prev.following,
+      followers_count: prev.followers_count + (prev.following ? -1 : 1),
+    });
+    try {
+      const r = await api.toggleFollow(String(id));
+      setFollow((f) => ({ following: r.following, followers_count: r.followers_count }));
+    } catch {
+      setFollow(prev);
+    }
+  }, [id, follow]);
 
   useEffect(() => {
     load();
@@ -183,6 +202,22 @@ export default function UserPublicProfile() {
               <Ionicons name="location-outline" size={13} color={colors.textTertiary} />
               <Text style={styles.city}>{profile.city}</Text>
             </View>
+          )}
+          {!profile.is_me && follow && (
+            <TouchableOpacity
+              style={[styles.followBtn, follow.following && styles.followBtnDone]}
+              onPress={onToggleFollow}
+              testID="profile-follow-btn"
+            >
+              <Text style={[styles.followBtnText, follow.following && styles.followBtnTextDone]}>
+                {follow.following ? 'Abonné ✓' : "S'abonner"}
+              </Text>
+            </TouchableOpacity>
+          )}
+          {follow && follow.followers_count > 0 && (
+            <Text style={styles.followersCount}>
+              {follow.followers_count} abonné{follow.followers_count > 1 ? 's' : ''}
+            </Text>
           )}
         </View>
 
@@ -408,6 +443,19 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', marginTop: 14 },
   name: { color: colors.textPrimary, fontSize: 22, fontWeight: '900' },
   cityRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  followBtn: {
+    marginTop: 12,
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    paddingHorizontal: 28,
+    paddingVertical: 10,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  followBtnDone: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
+  followBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+  followBtnTextDone: { color: colors.textSecondary },
+  followersCount: { color: colors.textSecondary, fontSize: 12.5, marginTop: 8 },
   city: { color: colors.textTertiary, fontSize: 13 },
   statsRow: {
     flexDirection: 'row',

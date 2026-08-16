@@ -2168,7 +2168,57 @@ async def moments_feed(
     for m in moments:
         m["club_name"] = name_map.get(m.get("club_id"))
         await _enrich_moment(m, user["user_id"])
+
+    # Abonnements : le viewer suit-il l'auteur de chaque post ?
+    author_ids = list({m["user_id"] for m in moments if m.get("user_id")})
+    following_set: set = set()
+    if author_ids:
+        async for f in db.follows.find(
+            {"follower_id": user["user_id"], "following_id": {"$in": author_ids}},
+            {"_id": 0, "following_id": 1},
+        ):
+            following_set.add(f["following_id"])
+    for m in moments:
+        m["is_following"] = m.get("user_id") in following_set
     return {"moments": moments, "count": len(moments)}
+
+
+@api_router.post("/users/{user_id}/follow")
+async def toggle_follow(user_id: str, user: dict = Depends(get_current_user)):
+    """S'abonner / se désabonner d'un utilisateur (toggle)."""
+    me = user["user_id"]
+    if user_id == me:
+        raise HTTPException(status_code=400, detail="Tu ne peux pas t'abonner à toi-même.")
+    target = await db.users.find_one({"user_id": user_id}, {"_id": 0, "user_id": 1})
+    if not target:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    existing = await db.follows.find_one({"follower_id": me, "following_id": user_id})
+    if existing:
+        await db.follows.delete_one({"_id": existing["_id"]})
+        following = False
+    else:
+        await db.follows.insert_one({
+            "follower_id": me,
+            "following_id": user_id,
+            "created_at": datetime.now(timezone.utc),
+        })
+        following = True
+    followers = await db.follows.count_documents({"following_id": user_id})
+    return {"following": following, "followers_count": followers}
+
+
+@api_router.get("/users/{user_id}/follow-info")
+async def follow_info(user_id: str, user: dict = Depends(get_current_user)):
+    following = bool(
+        await db.follows.find_one({"follower_id": user["user_id"], "following_id": user_id})
+    )
+    followers_count = await db.follows.count_documents({"following_id": user_id})
+    following_count = await db.follows.count_documents({"follower_id": user_id})
+    return {
+        "following": following,
+        "followers_count": followers_count,
+        "following_count": following_count,
+    }
 
 
 @api_router.get("/moments/highlights")

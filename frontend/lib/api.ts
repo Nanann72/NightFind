@@ -143,6 +143,7 @@ export type FeedMoment = {
   likes_count: number;
   comments_count: number;
   liked_by_me: boolean;
+  is_following?: boolean;
 };
 
 export type StoryHighlight = {
@@ -827,6 +828,14 @@ export const api = {
     request<{ order_id: string; status: string; amount_discounted: number }>(`/owner/drinks/orders/${order_id}`),
   ownerDrinksSummary: () =>
     request<{ drinks_paid: number; revenue_cents: number; orders: any[] }>('/owner/drinks/summary'),
+
+  // Abonnements (follow) -------------------------------------------
+  toggleFollow: (userId: string) =>
+    request<{ following: boolean; followers_count: number }>(`/users/${userId}/follow`, { method: 'POST' }),
+  followInfo: (userId: string) =>
+    request<{ following: boolean; followers_count: number; following_count: number }>(
+      `/users/${userId}/follow-info`,
+    ),
 
 
   // Club Moments (live-photo) ---------------------------------------

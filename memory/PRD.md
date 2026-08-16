@@ -320,3 +320,9 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - STRIPE_WEBHOOK_SECRET (whsec_) configuré en preview .env. Webhook Stripe créé par l'utilisateur → https://fan-culture-app.emergent.host/api/stripe/webhook, événement checkout.session.completed.
 - FIX : stripe SDK v15 — event["data"]["object"] n'est pas un dict (StripeObject sans .get) → conversion json.loads(str(obj)) dans stripe_webhook. Testé : signature valide=200, invalide=400.
 - ⚠️ L'utilisateur doit mettre STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET dans Deployment Panel → Secrets puis REDÉPLOYER (le webhook pointe vers la prod).
+
+## ✅ SYSTÈME D'ABONNEMENT (FOLLOW) — août 2026
+- Backend : collection follows {follower_id, following_id, created_at}. POST /api/users/{id}/follow (toggle, 400 self, 404 target), GET /api/users/{id}/follow-info {following, followers_count, following_count}. moments_feed enrichi avec is_following (batch).
+- Feed : header du post cliquable (avatar+nom → /user/{id}), bouton pill « S'abonner » / « Abonné ✓ » (optimiste + haptics, masqué sur ses propres posts, testID follow-btn-{moment_id}).
+- Profil public /user/[id] : bouton follow + compteur « X abonnés » sous l'identité (testID profile-follow-btn).
+- Testé E2E : curl (toggle/info/self-400) + screenshots (feed + profil).

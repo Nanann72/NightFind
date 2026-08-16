@@ -203,21 +203,50 @@ export default function MomentFeed() {
     </TouchableOpacity>
   );
 
+  const toggleFollow = useCallback(async (targetId: string, current: boolean) => {
+    // Optimiste : maj immédiate de tous les posts de cet auteur
+    setFeed((prev) => prev.map((x) => (x.user_id === targetId ? { ...x, is_following: !current } : x)));
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    try {
+      const r = await api.toggleFollow(targetId);
+      setFeed((prev) => prev.map((x) => (x.user_id === targetId ? { ...x, is_following: r.following } : x)));
+    } catch {
+      setFeed((prev) => prev.map((x) => (x.user_id === targetId ? { ...x, is_following: current } : x)));
+    }
+  }, []);
+
   const renderMoment = ({ item: m }: { item: FeedMoment }) => (
     <Animated.View entering={FadeIn.duration(300)} style={styles.card}>
-      {/* Header */}
+      {/* Header — avatar + nom cliquables → profil */}
       <View style={styles.cardHeader}>
-        {m.user_picture ? (
-          <Image source={{ uri: m.user_picture }} style={styles.headerAvatar} />
-        ) : (
-          <View style={[styles.headerAvatar, { backgroundColor: colors.surfaceElevated, alignItems: 'center', justifyContent: 'center' }]}>
-            <Text style={{ color: colors.primary, fontWeight: '900' }}>{(m.user_name[0] ?? '?').toUpperCase()}</Text>
+        <TouchableOpacity
+          style={styles.headerUserTap}
+          onPress={() => router.push(`/user/${m.user_id}` as any)}
+          testID={`open-profile-${m.moment_id}`}
+        >
+          {m.user_picture ? (
+            <Image source={{ uri: m.user_picture }} style={styles.headerAvatar} />
+          ) : (
+            <View style={[styles.headerAvatar, { backgroundColor: colors.surfaceElevated, alignItems: 'center', justifyContent: 'center' }]}>
+              <Text style={{ color: colors.primary, fontWeight: '900' }}>{(m.user_name[0] ?? '?').toUpperCase()}</Text>
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerName}>{m.user_name}</Text>
+            {m.club_name && <Text style={styles.headerClub} numberOfLines={1}>📍 {m.club_name}</Text>}
           </View>
+        </TouchableOpacity>
+        {m.user_id !== user?.user_id && (
+          <TouchableOpacity
+            style={[styles.followBtn, m.is_following && styles.followBtnDone]}
+            onPress={() => toggleFollow(m.user_id, !!m.is_following)}
+            testID={`follow-btn-${m.moment_id}`}
+          >
+            <Text style={[styles.followBtnText, m.is_following && styles.followBtnTextDone]}>
+              {m.is_following ? 'Abonné ✓' : "S'abonner"}
+            </Text>
+          </TouchableOpacity>
         )}
-        <View style={{ flex: 1 }}>
-          <Text style={styles.headerName}>{m.user_name}</Text>
-          {m.club_name && <Text style={styles.headerClub} numberOfLines={1}>📍 {m.club_name}</Text>}
-        </View>
         <Text style={styles.headerTime}>{timeAgo(m.created_at)}</Text>
       </View>
 
@@ -465,6 +494,23 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   headerName: { color: colors.textPrimary, fontWeight: '800', fontSize: 13 },
   headerClub: { color: colors.textSecondary, fontSize: 11 },
   headerTime: { color: colors.textSecondary, fontSize: 12 },
+  headerUserTap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  followBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    marginRight: 8,
+    minHeight: 32,
+    justifyContent: 'center',
+  },
+  followBtnDone: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  followBtnText: { color: '#fff', fontWeight: '800', fontSize: 12.5 },
+  followBtnTextDone: { color: colors.textSecondary },
   actionsRow: { flexDirection: 'row', paddingHorizontal: 10, paddingTop: 8, gap: 6 },
   actionBtn: { padding: 6 },
   captionArea: { paddingHorizontal: spacing.md, paddingTop: 4, paddingBottom: 12, gap: 4 },
