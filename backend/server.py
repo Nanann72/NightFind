@@ -1346,6 +1346,8 @@ async def swipe_quota(user: dict = Depends(get_current_user)):
     sl_used = await _today_superlikes_count(user["user_id"])
     boost_until = user.get("boost_until")
     boost_active = _boost_active(user)
+    likes_7d = await _likes_given_7d(user["user_id"])
+    completion, _missing = _profile_completion(user)
     return {
         "used_today": used,
         "limit": None if is_prem else FREE_DAILY_SWIPE_LIMIT,
@@ -1357,6 +1359,135 @@ async def swipe_quota(user: dict = Depends(get_current_user)):
         "boost_until": (
             boost_until.isoformat() if boost_active and hasattr(boost_until, "isoformat") else None
         ),
+        # Boost d'activité Tinder-like : 10 likes envoyés (7 jours) = mise en avant
+        "likes_given_7d": likes_7d,
+        "activity_boost_target": ACTIVITY_BOOST_TARGET,
+        "activity_boost_active": likes_7d >= ACTIVITY_BOOST_TARGET,
+        "profile_completion": completion,
+    }
+
+
+# ---- Algorithme de mise en avant (Tinder-like) ----
+ACTIVITY_BOOST_TARGET = 10  # liker 10 personnes → profil mis en avant
+
+
+async def _likes_given_7d(user_id: str) -> int:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    return await db.user_swipes.count_documents({
+        "user_id": user_id,
+        "action": {"$in": ["like", "superlike"]},
+        "created_at": {"$gte": cutoff},
+    })
+
+
+_COMPLETION_FIELDS = [
+    # (label affiché, points, test)
+    ("Ajoute une photo", 25, lambda u: bool(u.get("photos"))),
+    ("Ajoute 3 photos", 10, lambda u: len(u.get("photos") or []) >= 3),
+    ("Écris une bio", 20, lambda u: bool((u.get("bio") or "").strip())),
+    ("Renseigne ta date de naissance", 15, lambda u: bool(u.get("dob"))),
+    ("Indique ta ville", 10, lambda u: bool((u.get("city") or "").strip())),
+    ("Ajoute tes goûts musicaux", 10, lambda u: bool(u.get("music_prefs"))),
+    ("Lie ton Instagram", 5, lambda u: bool((u.get("instagram") or "").strip())),
+    ("Ajoute tes clubs favoris", 5, lambda u: bool(u.get("fav_clubs"))),
+]
+
+
+def _profile_completion(u: dict) -> tuple[int, list[str]]:
+    """Pourcentage de complétion du profil + liste des étapes manquantes."""
+    score = 0
+    missing: list[str] = []
+    for label, points, test in _COMPLETION_FIELDS:
+        try:
+            ok = bool(test(u))
+        except Exception:
+            ok = False
+        if ok:
+            score += points
+        else:
+            missing.append(label)
+    return min(100, score), missing
+
+
+@api_router.get("/me/profile-completion")
+async def me_profile_completion(user: dict = Depends(get_current_user)):
+    percent, missing = _profile_completion(user)
+    return {"percent": percent, "missing": missing}
+
+
+@api_router.get("/swipe/likes-hub")
+async def swipe_likes_hub(user: dict = Depends(get_current_user)):
+    """Hub Tinder-like : qui m'a liké / super-liké + demandes de messages.
+    Les photos des likes sont floutées côté client pour les non-premium."""
+    me = user["user_id"]
+    blocked = await _blocked_user_ids(me)
+    # Personnes que J'AI déjà swipées (like/pass) → ne plus les montrer ici
+    my_swipes = await db.user_swipes.find(
+        {"user_id": me}, {"_id": 0, "target_user_id": 1}
+    ).to_list(2000)
+    i_swiped = {s["target_user_id"] for s in my_swipes}
+    # Matches existants → déjà convertis, on ne les liste plus
+    matched_ids: set = set()
+    async for mrow in db.matches.find(
+        {"$or": [{"user_a": me}, {"user_b": me}]}, {"_id": 0, "user_a": 1, "user_b": 1}
+    ):
+        matched_ids.add(mrow["user_a"] if mrow["user_b"] == me else mrow["user_b"])
+
+    # Likes reçus (like + superlike), les plus récents d'abord
+    rows = await db.user_swipes.find(
+        {"target_user_id": me, "action": {"$in": ["like", "superlike"]}},
+        {"_id": 0, "user_id": 1, "action": 1, "created_at": 1},
+    ).sort("created_at", -1).to_list(200)
+    seen: set = set()
+    liker_entries: list[dict] = []
+    for r in rows:
+        uid = r["user_id"]
+        if uid in seen or uid in blocked or uid in i_swiped or uid in matched_ids:
+            continue
+        seen.add(uid)
+        liker_entries.append(r)
+    liker_ids = [r["user_id"] for r in liker_entries[:60]]
+    users_map: dict = {}
+    async for u in db.users.find(
+        {"user_id": {"$in": liker_ids}, "is_virtual": {"$ne": True}}, {"_id": 0}
+    ):
+        users_map[u["user_id"]] = u
+    likes: list[dict] = []
+    superlikes: list[dict] = []
+    for r in liker_entries:
+        u = users_map.get(r["user_id"])
+        if not u:
+            continue
+        p = _profile_for_swipe(u)
+        p["liked_at"] = r["created_at"].isoformat() if hasattr(r.get("created_at"), "isoformat") else None
+        (superlikes if r["action"] == "superlike" else likes).append(p)
+
+    # Demandes de messages en attente (match_requests non-superlike → demandes)
+    req_rows = await db.match_requests.find(
+        {"to_user_id": me, "status": "pending"}, {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    req_ids = [r["from_user_id"] for r in req_rows if r["from_user_id"] not in blocked]
+    req_map: dict = {}
+    async for u in db.users.find({"user_id": {"$in": req_ids}}, {"_id": 0}):
+        req_map[u["user_id"]] = u
+    requests_out = []
+    for r in req_rows:
+        u = req_map.get(r["from_user_id"])
+        if not u:
+            continue
+        p = _profile_for_swipe(u)
+        p["request_id"] = r.get("request_id")
+        p["superlike"] = bool(r.get("superlike"))
+        p["message"] = r.get("message")
+        requests_out.append(p)
+
+    return {
+        "is_premium": bool(user.get("is_premium")),
+        "likes": likes,
+        "superlikes": superlikes,
+        "requests": requests_out,
+        "likes_count": len(likes),
+        "superlikes_count": len(superlikes),
     }
 
 
@@ -1431,13 +1562,38 @@ async def swipe_deck(
         if not _is_profile_complete_for_swipe(u):
             continue
         candidates.append(u)
-    # Users who super-liked me float to the top (Tinder-style), then boosted
+    # Users who super-liked me float to the top (Tinder-style), then boosted,
+    # then "boost d'activité" (10+ likes envoyés sur 7 jours), then profils
+    # les plus complets.
     sl_rows = await db.match_requests.find(
         {"to_user_id": user["user_id"], "status": "pending", "superlike": True},
         {"_id": 0, "from_user_id": 1},
     ).to_list(50)
     sl_ids = {r["from_user_id"] for r in sl_rows}
-    candidates.sort(key=lambda u: (u["user_id"] not in sl_ids, not _boost_active(u)))
+
+    # Boost d'activité : batch count des likes donnés (7j) par candidat
+    cand_ids = [u["user_id"] for u in candidates]
+    active_ids: set = set()
+    if cand_ids:
+        cutoff7 = datetime.now(timezone.utc) - timedelta(days=7)
+        pipeline = [
+            {"$match": {
+                "user_id": {"$in": cand_ids},
+                "action": {"$in": ["like", "superlike"]},
+                "created_at": {"$gte": cutoff7},
+            }},
+            {"$group": {"_id": "$user_id", "n": {"$sum": 1}}},
+        ]
+        async for row in db.user_swipes.aggregate(pipeline):
+            if row["n"] >= ACTIVITY_BOOST_TARGET:
+                active_ids.add(row["_id"])
+
+    candidates.sort(key=lambda u: (
+        u["user_id"] not in sl_ids,          # 1. super-likers d'abord
+        not _boost_active(u),                 # 2. boost payant
+        u["user_id"] not in active_ids,       # 3. boost d'activité (10 likes)
+        -_profile_completion(u)[0],           # 4. profils les plus complets
+    ))
     candidates = candidates[:10]
     deck = [_profile_for_swipe(u) for u in candidates]
     for p in deck:

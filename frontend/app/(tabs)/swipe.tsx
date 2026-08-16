@@ -68,6 +68,10 @@ type Quota = {
   superlikes_limit?: number;
   boost_active?: boolean;
   boost_until?: string | null;
+  likes_given_7d?: number;
+  activity_boost_target?: number;
+  activity_boost_active?: boolean;
+  profile_completion?: number;
 };
 
 type MatchInfo = {
@@ -446,7 +450,49 @@ export default function SwipePeople() {
               <Text style={styles.boostPillText}>Boost actif</Text>
             </View>
           )}
+          <TouchableOpacity
+            style={styles.likesHubBtn}
+            onPress={() => router.push('/likes-hub' as any)}
+            testID="likes-hub-btn"
+            hitSlop={8}
+          >
+            <Ionicons name="heart" size={20} color={colors.primary} />
+          </TouchableOpacity>
         </View>
+        {/* Analyse de crush — boost d'activité Tinder-like (10 likes) */}
+        {quota && (
+          quota.activity_boost_active ? (
+            <View style={[styles.crushBanner, styles.crushBannerActive]} testID="crush-banner">
+              <Text style={styles.crushIcon}>🚀</Text>
+              <Text style={styles.crushText}>Ton profil est mis en avant — continue de liker !</Text>
+            </View>
+          ) : (
+            <View style={styles.crushBanner} testID="crush-banner">
+              <Text style={styles.crushIcon}>💘</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.crushTitle}>Analyse de crush</Text>
+                <Text style={styles.crushText}>
+                  Envoie encore {Math.max(0, (quota.activity_boost_target ?? 10) - (quota.likes_given_7d ?? 0))} likes pour être mis en avant
+                </Text>
+              </View>
+            </View>
+          )
+        )}
+        {/* Complétion du profil */}
+        {quota != null && (quota.profile_completion ?? 100) < 100 && (
+          <TouchableOpacity
+            style={styles.completionPill}
+            onPress={() => router.push('/swipe-profile' as any)}
+            testID="completion-pill"
+          >
+            <View style={styles.completionBarBg}>
+              <View style={[styles.completionBarFill, { width: `${quota.profile_completion ?? 0}%` }]} />
+            </View>
+            <Text style={styles.completionText}>
+              Profil complété à {quota.profile_completion}% — complète-le pour plus de matchs →
+            </Text>
+          </TouchableOpacity>
+        )}
         <View style={styles.quotaRow}>
           <Ionicons name="flash" size={14} color={colors.primary} />
           <Text style={styles.quotaText}>
@@ -884,6 +930,29 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   brand: { color: colors.primary, fontWeight: '900', fontSize: 11, letterSpacing: 3 },
   title: { color: colors.textPrimary, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
+  likesHubBtn: {
+    width: 40, height: 40, borderRadius: 20, marginLeft: 8,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1, borderColor: colors.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  crushBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1, borderColor: colors.border,
+    borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9,
+    marginTop: 10,
+  },
+  crushBannerActive: { borderColor: colors.primary },
+  crushIcon: { fontSize: 18 },
+  crushTitle: { color: colors.textPrimary, fontWeight: '800', fontSize: 13 },
+  crushText: { color: colors.textSecondary, fontSize: 12 },
+  completionPill: { marginTop: 8 },
+  completionBarBg: {
+    height: 4, borderRadius: 2, backgroundColor: colors.surfaceElevated, overflow: 'hidden',
+  },
+  completionBarFill: { height: 4, borderRadius: 2, backgroundColor: colors.primary },
+  completionText: { color: colors.textSecondary, fontSize: 11.5, marginTop: 5 },
   boostPill: {
     flexDirection: 'row',
     alignItems: 'center',

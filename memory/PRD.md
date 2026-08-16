@@ -331,3 +331,9 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - BUG PROD : api.ts request() lisait le corps d'erreur 2x (res.json() puis res.text()) → TypeError "Already read" masquait la vraie erreur. Fix : lecture unique res.text() puis JSON.parse.
 - owner-charge.tsx : AppState listener → re-vérifie automatiquement le statut Stripe quand l'app revient au premier plan (retour de Safari après onboarding). État intermédiaire "Validation en cours ⏳" quand onboarded=true mais charges_enabled=false. refreshStatus(silent) ne remplace pas un flux scan/paiement en cours.
 - ⚠️ Correctif à REDÉPLOYER pour la prod. Stories : amélioration demandée par l'utilisateur mais message tronqué — détails à clarifier.
+
+## ✅ SWIPE TINDER-LIKE 99% (août 2026) — testé (iter_39, 11/11 PASS)
+- Backend : _profile_completion (8 champs pondérés, GET /api/me/profile-completion), ACTIVITY_BOOST_TARGET=10 (liker 10 personnes en 7j → mise en avant), _likes_given_7d, quota étendu (likes_given_7d, activity_boost_active, profile_completion), tri deck : superlikers > boost payant > boost activité > complétion. Dedup déjà-swipés confirmé.
+- GET /api/swipe/likes-hub : likes[]/superlikes[]/requests[] (avec request_id), exclut swipés/matchés/bloqués. Like-back → match.
+- Frontend : swipe.tsx — bannière « Analyse de crush » (X likes restants / 🚀 mis en avant), barre de complétion cliquable → /swipe-profile, bouton ❤ header → /likes-hub. Nouveau /app/frontend/app/likes-hub.tsx : 3 onglets (Likes/Super/Demandes), grille 2 col, flou+lock non-premium + CTA paywall, like-back/pass/accepter-refuser inline.
+- Seeds test: Clara superlike + Louise like → reviewer.

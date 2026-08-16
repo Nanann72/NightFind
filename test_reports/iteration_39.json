@@ -1,0 +1,26 @@
+{
+  "summary": "Backend-only testing of Tinder-like swipe features (iter 39). Wrote /app/backend/tests/test_swipe_tinder_features.py — 11/11 tests PASS in ~4s against the live backend (fan-culture-app.preview.emergentagent.com/api). Covered: (1) GET /api/me/profile-completion → shape + percent/missing match _COMPLETION_FIELDS applied on the actual user doc; (2) GET /api/swipe/quota → contient likes_given_7d, activity_boost_target=10, activity_boost_active cohérent avec likes_given_7d>=10, profile_completion; (3) GET /api/swipe/deck → aucun user déjà swipé, ni le viewer, ni is_virtual=True; (4) tri deck : seed 10 like-swipes en DB pour un candidat en bas de deck → il remonte au-dessus de son ancien rang (activity boost fonctionne); (5) POST /api/swipe/like sur soi-même → 400; (6) double-like → 200 avec already_swiped=true, aucun doublon en user_swipes (1 seule ligne); (7) GET /api/swipe/likes-hub → shape {likes, superlikes, requests[with request_id], likes_count, superlikes_count}, counts cohérents, jamais un user que j'ai déjà swipé; (8) flux like-back : userA like userB (userA apparait dans hub de userB), userB like userA → réponse {matched:true, match_id}, match_doc persisté en DB, rechargement hub de userB → userA disparaît. Tests créent des users TEST_* et nettoient (users/user_swipes/match_requests/matches/notifications) à la fin.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_swipe_tinder_features.py",
+    "/app/test_reports/pytest/swipe_tinder_features.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py L1591-1596 : tri du deck par tuple booléens négatifs (False<True) — cohérent avec Python sort. Ordre : super-likers → boost payant → boost d'activité (>=10 likes 7j) → profils les plus complets. Fonctionne correctement, vérifié empiriquement via seed en DB.",
+    "server.py L1425-1448 (likes-hub) : filtre correctement les users déjà swipés (i_swiped) ET les matches existants. Bien découplé de blocked users.",
+    "server.py L1698-1703 : idempotency check via find_one avant insert — évite les doublons, retourne {ok:true, already_swiped:true}. Test confirmé.",
+    "server.py L1683-1684 : self-swipe → 400 'On ne se swipe pas soi-même'. OK.",
+    "server.py L1713-1734 : instant match via reverse match_request avec pair_a/pair_b triés (deterministic) + idempotency sur matches.find_one existant. Solide.",
+    "_profile_completion (L1396-1409) : score total possible 25+10+20+15+10+10+5+5 = 100, capé à 100 via min(100, score). OK.",
+    "OBSERVATION MINEURE (non bloquant) : le tri deck utilise -_profile_completion(u)[0] qui recalcule le pourcentage pour chaque candidat à chaque appel — O(n * fields). Acceptable pour n<=50 mais pourrait être précalculé une fois si le deck grossit."
+  ],
+  "updated_files": ["/app/backend/tests/test_swipe_tinder_features.py"],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "not_tested (frontend-only skipped par demande)"},
+  "seed_data_creation": "Aucune seed persistante. Les tests créent des users TEST_* + user_swipes/match_requests/matches/notifications temporaires et nettoient tout dans un finally/teardown. Le seed du reviewer (Clara superlike, Louise like) mentionné dans le contexte n'a PAS été altéré ni vérifié spécifiquement — le test test_hub_excludes_users_i_swiped a été exécuté sur le reviewer et confirme la cohérence.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Le test file /app/backend/tests/test_swipe_tinder_features.py est réutilisable comme régression. Pour lancer : `cd /app/backend && python -m pytest tests/test_swipe_tinder_features.py -v`. Nécessite MongoDB local (mongodb://localhost:27017 db night_finder) + credentials reviewer + lucas. Register nécessite dob obligatoire (format YYYY-MM-DD, âge >=18). Le tri deck a été validé en seedant 10 likes pour un candidat existant du deck, mais le classement 'profil plus complet' à boost égal n'a pas été isolé (car les users seedés ont tous des profils similaires) — l'implémentation dans server.py:1591-1596 est correcte (4ème clé de sort).",
+  "rca_of_issue": "N/A — tous les tests passent, aucun bug détecté sur les nouveautés Tinder-like."
+}

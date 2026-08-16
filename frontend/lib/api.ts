@@ -507,6 +507,17 @@ export const api = {
 
   // Match requests + chat
   listMatchRequests: () => request<any[]>('/match-requests'),
+  profileCompletion: () =>
+    request<{ percent: number; missing: string[] }>('/me/profile-completion'),
+  likesHub: () =>
+    request<{
+      is_premium: boolean;
+      likes: any[];
+      superlikes: any[];
+      requests: any[];
+      likes_count: number;
+      superlikes_count: number;
+    }>('/swipe/likes-hub'),
   acceptMatch: (request_id: string) =>
     request<{ ok: boolean; match_id: string }>('/match-requests/accept', {
       method: 'POST',
