@@ -337,3 +337,8 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - GET /api/swipe/likes-hub : likes[]/superlikes[]/requests[] (avec request_id), exclut swipés/matchés/bloqués. Like-back → match.
 - Frontend : swipe.tsx — bannière « Analyse de crush » (X likes restants / 🚀 mis en avant), barre de complétion cliquable → /swipe-profile, bouton ❤ header → /likes-hub. Nouveau /app/frontend/app/likes-hub.tsx : 3 onglets (Likes/Super/Demandes), grille 2 col, flou+lock non-premium + CTA paywall, like-back/pass/accepter-refuser inline.
 - Seeds test: Clara superlike + Louise like → reviewer.
+
+## ✅ PRÉFÉRENCES DÉCOUVERTE + GIF CHAT + THÈMES PREMIUM (août 2026)
+- Prefs découverte : SwipeFieldsBody étendu (gender, pref_gender femmes/hommes/tous, pref_age_min/max 18-99, pref_distance_km 0=illimité). swipe_deck filtre âge/genre/distance (haversine_km, seulement si les 2 locations connues). UI chips dans swipe-profile.tsx (Je suis / Je veux voir / Tranche d'âge / Distance). Testé: deck filtré 21-35 OK.
+- GIFs chat : GET /api/gifs/search (proxy Tenor v2, clé TENOR_API_KEY fallback GOOGLE_PLACES_API_KEY — ⚠️ l'utilisateur doit ACTIVER l'API Tenor dans Google Cloud, actuellement 403→503 propre). Messages: gif_url optionnel (texte vide autorisé si gif), rendu Image 200x150 dans bulle, bouton GIF + modal recherche (grille 3 col, "Powered By Tenor").
+- Thèmes chat Premium : CHAT_THEMES nuit/neon/or/ocean/sunset (bulle mine + fond). PUT /api/me/chat-theme (403 non-premium sauf nuit). users.chat_theme. UI : bouton palette header chat → modal 5 cartes (lock 🔒 non-premium → paywall). Testé API + screenshots.

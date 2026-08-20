@@ -87,6 +87,12 @@ export default function SwipeProfileEdit() {
     setPhotos((p) => p.filter((_, i) => i !== idx));
   };
 
+  const [gender, setGender] = useState<string>((u as any).gender || '');
+  const [prefGender, setPrefGender] = useState<string>((u as any).pref_gender || 'tous');
+  const [prefAgeMin, setPrefAgeMin] = useState<number>((u as any).pref_age_min || 18);
+  const [prefAgeMax, setPrefAgeMax] = useState<number>((u as any).pref_age_max || 99);
+  const [prefDist, setPrefDist] = useState<number>((u as any).pref_distance_km || 0);
+
   const save = async () => {
     if (dob && !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
       Alert.alert('Date invalide', 'Vérifie le jour/mois/année (JJ/MM/AAAA).');
@@ -105,6 +111,11 @@ export default function SwipeProfileEdit() {
         city,
         instagram,
         photos,
+        gender: gender || undefined,
+        pref_gender: prefGender,
+        pref_age_min: prefAgeMin,
+        pref_age_max: prefAgeMax,
+        pref_distance_km: prefDist,
       });
       await refresh();
       router.back();
@@ -168,6 +179,65 @@ export default function SwipeProfileEdit() {
           placeholder="JJ/MM/AAAA"
         />
         <Text style={styles.helper}>Tu dois avoir 18 ans minimum pour swiper.</Text>
+
+        {/* Préférences de découverte (Tinder-like) */}
+        <Text style={styles.label}>Je suis</Text>
+        <View style={styles.chipsRow}>
+          {[['femme', 'Femme'], ['homme', 'Homme'], ['autre', 'Autre']].map(([v, l]) => (
+            <TouchableOpacity
+              key={v}
+              style={[styles.chip, gender === v && styles.chipActive]}
+              onPress={() => setGender(gender === v ? '' : v)}
+              testID={`sf-gender-${v}`}
+            >
+              <Text style={[styles.chipText, gender === v && styles.chipTextActive]}>{l}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.label}>Je veux voir</Text>
+        <View style={styles.chipsRow}>
+          {[['femmes', 'Femmes'], ['hommes', 'Hommes'], ['tous', 'Tout le monde']].map(([v, l]) => (
+            <TouchableOpacity
+              key={v}
+              style={[styles.chip, prefGender === v && styles.chipActive]}
+              onPress={() => setPrefGender(v)}
+              testID={`sf-pref-${v}`}
+            >
+              <Text style={[styles.chipText, prefGender === v && styles.chipTextActive]}>{l}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.label}>Tranche d&apos;âge : {prefAgeMin} – {prefAgeMax === 99 ? '99+' : prefAgeMax} ans</Text>
+        <View style={styles.chipsRow}>
+          {[[18, 25], [18, 30], [21, 35], [25, 40], [30, 50], [18, 99]].map(([mn, mx]) => (
+            <TouchableOpacity
+              key={`${mn}-${mx}`}
+              style={[styles.chip, prefAgeMin === mn && prefAgeMax === mx && styles.chipActive]}
+              onPress={() => { setPrefAgeMin(mn); setPrefAgeMax(mx); }}
+              testID={`sf-age-${mn}-${mx}`}
+            >
+              <Text style={[styles.chipText, prefAgeMin === mn && prefAgeMax === mx && styles.chipTextActive]}>
+                {mn}-{mx === 99 ? '99+' : mx}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Text style={styles.label}>Distance maximum</Text>
+        <View style={styles.chipsRow}>
+          {[[5, '5 km'], [10, '10 km'], [25, '25 km'], [50, '50 km'], [100, '100 km'], [0, 'Illimité']].map(([v, l]) => (
+            <TouchableOpacity
+              key={String(v)}
+              style={[styles.chip, prefDist === v && styles.chipActive]}
+              onPress={() => setPrefDist(v as number)}
+              testID={`sf-dist-${v}`}
+            >
+              <Text style={[styles.chipText, prefDist === v && styles.chipTextActive]}>{l}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         <Text style={styles.label}>Ville</Text>
         <TextInput
@@ -251,6 +321,15 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     textTransform: 'uppercase',
   },
   helper: { color: colors.textTertiary, fontSize: 11, marginTop: 6 },
+  chipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999,
+    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+    minHeight: 38, justifyContent: 'center',
+  },
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
+  chipTextActive: { color: '#fff' },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,

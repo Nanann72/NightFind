@@ -39,10 +39,20 @@ type Message = {
   match_id: string;
   from_user_id: string;
   text: string;
+  gif_url?: string | null;
   created_at: string;
   read_at?: string;
   edited_at?: string;
   deleted_at?: string;
+};
+
+/** Thèmes de chat Premium — bulle "moi" + fond d'écran. */
+const CHAT_THEMES: Record<string, { label: string; emoji: string; mine: string; bg: string }> = {
+  nuit: { label: 'Nuit', emoji: '🌙', mine: '#E11D48', bg: '#09090B' },
+  neon: { label: 'Néon', emoji: '💜', mine: '#B026FF', bg: '#0B0014' },
+  or: { label: 'Or', emoji: '👑', mine: '#B8860B', bg: '#120E02' },
+  ocean: { label: 'Océan', emoji: '🌊', mine: '#0E7490', bg: '#02131C' },
+  sunset: { label: 'Sunset', emoji: '🌅', mine: '#EA580C', bg: '#1A0902' },
 };
 
 function formatTime(iso: string) {
@@ -70,6 +80,14 @@ export default function Chat() {
   const [peerLastRead, setPeerLastRead] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<Message | null>(null);
+  const [gifOpen, setGifOpen] = useState(false);
+  const [gifQuery, setGifQuery] = useState('');
+  const [gifResults, setGifResults] = useState<{ id: string; preview_url: string; url: string }[]>([]);
+  const [gifLoading, setGifLoading] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const [chatTheme, setChatTheme] = useState<string>(((user as any)?.chat_theme as string) || 'nuit');
+  const theme = CHAT_THEMES[chatTheme] || CHAT_THEMES.nuit;
+  const isPremium = !!(user as any)?.is_premium;
   const listRef = useRef<FlatList<any> | null>(null);
   const sinceRef = useRef<string | undefined>(undefined);
   const lastTypingSentRef = useRef<number>(0);
@@ -263,10 +281,61 @@ export default function Chat() {
     return idx;
   }, [messages, peerLastReadTs, user?.user_id]);
 
+  const searchGifs = useCallback(async (q: string) => {
+    const query = q.trim();
+    if (!query) return;
+    setGifLoading(true);
+    try {
+      const r = await api.gifSearch(query);
+      setGifResults(r.results);
+    } catch (e: any) {
+      Alert.alert('GIFs indisponibles', e?.message || 'Réessaie plus tard.');
+      setGifOpen(false);
+    } finally {
+      setGifLoading(false);
+    }
+  }, []);
+
+  const sendGif = async (gif: { url: string }) => {
+    setGifOpen(false);
+    const optimisticId = `tmp_${Date.now()}`;
+    const optimistic: Message = {
+      message_id: optimisticId,
+      match_id: matchId,
+      from_user_id: user?.user_id || '',
+      text: '',
+      gif_url: gif.url,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((m) => mergeMessages(m, [optimistic]));
+    try {
+      const saved = await api.sendMessage(matchId, '', gif.url);
+      setMessages((m) => mergeMessages(m.filter((x) => x.message_id !== optimisticId), [saved as Message]));
+      sinceRef.current = saved.created_at;
+    } catch {
+      setMessages((m) => m.filter((x) => x.message_id !== optimisticId));
+    }
+  };
+
+  const chooseTheme = async (key: string) => {
+    if (key !== 'nuit' && !isPremium) {
+      setThemeOpen(false);
+      router.push('/paywall' as any);
+      return;
+    }
+    setChatTheme(key);
+    setThemeOpen(false);
+    try {
+      await api.setChatTheme(key);
+    } catch {
+      /* garde le thème localement */
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={{ flex: 1, backgroundColor: colors.bg }}
+      style={{ flex: 1, backgroundColor: theme.bg }}
     >
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -295,12 +364,22 @@ export default function Chat() {
           </View>
         </TouchableOpacity>
         {other ? (
-          <UserActionsMenu
-            targetUserId={other.user_id}
-            targetName={other.name}
-            context="chat"
-            onBlocked={() => router.replace('/matches')}
-          />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <TouchableOpacity
+              onPress={() => setThemeOpen(true)}
+              hitSlop={8}
+              style={{ padding: 4 }}
+              testID="chat-theme-btn"
+            >
+              <Ionicons name="color-palette-outline" size={22} color={theme.mine} />
+            </TouchableOpacity>
+            <UserActionsMenu
+              targetUserId={other.user_id}
+              targetName={other.name}
+              context="chat"
+              onBlocked={() => router.replace('/matches')}
+            />
+          </View>
         ) : (
           <View style={{ width: 26 }} />
         )}
@@ -326,13 +405,24 @@ export default function Chat() {
                   onLongPress={() => onLongPressMessage(item)}
                   activeOpacity={0.85}
                   delayLongPress={250}
-                  style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleOther, isDeleted && styles.bubbleDeleted]}
+                  style={[styles.bubble, mine ? [styles.bubbleMine, { backgroundColor: theme.mine }] : styles.bubbleOther, isDeleted && styles.bubbleDeleted]}
                   accessibilityLabel={`Message: ${item.text || 'supprimé'}`}
                 >
                   {isDeleted ? (
                     <Text style={[styles.bubbleText, styles.deletedText]}>Message supprimé</Text>
                   ) : (
-                    <Text style={[styles.bubbleText, mine && styles.bubbleTextMine]}>{item.text}</Text>
+                    <>
+                      {item.gif_url ? (
+                        <Image
+                          source={{ uri: item.gif_url }}
+                          style={styles.gifMsg}
+                          resizeMode="cover"
+                        />
+                      ) : null}
+                      {item.text ? (
+                        <Text style={[styles.bubbleText, mine && styles.bubbleTextMine]}>{item.text}</Text>
+                      ) : null}
+                    </>
                   )}
                   <View style={styles.bubbleMetaRow}>
                     <Text style={[styles.bubbleTime, mine && styles.bubbleTimeMine]}>
@@ -374,6 +464,16 @@ export default function Chat() {
       )}
 
       <View style={[styles.composer, { paddingBottom: insets.bottom + 10 }]}>
+        <TouchableOpacity
+          style={styles.gifBtn}
+          onPress={() => {
+            setGifOpen(true);
+            if (!gifResults.length) searchGifs('soirée');
+          }}
+          testID="chat-gif-btn"
+        >
+          <Text style={styles.gifBtnText}>GIF</Text>
+        </TouchableOpacity>
         <TextInput
           value={text}
           onChangeText={handleType}
@@ -437,11 +537,111 @@ export default function Chat() {
           </View>
         </View>
       </Modal>
+
+      {/* GIF picker */}
+      <Modal visible={gifOpen} transparent animationType="slide" onRequestClose={() => setGifOpen(false)}>
+        <View style={styles.sheetRoot}>
+          <TouchableOpacity style={styles.sheetBackdrop} activeOpacity={1} onPress={() => setGifOpen(false)} />
+          <View style={[styles.sheet, { maxHeight: '70%' }]}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.gifSearchRow}>
+              <TextInput
+                value={gifQuery}
+                onChangeText={setGifQuery}
+                onSubmitEditing={() => searchGifs(gifQuery)}
+                placeholder="Rechercher un GIF…"
+                placeholderTextColor={colors.textTertiary}
+                style={styles.gifSearchInput}
+                returnKeyType="search"
+                testID="gif-search-input"
+              />
+              <TouchableOpacity style={styles.gifSearchBtn} onPress={() => searchGifs(gifQuery)} testID="gif-search-btn">
+                <Ionicons name="search" size={18} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.gifAttribution}>Powered By Tenor</Text>
+            {gifLoading ? (
+              <ActivityIndicator color={colors.primary} style={{ marginVertical: 30 }} />
+            ) : (
+              <FlatList
+                data={gifResults}
+                keyExtractor={(g) => g.id}
+                numColumns={3}
+                contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+                renderItem={({ item: g }) => (
+                  <TouchableOpacity style={styles.gifCell} onPress={() => sendGif(g)} testID={`gif-${g.id}`}>
+                    <Image source={{ uri: g.preview_url }} style={styles.gifThumb} resizeMode="cover" />
+                  </TouchableOpacity>
+                )}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Personnalisation du chat (Premium) */}
+      <Modal visible={themeOpen} transparent animationType="slide" onRequestClose={() => setThemeOpen(false)}>
+        <View style={styles.sheetRoot}>
+          <TouchableOpacity style={styles.sheetBackdrop} activeOpacity={1} onPress={() => setThemeOpen(false)} />
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.themeTitle}>Personnalise ton chat 🎨</Text>
+            <Text style={styles.themeSub}>
+              {isPremium ? 'Choisis ton style de bulles et de fond' : 'Réservé aux membres Premium 💎'}
+            </Text>
+            <View style={styles.themeRow}>
+              {Object.entries(CHAT_THEMES).map(([key, t]) => (
+                <TouchableOpacity
+                  key={key}
+                  style={[styles.themeCard, { backgroundColor: t.bg }, chatTheme === key && { borderColor: t.mine, borderWidth: 2 }]}
+                  onPress={() => chooseTheme(key)}
+                  testID={`theme-${key}`}
+                >
+                  <View style={[styles.themeBubble, { backgroundColor: t.mine }]} />
+                  <Text style={styles.themeEmoji}>{t.emoji}</Text>
+                  <Text style={styles.themeLabel}>{t.label}</Text>
+                  {key !== 'nuit' && !isPremium && (
+                    <Ionicons name="lock-closed" size={12} color="#FFD700" style={{ marginTop: 2 }} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
 const makeStyles = (colors: ThemeColors) => StyleSheet.create({
+  gifMsg: { width: 200, height: 150, borderRadius: 12, marginBottom: 4, backgroundColor: '#111' },
+  gifBtn: {
+    minHeight: 40, paddingHorizontal: 10, borderRadius: 12, marginRight: 8,
+    borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
+  },
+  gifBtnText: { color: colors.textSecondary, fontWeight: '900', fontSize: 12, letterSpacing: 1 },
+  gifSearchRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  gifSearchInput: {
+    flex: 1, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border,
+    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, color: colors.textPrimary, fontSize: 14,
+  },
+  gifSearchBtn: {
+    width: 44, height: 44, borderRadius: 12, backgroundColor: colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  gifAttribution: { color: colors.textTertiary, fontSize: 10.5, marginVertical: 8 },
+  gifCell: { flex: 1 / 3, aspectRatio: 1, padding: 3 },
+  gifThumb: { width: '100%', height: '100%', borderRadius: 8, backgroundColor: '#141418' },
+  themeTitle: { color: colors.textPrimary, fontSize: 17, fontWeight: '900', marginTop: 6 },
+  themeSub: { color: colors.textSecondary, fontSize: 12.5, marginTop: 4, marginBottom: 14 },
+  themeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingBottom: 20 },
+  themeCard: {
+    width: '30%', aspectRatio: 0.85, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.border,
+  },
+  themeBubble: { width: 34, height: 20, borderRadius: 10, marginBottom: 6 },
+  themeEmoji: { fontSize: 18 },
+  themeLabel: { color: '#fff', fontSize: 11.5, fontWeight: '700', marginTop: 2 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

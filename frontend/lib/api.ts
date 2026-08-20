@@ -499,6 +499,11 @@ export const api = {
     instagram?: string;
     photos?: string[];
     fav_clubs?: string[];
+    gender?: string;
+    pref_gender?: string;
+    pref_age_min?: number;
+    pref_age_max?: number;
+    pref_distance_km?: number;
   }) =>
     request<{ ok: boolean; updated: string[] }>('/profile/swipe-fields', {
       method: 'PUT',
@@ -531,10 +536,19 @@ export const api = {
   listMatches: () => request<any[]>('/matches'),
   listMessages: (match_id: string, since?: string) =>
     request<any[]>(`/matches/${match_id}/messages${since ? `?since=${encodeURIComponent(since)}` : ''}`),
-  sendMessage: (match_id: string, text: string) =>
+  sendMessage: (match_id: string, text: string, gif_url?: string) =>
     request<any>(`/matches/${match_id}/messages`, {
       method: 'POST',
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, gif_url }),
+    }),
+  gifSearch: (q: string, pos = '') =>
+    request<{ results: { id: string; preview_url: string; url: string }[]; next: string }>(
+      `/gifs/search?q=${encodeURIComponent(q)}${pos ? `&pos=${encodeURIComponent(pos)}` : ''}`,
+    ),
+  setChatTheme: (theme: string) =>
+    request<{ ok: boolean; theme: string }>('/me/chat-theme', {
+      method: 'PUT',
+      body: JSON.stringify({ theme }),
     }),
   editMessage: (message_id: string, text: string) =>
     request<{ ok: boolean; text: string; edited_at: string }>(`/messages/${message_id}`, {

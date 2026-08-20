@@ -1415,6 +1415,75 @@ async def me_profile_completion(user: dict = Depends(get_current_user)):
     return {"percent": percent, "missing": missing}
 
 
+# ---- GIFs (Tenor v2 proxy — clé côté serveur uniquement) ----
+TENOR_API_KEY = (
+    os.environ.get("TENOR_API_KEY", "").strip().strip('"')
+    or os.environ.get("GOOGLE_PLACES_API_KEY", "").strip().strip('"')
+)
+
+
+@api_router.get("/gifs/search")
+async def gifs_search(
+    q: str = Query(min_length=1, max_length=50),
+    pos: str = Query(default="", max_length=200),
+    user: dict = Depends(get_current_user),
+):
+    if not TENOR_API_KEY:
+        raise HTTPException(status_code=503, detail="Recherche GIF non configurée (clé Tenor manquante)")
+    params: dict = {
+        "key": TENOR_API_KEY,
+        "client_key": "nightfinder_chat",
+        "q": q,
+        "limit": 24,
+        "locale": "fr_FR",
+        "country": "FR",
+        "contentfilter": "medium",
+        "media_filter": "tinygif,gif",
+    }
+    if pos:
+        params["pos"] = pos
+    try:
+        r = await http_client.get("https://tenor.googleapis.com/v2/search", params=params, timeout=8.0)
+        r.raise_for_status()
+        payload = r.json()
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in (401, 403):
+            raise HTTPException(status_code=503, detail="Clé Tenor invalide — active l'API Tenor dans Google Cloud")
+        raise HTTPException(status_code=502, detail="Erreur du fournisseur GIF")
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="Fournisseur GIF indisponible")
+    results = []
+    for item in payload.get("results", []):
+        fmts = item.get("media_formats", {})
+        tiny = fmts.get("tinygif", {})
+        full = fmts.get("gif", {}) or tiny
+        if tiny.get("url") and full.get("url"):
+            results.append({
+                "id": str(item.get("id", "")),
+                "preview_url": tiny["url"],
+                "url": full["url"],
+            })
+    return {"results": results, "next": payload.get("next", "")}
+
+
+# ---- Personnalisation du chat (Premium) ----
+CHAT_THEMES = ["nuit", "neon", "or", "ocean", "sunset"]
+
+
+class ChatThemeBody(BaseModel):
+    theme: str
+
+
+@api_router.put("/me/chat-theme")
+async def set_chat_theme(body: ChatThemeBody, user: dict = Depends(get_current_user)):
+    if body.theme not in CHAT_THEMES:
+        raise HTTPException(status_code=400, detail="Thème inconnu")
+    if body.theme != "nuit" and not user.get("is_premium"):
+        raise HTTPException(status_code=403, detail="La personnalisation du chat est réservée aux membres Premium 💎")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"chat_theme": body.theme}})
+    return {"ok": True, "theme": body.theme}
+
+
 @api_router.get("/swipe/likes-hub")
 async def swipe_likes_hub(user: dict = Depends(get_current_user)):
     """Hub Tinder-like : qui m'a liké / super-liké + demandes de messages.
@@ -1558,9 +1627,29 @@ async def swipe_deck(
         {"_id": 0},
     ).limit(50)
     candidates: list[dict] = []
+    # Préférences de découverte du viewer (âge / genre / distance)
+    pref_gender = user.get("pref_gender") or "tous"
+    pref_age_min = user.get("pref_age_min") or 18
+    pref_age_max = user.get("pref_age_max") or 99
+    pref_dist = user.get("pref_distance_km") or 0  # 0 = illimité
+    my_loc = user.get("location") or {}
+    gender_map = {"femmes": "femme", "hommes": "homme"}
     async for u in cursor:
         if not _is_profile_complete_for_swipe(u):
             continue
+        # Genre
+        if pref_gender in gender_map and (u.get("gender") or "") not in ("", gender_map[pref_gender]):
+            continue
+        # Âge
+        p = _profile_for_swipe(u)
+        if p.get("age") is not None and not (pref_age_min <= p["age"] <= pref_age_max):
+            continue
+        # Distance (seulement si les deux positions sont connues)
+        if pref_dist and my_loc.get("lat") is not None:
+            uloc = u.get("location") or {}
+            if uloc.get("lat") is not None:
+                if haversine_km(my_loc["lat"], my_loc["lng"], uloc["lat"], uloc["lng"]) > pref_dist:
+                    continue
         candidates.append(u)
     # Users who super-liked me float to the top (Tinder-style), then boosted,
     # then "boost d'activité" (10+ likes envoyés sur 7 jours), then profils
@@ -1819,6 +1908,12 @@ class SwipeFieldsBody(BaseModel):
     instagram: Optional[str] = None
     photos: Optional[list[str]] = None  # base64 strings, max 3
     fav_clubs: Optional[list[str]] = None  # club_ids
+    # Préférences de découverte (Tinder-like)
+    gender: Optional[str] = None  # femme | homme | autre
+    pref_gender: Optional[str] = None  # femmes | hommes | tous
+    pref_age_min: Optional[int] = None  # 18-99
+    pref_age_max: Optional[int] = None
+    pref_distance_km: Optional[int] = None  # 0 = illimité
 
 
 @api_router.put("/profile/swipe-fields")
@@ -1850,6 +1945,21 @@ async def update_swipe_fields(body: SwipeFieldsBody, user: dict = Depends(get_cu
         if h and not _re.match(r"^[A-Za-z0-9._]{1,30}$", h):
             raise HTTPException(status_code=400, detail="Handle Instagram invalide")
         updates["instagram"] = h
+    # Préférences de découverte
+    if body.gender is not None:
+        if body.gender not in ("femme", "homme", "autre", ""):
+            raise HTTPException(status_code=400, detail="Genre invalide")
+        updates["gender"] = body.gender
+    if body.pref_gender is not None:
+        if body.pref_gender not in ("femmes", "hommes", "tous"):
+            raise HTTPException(status_code=400, detail="Préférence invalide")
+        updates["pref_gender"] = body.pref_gender
+    if body.pref_age_min is not None:
+        updates["pref_age_min"] = max(18, min(99, body.pref_age_min))
+    if body.pref_age_max is not None:
+        updates["pref_age_max"] = max(18, min(99, body.pref_age_max))
+    if body.pref_distance_km is not None:
+        updates["pref_distance_km"] = max(0, min(500, body.pref_distance_km))
     if body.photos is not None:
         if len(body.photos) > 3:
             raise HTTPException(status_code=400, detail="3 photos maximum")
@@ -2040,7 +2150,8 @@ async def list_messages(match_id: str, since: Optional[str] = None, user: dict =
 
 
 class SendMessageBody(BaseModel):
-    text: str
+    text: str = ""
+    gif_url: Optional[str] = None  # GIF Tenor (URL https)
 
 
 @api_router.post("/matches/{match_id}/messages", status_code=201)
@@ -2048,8 +2159,11 @@ async def send_message(match_id: str, body: SendMessageBody, user: dict = Depend
     m = await db.matches.find_one({"match_id": match_id}, {"_id": 0})
     if not m or user["user_id"] not in (m["user_a"], m["user_b"]):
         raise HTTPException(status_code=404, detail="Match introuvable")
-    text = body.text.strip()
-    if not text:
+    text = (body.text or "").strip()
+    gif_url = (body.gif_url or "").strip() or None
+    if gif_url and not gif_url.startswith("https://"):
+        raise HTTPException(status_code=400, detail="URL GIF invalide")
+    if not text and not gif_url:
         raise HTTPException(status_code=400, detail="Message vide")
     if len(text) > 1000:
         raise HTTPException(status_code=400, detail="Message trop long (max 1000)")
@@ -2059,6 +2173,7 @@ async def send_message(match_id: str, body: SendMessageBody, user: dict = Depend
         "match_id": match_id,
         "from_user_id": user["user_id"],
         "text": text,
+        "gif_url": gif_url,
         "created_at": now,
     }
     await db.messages.insert_one(doc)
@@ -2071,7 +2186,7 @@ async def send_message(match_id: str, body: SendMessageBody, user: dict = Depend
         await push_service.send_push(
             recipients=[peer_id],
             title=f"💬 {sender_name}",
-            message=text[:120],
+            message=(text or "🎬 GIF")[:120],
             action_url=f"/chat/{match_id}",
             idempotency_key=doc["message_id"],
         )
