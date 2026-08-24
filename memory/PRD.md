@@ -342,3 +342,10 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - Prefs découverte : SwipeFieldsBody étendu (gender, pref_gender femmes/hommes/tous, pref_age_min/max 18-99, pref_distance_km 0=illimité). swipe_deck filtre âge/genre/distance (haversine_km, seulement si les 2 locations connues). UI chips dans swipe-profile.tsx (Je suis / Je veux voir / Tranche d'âge / Distance). Testé: deck filtré 21-35 OK.
 - GIFs chat : GET /api/gifs/search (proxy Tenor v2, clé TENOR_API_KEY fallback GOOGLE_PLACES_API_KEY — ⚠️ l'utilisateur doit ACTIVER l'API Tenor dans Google Cloud, actuellement 403→503 propre). Messages: gif_url optionnel (texte vide autorisé si gif), rendu Image 200x150 dans bulle, bouton GIF + modal recherche (grille 3 col, "Powered By Tenor").
 - Thèmes chat Premium : CHAT_THEMES nuit/neon/or/ocean/sunset (bulle mine + fond). PUT /api/me/chat-theme (403 non-premium sauf nuit). users.chat_theme. UI : bouton palette header chat → modal 5 cartes (lock 🔒 non-premium → paywall). Testé API + screenshots.
+
+## ✅ BADGE VÉRIFIÉ + VÉRIFICATION FACIALE IA (août 2026)
+- moderation_service.py : verify_face(selfie, profile_photos) — Gemini flash vision (Emergent LLM Key), compare selfie live vs 2 photos profil, JSON {same_person, confidence, face_visible, reason FR}. Testé E2E : rejette correctement les visages non-humains (anti-triche).
+- POST /api/verify/face : 409 sans photo, rate-limit 5/jour (collection verify_attempts), seuil confidence >= 0.7 → users.verified=True + verified_at.
+- _profile_for_swipe expose "verified" → badge ✓ bleu (#3B82F6) à côté du nom sur la carte swipe (swipe.tsx).
+- swipe-profile.tsx : section "Vérification du profil" — bouton bleu selfie (ImagePicker caméra frontale, permissions gérées avec redirect Réglages), état vérifié affiché. Louise (seed) verified=True pour démo badge.
+- ⚠️ Le selfie réel se teste sur téléphone (caméra indisponible en préview web).

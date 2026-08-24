@@ -243,3 +243,59 @@ def violation_label(verdict: dict) -> str:
     if verdict.get("hate_symbols"):
         return "Symbole haineux détecté"
     return "Contenu inapproprié détecté"
+
+
+VERIFY_PROMPT = (
+    "You are a strict face-verification system. The FIRST image is a live selfie "
+    "just taken by the user. The following image(s) are their dating-profile photos. "
+    "Decide if the selfie shows the SAME PERSON as the profile photos. "
+    "Account for lighting, angle, makeup, glasses. If any profile photo clearly shows "
+    "a different person, or if faces are not visible/identifiable, answer false. "
+    'Reply ONLY with JSON: {"same_person": true|false, "confidence": 0.0-1.0, '
+    '"face_visible": true|false, "reason": "short French explanation"}'
+)
+
+
+async def verify_face(selfie: str, profile_photos: list[str], *, session_id: Optional[str] = None) -> dict:
+    """Compare un selfie live aux photos de profil (même personne ?).
+
+    Returns: {same_person, confidence, face_visible, reason, fail_open}
+    """
+    raw_selfie, _ = _strip_data_uri(selfie)
+    if not raw_selfie.strip():
+        return {"same_person": False, "confidence": 0, "reason": "Selfie vide", "fail_open": False}
+    api_key = os.getenv("EMERGENT_LLM_KEY", "").strip()
+    if not api_key:
+        return {"same_person": False, "confidence": 0, "reason": "Vérification indisponible", "fail_open": True}
+    try:
+        from emergentintegrations.llm.chat import ImageContent, LlmChat, UserMessage  # type: ignore
+    except Exception:  # noqa: BLE001
+        return {"same_person": False, "confidence": 0, "reason": "Vérification indisponible", "fail_open": True}
+    images = [ImageContent(image_base64=raw_selfie)]
+    for p in profile_photos[:2]:
+        b64, _ = _strip_data_uri(p)
+        if b64.strip():
+            images.append(ImageContent(image_base64=b64))
+    if len(images) < 2:
+        return {"same_person": False, "confidence": 0, "reason": "Aucune photo de profil exploitable", "fail_open": False}
+    try:
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=session_id or f"verify-{uuid.uuid4().hex[:10]}",
+            system_message="You are a precise JSON-only face verification system.",
+        ).with_model("gemini", "gemini-3-flash-preview")
+        reply = await chat.send_message(UserMessage(text=VERIFY_PROMPT, file_contents=images))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("verify_face: LLM call failed (%s)", exc)
+        return {"same_person": False, "confidence": 0, "reason": "Service momentanément indisponible, réessaie", "fail_open": True}
+    text = reply if isinstance(reply, str) else (
+        getattr(reply, "content", None) or getattr(reply, "text", "") or str(reply)
+    )
+    parsed = _decode_json(text or "") or {}
+    return {
+        "same_person": bool(parsed.get("same_person")),
+        "confidence": float(parsed.get("confidence") or 0),
+        "face_visible": bool(parsed.get("face_visible", True)),
+        "reason": str(parsed.get("reason") or ""),
+        "fail_open": False,
+    }

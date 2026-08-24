@@ -12,6 +12,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Modal,
+  Linking,
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -92,6 +93,48 @@ export default function SwipeProfileEdit() {
   const [prefAgeMin, setPrefAgeMin] = useState<number>((u as any).pref_age_min || 18);
   const [prefAgeMax, setPrefAgeMax] = useState<number>((u as any).pref_age_max || 99);
   const [prefDist, setPrefDist] = useState<number>((u as any).pref_distance_km || 0);
+  const [verified, setVerified] = useState<boolean>(!!(u as any).verified);
+  const [verifying, setVerifying] = useState(false);
+
+  const startVerification = async () => {
+    if (verifying) return;
+    if (!photos.length) {
+      Alert.alert('Photos requises', "Ajoute d'abord au moins une photo à ton profil.");
+      return;
+    }
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      if (perm.canAskAgain === false) {
+        Alert.alert('Caméra désactivée', 'Autorise la caméra dans les réglages pour te vérifier.', [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Ouvrir Réglages', onPress: () => Linking.openSettings() },
+        ]);
+      }
+      return;
+    }
+    const shot = await ImagePicker.launchCameraAsync({
+      cameraType: ImagePicker.CameraType.front,
+      base64: true,
+      quality: 0.7,
+      allowsEditing: false,
+    });
+    const b64 = shot.assets?.[0]?.base64;
+    if (shot.canceled || !b64) return;
+    setVerifying(true);
+    try {
+      const r = await api.verifyFace(`data:image/jpeg;base64,${b64}`);
+      if (r.verified) {
+        setVerified(true);
+        Alert.alert('Profil vérifié ✅', "C'est bien toi ! Le badge bleu apparaît maintenant sur ton profil.");
+      } else {
+        Alert.alert('Vérification échouée', r.reason || 'Le selfie ne correspond pas assez à tes photos. Réessaie avec un bon éclairage, visage bien visible.');
+      }
+    } catch (e: any) {
+      Alert.alert('Oups', e?.message || 'Réessaie plus tard.');
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const save = async () => {
     if (dob && !/^\d{4}-\d{2}-\d{2}$/.test(dob)) {
@@ -179,6 +222,37 @@ export default function SwipeProfileEdit() {
           placeholder="JJ/MM/AAAA"
         />
         <Text style={styles.helper}>Tu dois avoir 18 ans minimum pour swiper.</Text>
+
+        {/* Vérification du profil par IA */}
+        <Text style={styles.label}>Vérification du profil</Text>
+        {verified ? (
+          <View style={styles.verifiedRow} testID="verified-badge-row">
+            <Ionicons name="checkmark-circle" size={22} color="#3B82F6" />
+            <Text style={styles.verifiedText}>Profil vérifié — badge visible sur ta carte swipe</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.verifyBtn}
+            onPress={startVerification}
+            disabled={verifying}
+            testID="verify-face-btn"
+          >
+            {verifying ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Ionicons name="shield-checkmark" size={17} color="#fff" />
+            )}
+            <Text style={styles.verifyBtnText}>
+              {verifying ? 'Analyse IA en cours…' : 'Vérifier mon profil (selfie)'}
+            </Text>
+          </TouchableOpacity>
+        )}
+        {!verified && (
+          <Text style={styles.helper}>
+            Prends un selfie — notre IA le compare à tes photos pour confirmer que c&apos;est bien toi.
+            Badge bleu ✓ à la clé.
+          </Text>
+        )}
 
         {/* Préférences de découverte (Tinder-like) */}
         <Text style={styles.label}>Je suis</Text>
@@ -330,6 +404,14 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { color: colors.textSecondary, fontWeight: '700', fontSize: 13 },
   chipTextActive: { color: '#fff' },
+  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  verifiedText: { color: colors.textPrimary, fontSize: 13.5, fontWeight: '700', flex: 1 },
+  verifyBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#3B82F6', borderRadius: 999, paddingVertical: 13,
+    minHeight: 46,
+  },
+  verifyBtnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,

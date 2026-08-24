@@ -545,6 +545,11 @@ export const api = {
     request<{ results: { id: string; preview_url: string; url: string }[]; next: string }>(
       `/gifs/search?q=${encodeURIComponent(q)}${pos ? `&pos=${encodeURIComponent(pos)}` : ''}`,
     ),
+  verifyFace: (selfie: string) =>
+    request<{ ok: boolean; verified: boolean; confidence?: number; reason: string }>('/verify/face', {
+      method: 'POST',
+      body: JSON.stringify({ selfie }),
+    }),
   setChatTheme: (theme: string) =>
     request<{ ok: boolean; theme: string }>('/me/chat-theme', {
       method: 'PUT',

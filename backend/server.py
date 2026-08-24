@@ -1303,6 +1303,7 @@ def _profile_for_swipe(u: dict) -> dict:
         "photos": u.get("photos") or [],
         "music_prefs": u.get("music_prefs") or [],
         "fav_clubs": u.get("fav_clubs") or [],
+        "verified": bool(u.get("verified")),
     }
 
 
@@ -4314,6 +4315,47 @@ async def get_my_billing(user: dict = Depends(get_current_user)):
 
 class ModerationCheckBody(BaseModel):
     image: str  # base64 or data URI
+
+
+class VerifyFaceBody(BaseModel):
+    selfie: str  # base64 ou data URI du selfie live
+
+
+@api_router.post("/verify/face")
+async def verify_face_endpoint(body: VerifyFaceBody, user: dict = Depends(get_current_user)):
+    """Vérification de profil par IA : compare un selfie live aux photos du
+    profil. Si même personne → badge « vérifié » sur le profil swipe."""
+    if user.get("verified"):
+        return {"ok": True, "verified": True, "reason": "Profil déjà vérifié"}
+    photos = user.get("photos") or []
+    if not photos:
+        raise HTTPException(status_code=409, detail="Ajoute d'abord au moins une photo à ton profil swipe.")
+    # Anti-abus : 5 tentatives max par jour
+    day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    attempts = await db.verify_attempts.count_documents(
+        {"user_id": user["user_id"], "created_at": {"$gte": day_start}}
+    )
+    if attempts >= 5:
+        raise HTTPException(status_code=429, detail="Trop de tentatives aujourd'hui — réessaie demain.")
+    await db.verify_attempts.insert_one(
+        {"user_id": user["user_id"], "created_at": datetime.now(timezone.utc)}
+    )
+    from moderation_service import verify_face
+    verdict = await verify_face(body.selfie, photos, session_id=f"verify-{user['user_id']}")
+    ok = bool(verdict.get("same_person")) and float(verdict.get("confidence") or 0) >= 0.7
+    if ok:
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {"verified": True, "verified_at": datetime.now(timezone.utc)}},
+        )
+    return {
+        "ok": True,
+        "verified": ok,
+        "confidence": verdict.get("confidence"),
+        "reason": verdict.get("reason") or (
+            "C'est bien toi — profil vérifié 🎉" if ok else "Le selfie ne correspond pas assez aux photos du profil."
+        ),
+    }
 
 
 @api_router.post("/moderation/check-image")

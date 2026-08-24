@@ -57,6 +57,7 @@ type SwipeProfile = {
   photos?: string[];
   music_prefs?: string[];
   fav_clubs?: string[];
+  verified?: boolean;
   superliked_you?: boolean;
 };
 
@@ -652,6 +653,10 @@ export default function SwipePeople() {
                     <Text style={styles.name}>
                       {top.name}
                       {top.age != null ? `, ${top.age}` : ''}
+                      {top.verified ? '  ' : ''}
+                      {top.verified ? (
+                        <Ionicons name="checkmark-circle" size={22} color="#3B82F6" />
+                      ) : null}
                     </Text>
                     <TouchableOpacity
                       style={styles.detailsBtn}
