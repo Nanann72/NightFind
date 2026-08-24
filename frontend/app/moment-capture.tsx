@@ -448,7 +448,7 @@ export default function MomentCapture() {
               {/* If backend composite failed, still show selfie thumbnail */}
               {frontPhoto && !compositeB64?.includes('overlay') && (
                 <Image
-                  source={{ uri: `data:image/jpeg;base64,${frontPhoto}` }}
+                  source={{ uri: frontPhoto }}
                   style={styles.selfieOverlay}
                 />
               )}

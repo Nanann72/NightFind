@@ -1,0 +1,35 @@
+{
+  "summary": "Full backend + frontend validation of the BeReal-selfie / help-center / owner-charge patches (iter 40). All 5 backend tests PASS in ~1.4s (/app/backend/tests/test_bereal_selfie_normalization.py) and all 3 targeted frontend flows PASS on the public preview (viewport 390x844, mobile). Backend covered: (a) seed a legacy moment in db.club_moments with RAW base64 selfie (no data: prefix) for apple.reviewer and club_id=gp_ChIJCfUElBFy5kcR5-HZRzpGR9k (present only in db.places, not db.clubs) → GET /api/me/moments returns the moment with selfie prefixed by 'data:image/jpeg;base64,' AND club_name filled ('Ground Control') proving the db.places fallback lookup works; (b) same endpoint globally guarantees zero raw-base64 selfie leaks; (c) GET /api/clubs/{club_id}/moments applies _normalize_selfie identically; (d) GET /api/moments/feed non-regression: no moment in the active feed has a raw base64 selfie; (e) auth guard on /api/me/moments returns 401/403. Frontend covered: (1) Settings → row 'Centre d'aide' (testID row-help-center) navigates to /support and testID support-screen is rendered (Support & aide layout OK); (2) /feed page renders the seeded moment with testID selfie-thumb-mmt_test_bereal, author 'Apple Reviewer', club name 'Ground Control' (confirms feed's db.places enrichment too), no red-screen; (3) lucas.demo login → /owner-charge renders testID owner-charge-screen with the correct 'Compte de paiement requis' onboarding card, primary CTA 'Créer mon compte de paiement' visible, ZERO 'Already read' error, no crash. All test data cleaned up (mmt_test_bereal moment deleted from DB).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bereal_selfie_normalization.py",
+    "/app/test_reports/pytest/iter40_selfie_norm.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py L2299-2304 _normalize_selfie : implémentation correcte et idempotente (guard startswith('data:', 'http')). Appliqué dans list_club_moments (L2318) et list_my_moments (L2366).",
+    "server.py L2359-2364 list_my_moments : lookup club_name itère db.clubs PUIS db.places avec setdefault → priorité aux clubs 'natifs' si conflit, ce qui est le bon comportement. Verified: gp_ id trouvé via db.places.",
+    "server.py L2391-2398 _enrich_moment : contient sa propre normalisation inline du selfie (duplicate de _normalize_selfie). Fonctionne mais duplication DRY — pourrait appeler _normalize_selfie. Non bloquant.",
+    "moment-capture.tsx L~449 : correction du double préfixe 'data:image/jpeg;base64,data:image/...' — non testable sur web (pas de caméra) mais le code path est cohérent avec la normalisation côté backend.",
+    "settings.tsx L584-586 : row 'Centre d'aide' (testID row-help-center) → router.push('/support'). Fonctionne, écran /support rendu correctement.",
+    "owner-charge.tsx L52-69 refreshStatus + L214-256 onboarding step : rendu OK avec 'Compte de paiement requis' pour lucas.demo. Aucune erreur 'Already read' détectée."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_bereal_selfie_normalization.py"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5)",
+    "frontend": "100% (3/3 flows demandés)"
+  },
+  "seed_data_creation": "Insertion temporaire d'un moment 'mmt_test_bereal' dans db.club_moments pour apple.reviewer avec selfie base64 BRUT + club_id=gp_ChIJCfUElBFy5kcR5-HZRzpGR9k (place Ground Control). Cleanup effectué après tests backend (via fixture teardown, moment_id uniquifié) et après tests frontend (delete_one manuel). Aucune donnée persistante laissée.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Test file /app/backend/tests/test_bereal_selfie_normalization.py est réutilisable comme régression. Run : `EXPO_PUBLIC_BACKEND_URL=https://fan-culture-app.preview.emergentagent.com python3 -m pytest backend/tests/test_bereal_selfie_normalization.py -v`. Nécessite MongoDB local (mongodb://localhost:27017 db night_finder) + reviewer credentials + une place gp_ (Ground Control). La capture selfie/BeReal (moment-capture.tsx) n'a PAS été testée sur web car la caméra n'est pas dispo — main agent doit valider sur mobile natif. Les endpoints Stripe de paiement N'ONT PAS été touchés (clé LIVE réelle) — seul l'écran d'onboarding a été vérifié visuellement.",
+  "rca_of_issue": "Bug (2) selfies BeReal noirs : moments legacy insérés avant le fix de moment-capture.tsx ont un champ 'selfie' contenant du base64 BRUT (sans préfixe 'data:image/jpeg;base64,'). Côté React Native web, <Image source={{uri: base64_brut}}/> échoue silencieusement → carré noir. Fix backend _normalize_selfie appliqué à /api/me/moments + /api/clubs/{id}/moments + /api/moments/feed (déjà inline dans _enrich_moment). Fix vérifié end-to-end : le moment seedé avec selfie brut ressort avec 'data:image/jpeg;base64,...' partout. Bug (3) club_name manquant : list_my_moments interrogeait uniquement db.clubs → clubs Google Places (gp_...) renvoyaient club_name=null. Fix : itère (db.clubs, db.places) avec setdefault. Vérifié : 'Ground Control' remonte correctement dans /me/moments ET /moments/feed. Bugs (4) row-help-center et (5) owner-charge : validés visuellement, navigation OK, écrans corrects."
+}

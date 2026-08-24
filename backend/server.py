@@ -2296,6 +2296,14 @@ async def upload_moment(
     return moment
 
 
+def _normalize_selfie(m: dict) -> dict:
+    """Selfies historiques en base64 brut → data URI (sinon carré noir)."""
+    s = m.get("selfie")
+    if s and not s.startswith(("data:", "http")):
+        m["selfie"] = f"data:image/jpeg;base64,{s}"
+    return m
+
+
 @api_router.get("/clubs/{club_id}/moments")
 async def list_club_moments(
     club_id: str,
@@ -2307,7 +2315,7 @@ async def list_club_moments(
         {"club_id": club_id, "expires_at": {"$gt": now}},
         {"_id": 0},
     ).sort("created_at", -1).limit(50)
-    return await cursor.to_list(50)
+    return [_normalize_selfie(m) for m in await cursor.to_list(50)]
 
 
 @api_router.get("/moments/active-clubs")
@@ -2349,11 +2357,13 @@ async def list_my_moments(user: dict = Depends(get_current_user)):
     name_map: dict = {}
     if club_ids:
         try:
-            async for c in db.clubs.find({"club_id": {"$in": club_ids}}, {"_id": 0, "club_id": 1, "name": 1}):
-                name_map[c["club_id"]] = c.get("name")
+            for coll in (db.clubs, db.places):
+                async for c in coll.find({"club_id": {"$in": club_ids}}, {"_id": 0, "club_id": 1, "name": 1}):
+                    name_map.setdefault(c["club_id"], c.get("name"))
         except Exception:
             pass
     for m in moments:
+        _normalize_selfie(m)
         m["club_name"] = name_map.get(m.get("club_id"))
         exp = m.get("expires_at")
         if exp is not None:

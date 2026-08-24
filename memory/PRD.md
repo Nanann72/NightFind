@@ -349,3 +349,10 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - _profile_for_swipe expose "verified" → badge ✓ bleu (#3B82F6) à côté du nom sur la carte swipe (swipe.tsx).
 - swipe-profile.tsx : section "Vérification du profil" — bouton bleu selfie (ImagePicker caméra frontale, permissions gérées avec redirect Réglages), état vérifié affiché. Louise (seed) verified=True pour démo badge.
 - ⚠️ Le selfie réel se teste sur téléphone (caméra indisponible en préview web).
+
+## ✅ FIXES AFFICHAGE BEREAL/PROFIL + LIENS SUPPORT (août 2026) — iter_40, 8/8 PASS
+- Selfie noir sur écran de capture : double préfixe data:image dans moment-capture.tsx L451 (frontPhoto est déjà un data URI) — corrigé.
+- Selfies noirs sur profil/club : _normalize_selfie() appliqué à /api/me/moments et /api/clubs/{id}/moments (+ club_name via db.places fallback).
+- Réglages : nouvelle ligne "Centre d'aide" (row-help-center) → /support.
+- Testé par testing_agent (backend 5/5, frontend 3/3, pas de "Already read" sur owner-charge).
+- ⚠️ RESTE À FAIRE (demandes utilisateur non traitées, à clarifier) : (1) vérification compte par numéro de téléphone + A2F — nécessite un fournisseur SMS (Twilio = clés utilisateur) ou alternative email-based, (2) ajouter plus de bars/boîtes + problème de détection de lieu (précisions nécessaires), (3) "corriger l'affichage de l'option swipe" (vague — demander capture). La plupart des bugs signalés étaient en PROD non redéployée.
