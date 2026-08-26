@@ -311,6 +311,8 @@ export const api = {
   },
   notificationsUnread: () =>
     request<{ unread: number }>('/notifications/unread-count'),
+  matchesUnread: () =>
+    request<{ unread: number }>('/matches/unread-count'),
   momentEventCurrent: () =>
     request<{ event: { event_id: string; title: string; starts_at: string; ends_at: string; duration_min: number } | null; server_time: string }>('/moment-events/current'),
   adminTriggerMomentEvent: (duration_min = 10) =>

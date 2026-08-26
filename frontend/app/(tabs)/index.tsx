@@ -48,8 +48,9 @@ import { useThemeColors } from '../../lib/themeContext';
 import { useTranslation } from '../../lib/i18n';
 
 const QUICK_FILTERS: { key: string; label: string; emoji: string }[] = [
-  { key: 'all', label: 'Tous', emoji: '✨' },
-  { key: 'open_now', label: 'Ouvert', emoji: '🕒' },
+  { key: 'all', label: 'Pour toi', emoji: '✨' },
+  { key: 'open_now', label: 'Ce soir', emoji: '🔥' },
+  { key: 'techno', label: 'Techno', emoji: '🎧' },
   { key: 'vip', label: 'VIP', emoji: '💎' },
   { key: 'terrasse', label: 'Terrasse', emoji: '🌿' },
 ];
@@ -134,10 +135,12 @@ export default function Home() {
 
   const onQuickFilter = (k: string) => {
     setActive(k);
-    if (k === 'all') setFilters({ ...filters, open_now: false, vip: false, terrasse: false });
-    if (k === 'open_now') setFilters({ ...filters, open_now: true, vip: false, terrasse: false });
-    if (k === 'vip') setFilters({ ...filters, vip: true, open_now: false, terrasse: false });
-    if (k === 'terrasse') setFilters({ ...filters, terrasse: true, open_now: false, vip: false });
+    const next = { ...filters, open_now: false, vip: false, terrasse: false, music: undefined as string | undefined };
+    if (k === 'open_now') next.open_now = true;
+    if (k === 'vip') next.vip = true;
+    if (k === 'terrasse') next.terrasse = true;
+    if (k === 'techno') next.music = 'techno';
+    setFilters(next);
   };
 
   const firstName = (user?.name || '').split(' ')[0];

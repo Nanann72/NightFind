@@ -25,6 +25,7 @@ import Animated, {
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useThemeColors } from '../lib/themeContext';
 import { useTabBarScroll } from '../lib/tabBarScroll';
+import { useUnreadMessages } from '../lib/useUnreadMessages';
 import { motion, radius, shadows } from '../lib/theme';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -33,11 +34,12 @@ const BAR_HORIZONTAL_MARGIN = 16;
 const BAR_VERTICAL_OFFSET = 8;
 
 /** Routes that exist inside (tabs) but must not appear in the bar */
-const HIDDEN_TABS = new Set(['swipe', 'events']);
+const HIDDEN_TABS = new Set(['plus', 'events']);
 
 const ICON_MAP: Record<string, { outline: keyof typeof Ionicons.glyphMap; filled: keyof typeof Ionicons.glyphMap }> = {
   index: { outline: 'home-outline', filled: 'home' },
   map: { outline: 'map-outline', filled: 'map' },
+  swipe: { outline: 'heart-outline', filled: 'heart' },
   plus: { outline: 'grid-outline', filled: 'grid' },
   chats: { outline: 'chatbubble-outline', filled: 'chatbubble' },
   profile: { outline: 'person-outline', filled: 'person' },
@@ -61,6 +63,7 @@ export function LiquidGlassTabBar({ state, descriptors, navigation }: BottomTabB
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const { tabBarVisible } = useTabBarScroll();
+  const { unread: unreadChats } = useUnreadMessages();
 
   const visibleRoutes = state.routes.filter((r) => !HIDDEN_TABS.has(r.name));
   const barWidth = SCREEN_W - BAR_HORIZONTAL_MARGIN * 2;
@@ -179,7 +182,16 @@ export function LiquidGlassTabBar({ state, descriptors, navigation }: BottomTabB
               accessibilityLabel={(options as any).tabBarAccessibilityLabel || label}
               hitSlop={8}
             >
-              <TabIcon name={route.name} focused={focused} color={color} />
+              <View>
+                <TabIcon name={route.name} focused={focused} color={color} />
+                {route.name === 'chats' && unreadChats > 0 && (
+                  <View style={[styles.tabBadge, { backgroundColor: colors.primary }]} testID="chats-tab-badge">
+                    <Text style={styles.tabBadgeText} allowFontScaling={false}>
+                      {unreadChats > 9 ? '9+' : String(unreadChats)}
+                    </Text>
+                  </View>
+                )}
+              </View>
               <Text
                 style={[styles.label, { color }]}
                 numberOfLines={1}
@@ -233,4 +245,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.1,
   },
+  tabBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -10,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabBadgeText: { color: '#fff', fontSize: 9.5, fontWeight: '800' },
 });

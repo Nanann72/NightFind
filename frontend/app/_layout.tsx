@@ -14,6 +14,7 @@ import { TabBarScrollProvider } from '../lib/tabBarScroll';
 import { attachNotificationActionListeners } from '../lib/notificationsSetup';
 import { syncBadge } from '../lib/badge';
 import { OfflineBanner } from '../components/OfflineBanner';
+import { InAppNotificationBanner } from '../components/InAppNotificationBanner';
 import { initI18n } from '../lib/i18n';
 import { colors } from '../lib/theme';
 
@@ -99,6 +100,7 @@ function ThemedRootContent() {
         />
       </Stack>
       <OfflineBanner />
+      <InAppNotificationBanner />
     </>
   );
 }

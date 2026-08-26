@@ -354,3 +354,12 @@ agent_communication:
       B) Mise en avant : Stripe supprimé → RevenueCat IAP (demande gratuite → validation admin →
       paiement Apple promo_bar_7d/30d → activation auto via webhook RC). promotion-status.tsx supprimé.
       Fixes : imports manquants search.tsx (MUSIC_GENRES) et MapImpl.native.tsx (LocationRequired).
+
+  - agent: "main"
+    message: |
+      NIGHT FINDER 3.0 — Phases 3/4/7/9/11 testées (iteration_42.json — backend 7/7 PASS, frontend PASS).
+      Nouveaux endpoints : GET /api/matches/unread-count, champ unread dans GET /api/matches.
+      Frontend : FAB + (CreateFab), chips accueil (Pour toi/Ce soir/Techno/VIP/Terrasse), badges non-lus
+      (tab bar + par conversation), InAppNotificationBanner (root layout), onboarding 1 intro + 3 features.
+      Fix post-test : triggerUnreadMessagesRefresh() au focus de chats.tsx (badge tab instantané).
+      Bottom sheet carte (MapImpl.native.tsx) = natif uniquement, à valider sur téléphone.

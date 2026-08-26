@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { GeofenceCheckIn } from '../../components/GeofenceCheckIn';
 import { LiquidGlassTabBar } from '../../components/LiquidGlassTabBar';
+import { CreateFab } from '../../components/CreateFab';
 import { useTranslation } from '../../lib/i18n';
 
 /**
@@ -30,8 +31,8 @@ export default function TabsLayout() {
           options={{ title: t('tabs.map'), tabBarButtonTestID: 'tab-map' } as any}
         />
         <Tabs.Screen
-          name="plus"
-          options={{ title: t('tabs.plus'), tabBarButtonTestID: 'tab-plus' } as any}
+          name="swipe"
+          options={{ title: 'Découvrir', tabBarButtonTestID: 'tab-swipe' } as any}
         />
         <Tabs.Screen
           name="chats"
@@ -42,9 +43,10 @@ export default function TabsLayout() {
           options={{ title: t('tabs.profile'), tabBarButtonTestID: 'tab-profile' } as any}
         />
         {/* Hidden routes — kept for navigation but not in the bar */}
-        <Tabs.Screen name="swipe" options={{ title: 'Swipe' }} />
+        <Tabs.Screen name="plus" options={{ title: t('tabs.plus') }} />
         <Tabs.Screen name="events" options={{ title: 'Events' }} />
       </Tabs>
+      <CreateFab />
     </>
   );
 }

@@ -1,0 +1,44 @@
+{
+  "summary": "Iteration 42 — Phases 3/4/7/9/11 (5 onglets + FAB + chips + badges non-lus + onboarding réduit) validées. Backend 7/7 PASS (matches.unread field, /matches/unread-count, mark-read → 0, /clubs?music=techno). Frontend web preview 100% OK : onboarding 'Passer' fonctionne → login apple.reviewer/Reviewer2026! OK, home affiche les 5 chips (Pour toi / Ce soir / Techno / VIP / Terrasse) tous cliquables sans crash, tab bar avec 5 onglets + badge rouge '3' sur Chats (testID chats-tab-badge), FAB '+' ouvre bottom sheet avec 3 actions dont 'Créer une sortie' → /events navigation OK. Chats : Emma affiche badge unread-badge-mt_dd08014ac9 = '3' + last message en gras, ouverture chat Emma puis retour → badge Emma disparaît (mark-read côté backend appliqué, item.unread=0). Onglet Découvrir (/swipe) accessible sans crash. État reviewer restauré (Emma=3 non-lus) via reset read_at avant les tests UI.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Chats tab bar badge refresh after mark-read",
+        "issue": "Le badge testID='chats-tab-badge' reste visible après retour du chat Emma (mark-read backend OK, /matches/unread-count renvoie 0). Le hook useUnreadMessages poll toutes les 30s → il faut attendre le prochain poll ou un AppState 'active' pour que le badge se mette à jour. UX : ajouter un refresh explicite sur focus de la Chats screen ou après navigation depuis un chat.",
+        "affected_testIDs": ["chats-tab-badge"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Home (index)",
+        "issues": ["Le FAB '+' (bottom+92) recouvre partiellement les dernières cartes en bas de liste. Le padding bottom du FlatList (140) semble suffisant, mais visuellement le bouton chevauche la carte 'Club Rex' quand on scrolle jusqu'en bas — ok fonctionnellement."]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_phase_unread_music.py",
+    "/app/test_reports/pytest/phase_unread_music.xml"
+  ],
+  "action_items": [
+    "Optionnel/UX : dans useUnreadMessages ou LiquidGlassTabBar, exposer un refresh callback et l'appeler depuis chats.tsx quand on revient d'un chat (par ex. dans le useFocusEffect qui appelle load()). Alternative : brancher le hook sur un event bus/store zustand pour propager le mark-read instantanément."
+  ],
+  "critical_code_review_comments": [
+    "server.py > 6900 lignes — persister le split modulaire déjà recommandé.",
+    "seed_reviewer.py ne réinitialise PAS les read_at sur les messages déjà seedés → à corriger si on veut que 'python3 seed_reviewer.py' restaure l'état '3 non-lus' pour Emma après un test de mark-read."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase_unread_music.py (nouveau, régression)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Restauration temporaire : $unset read_at sur les 3 derniers messages d'Emma dans le match mt_dd08014ac9 pour retrouver l'état initial reviewer=3 non-lus avant les tests UI. Idempotent.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reviewer=apple.reviewer@nightfinder.app / Reviewer2026!. Le test test_mark_emma_read_zeros_unread marque les messages d'Emma comme lus — si tu veux re-tester le badge à '3', réutilise le snippet asyncio motor pour $unset read_at sur les msgs d'Emma (from_user_id=user_demo_emma01, match mt_dd08014ac9). Bottom sheet MapImpl.native NON testé (web only limitation). InAppNotificationBanner (poll 25s) non déclenché faute d'event.",
+  "rca_of_issue": "Le tab bar badge (chats-tab-badge) qui reste visible après mark-read n'est pas un bug fonctionnel : le backend /matches/unread-count renvoie bien 0 et /matches renvoie item.unread=0 pour Emma. C'est un délai de propagation lié au poll 30s de useUnreadMessages (aucun canal de refresh forcé après navigation retour). Le badge se met à jour au prochain poll ou au focus AppState 'active'."
+}

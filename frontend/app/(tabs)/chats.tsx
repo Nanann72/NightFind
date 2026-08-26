@@ -15,6 +15,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
+import { triggerUnreadMessagesRefresh } from '../../lib/useUnreadMessages';
 import { HapticButton } from '../../components/ui/HapticButton';
 import { radius, spacing, type ThemeColors } from '../../lib/theme';
 import { useThemeColors } from '../../lib/themeContext';
@@ -34,6 +35,7 @@ export default function ChatsTab() {
     try {
       const r = await api.listMatches();
       setItems(r || []);
+      triggerUnreadMessagesRefresh();
     } catch {
       setItems([]);
     } finally {
@@ -92,11 +94,22 @@ export default function ChatsTab() {
             )}
             <View style={styles.rowBody}>
               <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-              <Text style={styles.last} numberOfLines={1}>
+              <Text
+                style={[styles.last, item.unread > 0 && styles.lastUnread]}
+                numberOfLines={1}
+              >
                 {item.last_message || t('matches.sayHi')}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+            {item.unread > 0 ? (
+              <View style={styles.unreadBadge} testID={`unread-badge-${item.match_id}`}>
+                <Text style={styles.unreadText} allowFontScaling={false}>
+                  {item.unread > 99 ? '99+' : String(item.unread)}
+                </Text>
+              </View>
+            ) : (
+              <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+            )}
           </HapticButton>
         )}
       />
@@ -139,6 +152,17 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   rowBody: { flex: 1, borderBottomWidth: 0 },
   name: { color: colors.textPrimary, fontWeight: '600', fontSize: 17 },
   last: { color: colors.textSecondary, fontSize: 14, marginTop: 3 },
+  lastUnread: { color: colors.textPrimary, fontWeight: '700' },
+  unreadBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 6,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   emptyWrap: { alignItems: 'center', marginTop: 80, gap: 16 },
   emptyIcon: {
     width: 72,

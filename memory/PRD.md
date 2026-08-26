@@ -363,3 +363,13 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - Frontend : /phone-verification (input tel + code + switch A2F, testIDs phone-input/phone-submit-btn/twofa-switch), settings row-phone-2fa, login.tsx champ "Code SMS (A2F)" conditionnel + signIn2FA dans auth.tsx.
 - GeofenceCheckIn.tsx : rayon 50m → 150m (bug SOHO Le Mans à 54m). Couverture bars = recherche Google Places on-demand nationale (pas de seed nécessaire).
 - Fix BeReal préview selfie (double préfixe) déjà appliqué. Test file: /app/backend/tests/test_phone_2fa.py
+
+## ✅ NIGHT FINDER 3.0 — PHASES 3/4/7/8/9/11 (août 2026) — iter_42, backend 7/7 + frontend PASS
+- **Phase 3 (Navigation)** validée : tab bar 5 onglets (Accueil, Carte, Découvrir, Chats, Profil) + FAB « + » global (CreateFab.tsx : Publier un Moment / Créer une sortie / Partager un lieu). Routes cachées plus/events restent navigables.
+- **Phase 4 (Accueil)** : chips catégories mises au spec — Pour toi ✨ / Ce soir 🔥 / Techno 🎧 / VIP 💎 / Terrasse 🌿 (chip Techno → filtre music=techno backend).
+- **Phase 7 (Messages)** : GET /api/matches renvoie `unread` par match + nouveau GET /api/matches/unread-count. Badge rouge par conversation (chats.tsx) + badge global sur onglet Chats (LiquidGlassTabBar via lib/useUnreadMessages.ts, poll 30s + refresh AppState + triggerUnreadMessagesRefresh() appelé au focus de chats.tsx pour maj instantanée).
+- **Phase 8 (Carte)** : bottom sheet draggable (Reanimated + Gesture.Pan, snap peek 128px ↔ 52% écran) dans MapImpl.native.tsx — liste des lieux triés par distance, tap → centre la carte + sélection. ⚠️ Natif uniquement (non testable web).
+- **Phase 9 (Notifs in-app)** : components/InAppNotificationBanner.tsx monté dans _layout.tsx — poll unread 25s, si nouveau → bannière animée slide-down (spring), haptic, tap → /notifications, auto-hide 4,5s.
+- **Phase 11 (Onboarding)** : réduit de 5 intros + 8 features → 1 intro + 3 features (01 Carte, 02 Swipe, 03 Match & chat). Écrans setup (musique/photos/permissions) conservés.
+- Phases 5 (Swipe) et 6 (Profil) déjà au niveau premium (sessions précédentes) — validées visuellement.
+- RESTE : Phase 10 polish micro-interactions additionnelles (optionnel, haptics/springs déjà largement présents), Phase 12 polish final continu, refactor server.py (>6000 lignes) en routers modulaires (backlog P3).

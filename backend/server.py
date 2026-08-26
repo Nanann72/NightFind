@@ -2232,6 +2232,11 @@ async def list_matches(user: dict = Depends(get_current_user)):
         {"$group": {"_id": "$match_id", "text": {"$first": "$text"}, "created_at": {"$first": "$created_at"}}},
     ]).to_list(len(match_ids))
     lmap = {lm["_id"]: lm for lm in last_msgs}
+    unread_agg = await db.messages.aggregate([
+        {"$match": {"match_id": {"$in": match_ids}, "from_user_id": {"$ne": uid}, "read_at": {"$exists": False}}},
+        {"$group": {"_id": "$match_id", "n": {"$sum": 1}}},
+    ]).to_list(len(match_ids))
+    unread_map = {u["_id"]: u["n"] for u in unread_agg}
     out = []
     for m in items:
         peer = umap.get(_other_user_id(m, uid))
@@ -2245,8 +2250,25 @@ async def list_matches(user: dict = Depends(get_current_user)):
             "photo": (peer.get("photos") or [None])[0],
             "last_message": (last or {}).get("text"),
             "last_at": (last or {}).get("created_at") or m.get("last_message_at"),
+            "unread": unread_map.get(m["match_id"], 0),
         })
     return out
+
+
+@api_router.get("/matches/unread-count")
+async def matches_unread_count(user: dict = Depends(get_current_user)):
+    """Total number of unread chat messages across all matches (for tab badge)."""
+    uid = user["user_id"]
+    matches = await db.matches.find(
+        {"$or": [{"user_a": uid}, {"user_b": uid}]}, {"_id": 0, "match_id": 1}
+    ).to_list(200)
+    ids = [m["match_id"] for m in matches]
+    if not ids:
+        return {"unread": 0}
+    c = await db.messages.count_documents(
+        {"match_id": {"$in": ids}, "from_user_id": {"$ne": uid}, "read_at": {"$exists": False}}
+    )
+    return {"unread": c}
 
 
 @api_router.get("/matches/{match_id}/messages")

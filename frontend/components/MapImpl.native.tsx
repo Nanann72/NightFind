@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, FlatList } from 'react-native';
 import MapView, { Marker, Callout, PROVIDER_DEFAULT } from 'react-native-maps';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,6 +14,10 @@ import { useThemeColors } from '../lib/themeContext';
 import { useAuth } from '../lib/auth';
 import { LocationRequired } from './LocationRequired';
 import { SafeImage } from './SafeImage';
+
+const SCREEN_H = Dimensions.get('window').height;
+const SHEET_PEEK = 128;
+const SHEET_HALF = Math.round(SCREEN_H * 0.52);
 
 const DARK_MAP_STYLE = [
   { elementType: 'geometry', stylers: [{ color: '#0f0f12' }] },
@@ -90,6 +96,42 @@ export default function MapImpl() {
   );
 
   const selected = clubs.find((c) => c.club_id === selectedId);
+
+  // ── Bottom sheet (Night Finder 3.0 · Phase 8) ──
+  const sheetH = useSharedValue(SHEET_PEEK);
+  const sheetStart = useSharedValue(0);
+  const sheetPan = Gesture.Pan()
+    .onStart(() => {
+      sheetStart.value = sheetH.value;
+    })
+    .onUpdate((e) => {
+      const next = sheetStart.value - e.translationY;
+      sheetH.value = Math.min(SHEET_HALF, Math.max(SHEET_PEEK, next));
+    })
+    .onEnd((e) => {
+      const goHalf =
+        e.velocityY < -300 ||
+        (e.velocityY < 300 && sheetH.value > (SHEET_PEEK + SHEET_HALF) / 2);
+      sheetH.value = withSpring(goHalf ? SHEET_HALF : SHEET_PEEK, { damping: 20, stiffness: 190 });
+    });
+  const sheetStyle = useAnimatedStyle(() => ({ height: sheetH.value }));
+
+  const sortedClubs = useMemo(
+    () =>
+      [...clubs].sort(
+        (a, b) => ((a as any).distance_km ?? 999) - ((b as any).distance_km ?? 999),
+      ),
+    [clubs],
+  );
+
+  const onPickClub = (c: (typeof clubs)[number]) => {
+    setSelectedId(c.club_id);
+    sheetH.value = withSpring(SHEET_PEEK, { damping: 20, stiffness: 190 });
+    mapRef.current?.animateToRegion(
+      { latitude: c.lat, longitude: c.lng, latitudeDelta: 0.02, longitudeDelta: 0.02 },
+      400,
+    );
+  };
 
   useEffect(() => {
     if (mapRef.current) {
@@ -224,6 +266,41 @@ export default function MapImpl() {
         </TouchableOpacity>
       </View>
 
+      {!selected && (
+        <GestureDetector gesture={sheetPan}>
+          <Animated.View style={[styles.sheet, sheetStyle]} testID="map-bottom-sheet">
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>
+              {sortedClubs.length} lieux autour de toi
+            </Text>
+            <FlatList
+              data={sortedClubs}
+              keyExtractor={(c) => c.club_id}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 96 }}
+              renderItem={({ item: c }) => (
+                <TouchableOpacity
+                  style={styles.sheetRow}
+                  activeOpacity={0.85}
+                  onPress={() => onPickClub(c)}
+                  testID={`sheet-club-${c.club_id}`}
+                >
+                  <SafeImage uri={c.photos[0]} width={96} style={styles.sheetThumb} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sheetName} numberOfLines={1}>{c.name}</Text>
+                    <Text style={styles.sheetMeta} numberOfLines={1}>
+                      ⭐ {c.rating.toFixed(1)} · {c.music_styles[0] || 'club'}
+                      {(c as any).distance_km != null ? ` · ${(c as any).distance_km.toFixed(1)} km` : ''}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+                </TouchableOpacity>
+              )}
+            />
+          </Animated.View>
+        </GestureDetector>
+      )}
+
       {selected && (
         <TouchableOpacity
           activeOpacity={0.9}
@@ -251,6 +328,33 @@ export default function MapImpl() {
 
 const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.surfaceElevated,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    zIndex: 40,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    marginBottom: 10,
+  },
+  sheetTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '800', marginBottom: 10 },
+  sheetRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 9 },
+  sheetThumb: { width: 52, height: 52, borderRadius: 12, backgroundColor: colors.bg },
+  sheetName: { color: colors.textPrimary, fontSize: 14.5, fontWeight: '700' },
+  sheetMeta: { color: colors.textSecondary, fontSize: 12.5, marginTop: 2 },
   marker: {
     width: 24,
     height: 24,
