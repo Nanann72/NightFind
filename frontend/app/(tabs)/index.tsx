@@ -206,6 +206,24 @@ export default function Home() {
         />
       </View>
 
+      {/* ── Mode Soirée : Ce soir je sors ──────── */}
+      <HapticButton
+        haptic="medium"
+        scale={0.98}
+        style={styles.tonightBanner}
+        onPress={() => router.push('/tonight' as any)}
+        testID="tonight-banner"
+      >
+        <Text style={styles.tonightEmoji} allowFontScaling={false}>🎉</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.tonightTitle}>Ce soir je sors</Text>
+          <Text style={styles.tonightSub}>Club, itinéraire et amis en un geste</Text>
+        </View>
+        <View style={styles.tonightArrow}>
+          <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+        </View>
+      </HapticButton>
+
       {/* ── Explore map banner ─────────────────── */}
       <HapticButton
         haptic="light"
@@ -755,6 +773,32 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     padding: 16,
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,
+  },
+  tonightBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: colors.primary,
+    borderRadius: radius.xl,
+    padding: 16,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  tonightEmoji: { fontSize: 26 },
+  tonightTitle: { color: '#fff', fontSize: 17, fontWeight: '900' },
+  tonightSub: { color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2 },
+  tonightArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   exploreIcon: {
     width: 42,

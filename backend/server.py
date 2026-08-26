@@ -2369,6 +2369,76 @@ async def activity_pulse(
     }
 
 
+@api_router.get("/tonight/plan")
+async def tonight_plan(
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    user: dict = Depends(get_current_user),
+):
+    """Mode Soirée « Ce soir je sors » : club recommandé + alternatives + amis."""
+    prefs_lower = {str(p).lower() for p in (user.get("music_prefs") or [])}
+    q: dict = {"rating": {"$gte": 4.0}, "photos.0": {"$exists": True}}
+    if lat is not None and lng is not None:
+        q["lat"] = {"$gte": lat - 0.3, "$lte": lat + 0.3}
+        q["lng"] = {"$gte": lng - 0.45, "$lte": lng + 0.45}
+    docs = await db.places.find(q, {"_id": 0}).sort("rating", -1).limit(60).to_list(60)
+    if not docs:
+        docs = await db.places.find(
+            {"rating": {"$gte": 4.2}, "photos.0": {"$exists": True}}, {"_id": 0}
+        ).sort("rating", -1).limit(30).to_list(30)
+
+    def _score(c: dict) -> float:
+        s = float(c.get("rating") or 0)
+        styles = {str(m).lower() for m in (c.get("music_styles") or [])}
+        if prefs_lower & styles:
+            s += 1.5
+        if "night_club" in (c.get("types") or []):
+            s += 0.6
+        return s
+
+    docs.sort(key=_score, reverse=True)
+    out_clubs = []
+    for c in docs[:4]:
+        dist = None
+        if lat is not None and lng is not None and c.get("lat") is not None:
+            dist = round(haversine_km(lat, lng, c["lat"], c["lng"]), 1)
+        out_clubs.append({
+            "club_id": c["club_id"],
+            "name": c.get("name"),
+            "photo": (c.get("photos") or [None])[0],
+            "address": c.get("address"),
+            "rating": c.get("rating"),
+            "music_styles": (c.get("music_styles") or [])[:3],
+            "distance_km": dist,
+            "lat": c.get("lat"),
+            "lng": c.get("lng"),
+            "live": _pseudo_live_count(c["club_id"]),
+        })
+
+    uid = user["user_id"]
+    ms = await db.matches.find(
+        {"$or": [{"user_a": uid}, {"user_b": uid}]}, {"_id": 0}
+    ).sort("last_message_at", -1).limit(30).to_list(30)
+    peer_ids = list({_other_user_id(m, uid) for m in ms})
+    peers = await db.users.find({"user_id": {"$in": peer_ids}}, {"_id": 0}).to_list(60)
+    pmap = {p["user_id"]: p for p in peers}
+    friends = []
+    for m in ms:
+        p = pmap.get(_other_user_id(m, uid))
+        if p:
+            friends.append({
+                "match_id": m["match_id"],
+                "user_id": p["user_id"],
+                "name": p.get("name", ""),
+                "photo": (p.get("photos") or [None])[0],
+            })
+    return {
+        "club": out_clubs[0] if out_clubs else None,
+        "alternatives": out_clubs[1:],
+        "friends": friends,
+    }
+
+
 @api_router.get("/matches/{match_id}/messages")
 async def list_messages(match_id: str, since: Optional[str] = None, user: dict = Depends(get_current_user)):
     m = await db.matches.find_one({"match_id": match_id}, {"_id": 0})

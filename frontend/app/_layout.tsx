@@ -67,6 +67,10 @@ function ThemedRootContent() {
         }}
       >
         <Stack.Screen
+          name="tonight"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
           name="paywall"
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />

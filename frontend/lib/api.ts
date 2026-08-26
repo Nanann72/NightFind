@@ -39,6 +39,19 @@ export type MenuItem = {
   category?: string;
 };
 
+export type TonightClub = {
+  club_id: string;
+  name: string;
+  photo?: string | null;
+  address?: string;
+  rating?: number;
+  music_styles: string[];
+  distance_km?: number | null;
+  lat?: number;
+  lng?: number;
+  live: number;
+};
+
 export type Promotion = {
   promo_id: string;
   user_id: string;
@@ -321,6 +334,12 @@ export const api = {
     request<{ type: string; emoji: string; title: string; body: string; image?: string | null; route?: string }>(
       `/activity/pulse${lat != null && lng != null ? `?lat=${lat}&lng=${lng}` : ''}`,
     ),
+  tonightPlan: (lat?: number, lng?: number) =>
+    request<{
+      club: TonightClub | null;
+      alternatives: TonightClub[];
+      friends: { match_id: string; user_id: string; name: string; photo?: string | null }[];
+    }>(`/tonight/plan${lat != null && lng != null ? `?lat=${lat}&lng=${lng}` : ''}`),
   momentEventCurrent: () =>
     request<{ event: { event_id: string; title: string; starts_at: string; ends_at: string; duration_min: number } | null; server_time: string }>('/moment-events/current'),
   adminTriggerMomentEvent: (duration_min = 10) =>

@@ -382,3 +382,9 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - **Swipe** : compteur deck « X/Y » (deck-counter) dans le header.
 - **Carte native** : chips Tous/Clubs/Bars/Événements (filtre types/primary_type des places Google), carte lieu sélectionné enrichie : 👥 N personnes ici + boutons Voir / Itinéraire (Google Maps directions). ⚠️ Natif uniquement, à valider sur téléphone.
 - Club type frontend étendu (primary_type, types). api.ts : activityLive, activityPulse.
+
+## ✅ MODE SOIRÉE « CE SOIR JE SORS » (août 2026) — auto-testé E2E PASS
+- Backend : GET /api/tonight/plan?lat&lng → {club, alternatives[3], friends[]} — score = note + bonus goûts musicaux (user.music_prefs ∩ music_styles) + bonus night_club, distance haversine, compteur live (_pseudo_live_count). friends = matchs triés par dernier message.
+- Frontend : /app/frontend/app/tonight.tsx (modal slide_from_bottom dans _layout) — carte héro club (photo, 👥 live, ⭐, distance, styles), boutons Itinéraire (Google Maps directions) / Voir le club / 🔀 autre suggestion (cycle 1/4), sélection d'amis (cercle check) + « Envoyer l'invitation (N) » → api.sendMessage groupé (« 🎉 Ce soir je sors au X ! Tu viens ? 📍 adresse ») → « Invitations envoyées ✅ » + Ouvrir les messages.
+- Accueil : bannière primaire « 🎉 Ce soir je sors » (tonight-banner) au-dessus d'« Explorer la carte ».
+- Testé E2E web : plan chargé (4 suggestions), shuffle OK, invitation envoyée à Lucas confirmée en base.
