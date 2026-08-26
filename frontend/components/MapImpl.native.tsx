@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions, FlatList, Linking, ScrollView } from 'react-native';
 import MapView, { Marker, Callout, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
@@ -19,6 +19,13 @@ const SCREEN_H = Dimensions.get('window').height;
 const SHEET_PEEK = 128;
 const SHEET_HALF = Math.round(SCREEN_H * 0.52);
 
+const MAP_CATS: { key: string; label: string }[] = [
+  { key: 'tous', label: 'Tous' },
+  { key: 'clubs', label: 'Clubs' },
+  { key: 'bars', label: 'Bars' },
+  { key: 'events', label: 'Événements' },
+];
+
 const DARK_MAP_STYLE = [
   { elementType: 'geometry', stylers: [{ color: '#0f0f12' }] },
   { elementType: 'labels.text.stroke', stylers: [{ color: '#0f0f12' }] },
@@ -37,6 +44,8 @@ export default function MapImpl() {
   const loc = useLocation();
   const { user: currentUser } = useAuth();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [cat, setCat] = useState('tous');
+  const [liveSel, setLiveSel] = useState<number | null>(null);
   const [friends, setFriends] = useState<ActiveFriend[]>([]);
   const [nearbyUsers, setNearbyUsers] = useState<NearbyUser[]>([]);
   const [browseWithoutLocation, setBrowseWithoutLocation] = useState(false);
@@ -97,6 +106,31 @@ export default function MapImpl() {
 
   const selected = clubs.find((c) => c.club_id === selectedId);
 
+  // Compteur « personnes ici » du lieu sélectionné
+  useEffect(() => {
+    if (!selectedId) {
+      setLiveSel(null);
+      return;
+    }
+    let mounted = true;
+    api.activityLive([selectedId])
+      .then((r) => mounted && setLiveSel(r.counts?.[selectedId] ?? null))
+      .catch(() => mounted && setLiveSel(null));
+    return () => { mounted = false; };
+  }, [selectedId]);
+
+  // Filtre catégorie (Clubs / Bars / Événements)
+  const shownClubs = useMemo(() => {
+    if (cat === 'tous') return clubs;
+    return clubs.filter((c) => {
+      const t: string[] = [...(((c as any).types as string[]) || []), (c as any).primary_type || ''];
+      if (cat === 'events') return (c.events?.length ?? 0) > 0;
+      if (cat === 'bars') return t.includes('bar') || /\bbar\b|pub/i.test(c.name);
+      if (cat === 'clubs') return t.includes('night_club') || /club|discoth/i.test(c.name) || !t.includes('bar');
+      return true;
+    });
+  }, [clubs, cat]);
+
   // ── Bottom sheet (Night Finder 3.0 · Phase 8) ──
   const sheetH = useSharedValue(SHEET_PEEK);
   const sheetStart = useSharedValue(0);
@@ -118,10 +152,10 @@ export default function MapImpl() {
 
   const sortedClubs = useMemo(
     () =>
-      [...clubs].sort(
+      [...shownClubs].sort(
         (a, b) => ((a as any).distance_km ?? 999) - ((b as any).distance_km ?? 999),
       ),
-    [clubs],
+    [shownClubs],
   );
 
   const onPickClub = (c: (typeof clubs)[number]) => {
@@ -156,7 +190,7 @@ export default function MapImpl() {
         showsMyLocationButton={false}
         customMapStyle={DARK_MAP_STYLE}
       >
-        {clubs.map((c) => (
+        {shownClubs.map((c) => (
           <Marker
             key={c.club_id}
             coordinate={{ latitude: c.lat, longitude: c.lng }}
@@ -255,7 +289,7 @@ export default function MapImpl() {
       <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
         <View style={styles.searchPill}>
           <Ionicons name="search" size={16} color={colors.textSecondary} />
-          <Text style={styles.searchPillText}>{clubs.length} clubs autour de vous</Text>
+          <Text style={styles.searchPillText}>{shownClubs.length} lieux autour de vous</Text>
         </View>
         <TouchableOpacity
           style={styles.recenterBtn}
@@ -264,6 +298,27 @@ export default function MapImpl() {
         >
           <Ionicons name="locate" size={18} color={colors.tertiary} />
         </TouchableOpacity>
+      </View>
+
+      {/* ── Chips catégories ── */}
+      <View style={[styles.catRow, { top: insets.top + 64 }]} pointerEvents="box-none">
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
+          {MAP_CATS.map((c) => {
+            const active = cat === c.key;
+            return (
+              <TouchableOpacity
+                key={c.key}
+                style={[styles.catChip, active && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                onPress={() => setCat(c.key)}
+                testID={`map-cat-${c.key}`}
+              >
+                <Text style={[styles.catChipText, active && { color: '#fff' }]} allowFontScaling={false}>
+                  {c.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {!selected && (
@@ -315,7 +370,32 @@ export default function MapImpl() {
               ⭐ {selected.rating.toFixed(1)} · {selected.avg_price.toFixed(0)}€ ·{' '}
               {selected.music_styles[0]}
             </Text>
-            <Text style={styles.bottomCta}>Voir le club ›</Text>
+            {liveSel != null && (
+              <View style={styles.bottomLiveRow}>
+                <Ionicons name="people" size={12} color={colors.primary} />
+                <Text style={styles.bottomLiveText}>{liveSel} personnes ici</Text>
+              </View>
+            )}
+            <View style={styles.bottomBtnRow}>
+              <TouchableOpacity
+                style={styles.bottomVoirBtn}
+                onPress={() => router.push(`/club/${selected.club_id}` as any)}
+                testID="map-card-voir"
+              >
+                <Text style={styles.bottomVoirText} allowFontScaling={false}>Voir</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.bottomItiBtn}
+                onPress={() =>
+                  Linking.openURL(
+                    `https://www.google.com/maps/dir/?api=1&destination=${selected.lat},${selected.lng}`,
+                  ).catch(() => {})
+                }
+                testID="map-card-itineraire"
+              >
+                <Text style={styles.bottomItiText} allowFontScaling={false}>Itinéraire</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <TouchableOpacity onPress={() => setSelectedId(null)} style={styles.bottomClose}>
             <Ionicons name="close" size={18} color={colors.textPrimary} />
@@ -506,6 +586,35 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   bottomName: { color: colors.textPrimary, fontWeight: '800', fontSize: 15 },
   bottomMeta: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   bottomCta: { color: colors.tertiary, marginTop: 6, fontWeight: '700', fontSize: 12 },
+  bottomLiveRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
+  bottomLiveText: { color: colors.primary, fontSize: 12, fontWeight: '800' },
+  bottomBtnRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  bottomVoirBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 6,
+  },
+  bottomVoirText: { color: '#fff', fontSize: 12.5, fontWeight: '800' },
+  bottomItiBtn: {
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceElevated,
+  },
+  bottomItiText: { color: colors.textPrimary, fontSize: 12.5, fontWeight: '700' },
+  catRow: { position: 'absolute', left: 0, right: 0, zIndex: 30 },
+  catChip: {
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  catChipText: { color: colors.textPrimary, fontSize: 12.5, fontWeight: '700' },
   bottomClose: { padding: 12, alignSelf: 'flex-start' },
 });
 

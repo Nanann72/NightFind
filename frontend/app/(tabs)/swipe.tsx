@@ -201,6 +201,7 @@ export default function SwipePeople() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [deck, setDeck] = useState<SwipeProfile[]>([]);
+  const [deckTotal, setDeckTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [quota, setQuota] = useState<Quota | null>(null);
   const [photoIdx, setPhotoIdx] = useState(0);
@@ -218,6 +219,7 @@ export default function SwipePeople() {
     try {
       const [d, q] = await Promise.all([api.swipeDeck(sameClub), api.swipeQuota()]);
       setDeck(d as any);
+      setDeckTotal((d as any[])?.length || 0);
       setQuota(q as any);
     } catch {
       setDeck([]);
@@ -445,6 +447,13 @@ export default function SwipePeople() {
             <Text style={styles.brand}>SWIPE</Text>
             <Text style={styles.title}>Découvre du monde</Text>
           </View>
+          {deckTotal > 0 && deck.length > 0 && (
+            <View style={styles.deckCounter} testID="deck-counter">
+              <Text style={styles.deckCounterText} allowFontScaling={false}>
+                {Math.min(deckTotal - deck.length + 1, deckTotal)}/{deckTotal}
+              </Text>
+            </View>
+          )}
           {quota?.boost_active && (
             <View style={styles.boostPill} testID="boost-active-pill">
               <Ionicons name="flash" size={13} color="#E6C15A" />
@@ -935,6 +944,16 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   brand: { color: colors.primary, fontWeight: '900', fontSize: 11, letterSpacing: 3 },
   title: { color: colors.textPrimary, fontSize: 26, fontWeight: '900', letterSpacing: -0.5 },
+  deckCounter: {
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    marginRight: 8,
+  },
+  deckCounterText: { color: colors.textSecondary, fontSize: 12, fontWeight: '800' },
   likesHubBtn: {
     width: 40, height: 40, borderRadius: 20, marginLeft: 8,
     backgroundColor: colors.surfaceElevated,

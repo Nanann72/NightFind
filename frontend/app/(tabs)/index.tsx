@@ -78,6 +78,7 @@ export default function Home() {
   const [moments, setMoments] = useState<FeedMoment[]>([]);
   const [featured, setFeatured] = useState<Club[]>([]);
   const [unlockedCoupon, setUnlockedCoupon] = useState<any | null>(null);
+  const [live, setLive] = useState<Record<string, number>>({});
 
   // Partner bar: capture code from launch URL (QR/deep link), then claim the
   // -10% coupon once authenticated → 🎉 unlock modal.
@@ -133,6 +134,15 @@ export default function Home() {
     [filtered],
   );
 
+  // Live "people here" counts for the hero cards (engagement)
+  useEffect(() => {
+    const ids = trending.map((c) => c.club_id);
+    if (ids.length === 0) return;
+    api.activityLive(ids)
+      .then((r) => setLive((prev) => ({ ...prev, ...(r.counts || {}) })))
+      .catch(() => {});
+  }, [trending]);
+
   const onQuickFilter = (k: string) => {
     setActive(k);
     const next = { ...filters, open_now: false, vip: false, terrasse: false, music: undefined as string | undefined };
@@ -143,17 +153,20 @@ export default function Home() {
     setFilters(next);
   };
 
-  const firstName = (user?.name || '').split(' ')[0];
-
   const Header = (
     <View>
       {/* ── Header ─────────────────────────────── */}
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.h1} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
-            {firstName ? t('home.greeting', { name: firstName }) : 'Night Finder'}
+            Night <Text style={{ color: colors.primary }}>Finder</Text>
           </Text>
-          <Text style={styles.subtitle}>{t('home.readyTonight')}</Text>
+          <View style={styles.locRow}>
+            <Ionicons name="location" size={12} color={colors.primary} />
+            <Text style={styles.subtitle}>
+              {(user as any)?.city || t('home.readyTonight')}
+            </Text>
+          </View>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity
@@ -325,7 +338,11 @@ export default function Home() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.hList}
             renderItem={({ item }) => (
-              <TrendCard club={item} onPress={() => router.push(`/club/${item.club_id}` as any)} />
+              <TrendCard
+                club={item}
+                live={live[item.club_id]}
+                onPress={() => router.push(`/club/${item.club_id}` as any)}
+              />
             )}
           />
         </View>
@@ -579,13 +596,19 @@ const MiniClubCard = memo(function MiniClubCard({ club, onPress }: { club: Club;
   );
 }, (prev, next) => prev.club === next.club);
 
-const TrendCard = memo(function TrendCard({ club, onPress }: { club: Club; onPress: () => void }) {
+const TrendCard = memo(function TrendCard({ club, live, onPress }: { club: Club; live?: number; onPress: () => void }) {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <TouchableOpacity style={styles.trendCard} activeOpacity={0.9} onPress={onPress} testID={`trend-card-${club.club_id}`}>
       <SafeImage uri={club.photos?.[0]} width={480} style={styles.trendImage} />
       <View style={styles.trendOverlay} />
+      {live != null && (
+        <View style={styles.liveBadge}>
+          <Ionicons name="people" size={11} color="#fff" />
+          <Text style={styles.liveText} allowFontScaling={false}>{live}</Text>
+        </View>
+      )}
       <View style={styles.trendBody}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Text style={[styles.trendName, { flexShrink: 1 }]} numberOfLines={1}>{club.name}</Text>
@@ -595,12 +618,16 @@ const TrendCard = memo(function TrendCard({ club, onPress }: { club: Club; onPre
           <Ionicons name="star" size={12} color={colors.secondary} />
           <Text style={styles.trendMeta}>{club.rating.toFixed(1)}</Text>
           <Text style={styles.trendMeta}>·</Text>
-          <Text style={styles.trendMeta} numberOfLines={1}>{club.music_styles?.slice(0, 2).join(' / ')}</Text>
+          <Text style={[styles.trendMeta, { flexShrink: 1 }]} numberOfLines={1}>{club.music_styles?.slice(0, 2).join(' / ')}</Text>
+          <View style={{ flex: 1 }} />
+          <View style={styles.trendVoir}>
+            <Text style={styles.trendVoirText} allowFontScaling={false}>Voir</Text>
+          </View>
         </View>
       </View>
     </TouchableOpacity>
   );
-}, (prev, next) => prev.club === next.club);
+}, (prev, next) => prev.club === next.club && prev.live === next.live);
 
 const ClubCard = memo(function ClubCard({
   club,
@@ -806,6 +833,27 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   trendName: { color: '#fff', fontSize: 17, fontWeight: '700' },
   trendMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 },
   trendMeta: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600' },
+  locRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  liveBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  liveText: { color: '#fff', fontSize: 11.5, fontWeight: '800' },
+  trendVoir: {
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+  },
+  trendVoirText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   // People
   person: { alignItems: 'center', width: 76 },
   personAvatar: {

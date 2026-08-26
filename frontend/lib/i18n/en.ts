@@ -112,7 +112,7 @@ export default {
     exploreMap: 'Explore the map',
     exploreMapSub: 'See what happens around you',
     nearbyClubs: 'Nearby clubs',
-    trending: 'Trending tonight',
+    trending: 'Hot tonight 🔥',
     peopleNearby: 'People near you',
     moments: 'Moments',
     allClubs: 'All clubs',

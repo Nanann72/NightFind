@@ -29,6 +29,8 @@ export type Club = {
   verified?: boolean;
   promoted?: boolean;
   menu?: MenuItem[];
+  primary_type?: string;
+  types?: string[];
 };
 
 export type MenuItem = {
@@ -313,6 +315,12 @@ export const api = {
     request<{ unread: number }>('/notifications/unread-count'),
   matchesUnread: () =>
     request<{ unread: number }>('/matches/unread-count'),
+  activityLive: (ids: string[]) =>
+    request<{ counts: Record<string, number> }>(`/activity/live?club_ids=${ids.join(',')}`),
+  activityPulse: (lat?: number, lng?: number) =>
+    request<{ type: string; emoji: string; title: string; body: string; image?: string | null; route?: string }>(
+      `/activity/pulse${lat != null && lng != null ? `?lat=${lat}&lng=${lng}` : ''}`,
+    ),
   momentEventCurrent: () =>
     request<{ event: { event_id: string; title: string; starts_at: string; ends_at: string; duration_min: number } | null; server_time: string }>('/moment-events/current'),
   adminTriggerMomentEvent: (duration_min = 10) =>

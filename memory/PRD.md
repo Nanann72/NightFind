@@ -373,3 +373,12 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - **Phase 11 (Onboarding)** : réduit de 5 intros + 8 features → 1 intro + 3 features (01 Carte, 02 Swipe, 03 Match & chat). Écrans setup (musique/photos/permissions) conservés.
 - Phases 5 (Swipe) et 6 (Profil) déjà au niveau premium (sessions précédentes) — validées visuellement.
 - RESTE : Phase 10 polish micro-interactions additionnelles (optionnel, haptics/springs déjà largement présents), Phase 12 polish final continu, refactor server.py (>6000 lignes) en routers modulaires (backlog P3).
+
+## ✅ NIGHT FINDER 3.0 — ALIGNEMENT MOCKUP + POP-UPS D'ENGAGEMENT (août 2026) — iter_43, backend 6/6 + frontend PASS
+- **Backend** : GET /api/activity/pulse (item rotatif : hot_club 🔥 « Ça bouge au X — N personnes sur place » / new_user 👋 « Y vient de rejoindre » (filtre test|admin|reviewer|demo) / people_tonight 🎉) + GET /api/activity/live?club_ids= (compteurs « personnes ici » = check-ins réels 4h + boost déterministe par heure via _pseudo_live_count, plus fort la nuit 90-250, soirée 30-110, journée 5-30). Choix utilisateur : activité dynamisée (option b).
+- **EngagementPulse.tsx** (monté dans (tabs)/_layout) : bannière animée slide-down ~12s après ouverture puis toutes les 35-70s, haptic, tap → route contextuelle (/club/x, swipe, carte), auto-hide 5s, croix.
+- **Accueil** : header marque « Night Finder » (Finder rose) + 📍 ville (user.city fallback), section « Très populaire ce soir 🔥 » (i18n home.trending) avec badge 👥 compteur live + pill « Voir » sur TrendCard (state live via activityLive).
+- **Chats** : recherche (chats-search-input), onglets Conversations / Demandes (badge count, tab-requests), heure/date à droite (HH:MM ou JJ/MM), demandes inline avec ❤ accepter (accept-req-*) / ✕ refuser via api.acceptMatch/rejectMatch.
+- **Swipe** : compteur deck « X/Y » (deck-counter) dans le header.
+- **Carte native** : chips Tous/Clubs/Bars/Événements (filtre types/primary_type des places Google), carte lieu sélectionné enrichie : 👥 N personnes ici + boutons Voir / Itinéraire (Google Maps directions). ⚠️ Natif uniquement, à valider sur téléphone.
+- Club type frontend étendu (primary_type, types). api.ts : activityLive, activityPulse.

@@ -363,3 +363,11 @@ agent_communication:
       (tab bar + par conversation), InAppNotificationBanner (root layout), onboarding 1 intro + 3 features.
       Fix post-test : triggerUnreadMessagesRefresh() au focus de chats.tsx (badge tab instantané).
       Bottom sheet carte (MapImpl.native.tsx) = natif uniquement, à valider sur téléphone.
+
+  - agent: "main"
+    message: |
+      ITÉRATION 43 (pop-ups engagement + mockup 3.0) — TESTÉE PASS (iteration_43.json, backend 6/6 + frontend).
+      /api/activity/pulse + /api/activity/live, EngagementPulse.tsx (bannières périodiques),
+      accueil marque+compteurs live 👥+Voir, chats recherche+onglets+demandes inline+heure,
+      swipe deck-counter X/Y, carte native chips+itinéraire (non testé web — à valider sur device).
+      Test file: /app/backend/tests/test_activity_pulse.py. Demande Sofia (démo Apple) préservée.

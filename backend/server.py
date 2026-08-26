@@ -8,6 +8,7 @@ import json
 import os
 import secrets
 import hashlib
+import random
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -2269,6 +2270,103 @@ async def matches_unread_count(user: dict = Depends(get_current_user)):
         {"match_id": {"$in": ids}, "from_user_id": {"$ne": uid}, "read_at": {"$exists": False}}
     )
     return {"unread": c}
+
+
+# ═══════════════ Activity / Engagement pulse (Night Finder 3.0) ═══════════════
+
+def _pseudo_live_count(club_id: str) -> int:
+    """Deterministic per-hour 'people on site' count — boosted for engagement."""
+    now = datetime.now(timezone.utc)
+    seed = f"{club_id}:{now.strftime('%Y%m%d%H')}"
+    h = int(hashlib.md5(seed.encode()).hexdigest()[:8], 16)
+    local_hour = (now.hour + 2) % 24  # ~Europe/Paris
+    if local_hour >= 22 or local_hour < 5:
+        return 90 + h % 160
+    if local_hour >= 18:
+        return 30 + h % 80
+    return 5 + h % 25
+
+
+@api_router.get("/activity/live")
+async def activity_live(club_ids: str, user: dict = Depends(get_current_user)):
+    """Live 'people here' counts for a list of clubs (real check-ins + boost)."""
+    ids = [c.strip() for c in club_ids.split(",") if c.strip()][:40]
+    since = datetime.now(timezone.utc) - timedelta(hours=4)
+    counts: dict = {}
+    for cid in ids:
+        real = await db.checkins.count_documents({"club_id": cid, "created_at": {"$gte": since}})
+        counts[cid] = real + _pseudo_live_count(cid)
+    return {"counts": counts}
+
+
+@api_router.get("/activity/pulse")
+async def activity_pulse(
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    user: dict = Depends(get_current_user),
+):
+    """One rotating engagement item for the in-app pop-up banners."""
+    kind = random.choice(["hot_club", "hot_club", "new_user", "people_tonight"])
+
+    if kind == "hot_club":
+        match: dict = {"rating": {"$gte": 4.2}, "photos.0": {"$exists": True}}
+        if lat is not None and lng is not None:
+            match["lat"] = {"$gte": lat - 0.35, "$lte": lat + 0.35}
+            match["lng"] = {"$gte": lng - 0.5, "$lte": lng + 0.5}
+        docs = await db.places.aggregate([{"$match": match}, {"$sample": {"size": 1}}]).to_list(1)
+        if not docs:
+            docs = await db.places.aggregate(
+                [{"$match": {"rating": {"$gte": 4.2}}}, {"$sample": {"size": 1}}]
+            ).to_list(1)
+        if docs:
+            place = docs[0]
+            n = _pseudo_live_count(place["club_id"])
+            return {
+                "type": "hot_club",
+                "emoji": "🔥",
+                "title": f"Ça bouge au {place['name']}",
+                "body": f"{n} personnes sont actuellement sur place",
+                "route": f"/club/{place['club_id']}",
+            }
+        kind = "people_tonight"
+
+    if kind == "new_user":
+        docs = await db.users.aggregate([
+            {"$match": {
+                "user_id": {"$ne": user["user_id"]},
+                "is_admin": {"$ne": True},
+                "name": {
+                    "$exists": True,
+                    "$nin": [None, ""],
+                    "$not": {"$regex": "test|admin|reviewer|demo", "$options": "i"},
+                },
+            }},
+            {"$sample": {"size": 1}},
+        ]).to_list(1)
+        if docs:
+            u = docs[0]
+            first = (u.get("name") or "Quelqu'un").split(" ")[0]
+            photo = (u.get("photos") or [None])[0]
+            image = photo if isinstance(photo, str) and photo.startswith("http") else None
+            return {
+                "type": "new_user",
+                "emoji": "👋",
+                "title": f"{first} vient de rejoindre Night Finder",
+                "body": "Passe dire bonjour sur le swipe",
+                "image": image,
+                "route": "/(tabs)/swipe",
+            }
+        kind = "people_tonight"
+
+    seed = datetime.now(timezone.utc).strftime("%Y%m%d%H")
+    n = 120 + int(hashlib.md5(seed.encode()).hexdigest()[:6], 16) % 380
+    return {
+        "type": "people_tonight",
+        "emoji": "🎉",
+        "title": f"{n} personnes sortent ce soir près de toi",
+        "body": "Ouvre la carte pour voir où ça se passe",
+        "route": "/(tabs)/map",
+    }
 
 
 @api_router.get("/matches/{match_id}/messages")

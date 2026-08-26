@@ -188,7 +188,7 @@ export default {
     exploreMap: 'Explorer la carte',
     exploreMapSub: 'Vois ce qui se passe autour de toi',
     nearbyClubs: 'Clubs proches',
-    trending: 'Tendance ce soir',
+    trending: 'Très populaire ce soir 🔥',
     peopleNearby: 'Personnes près de toi',
     moments: 'Moments',
     allClubs: 'Tous les clubs',

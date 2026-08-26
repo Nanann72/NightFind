@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { GeofenceCheckIn } from '../../components/GeofenceCheckIn';
 import { LiquidGlassTabBar } from '../../components/LiquidGlassTabBar';
 import { CreateFab } from '../../components/CreateFab';
+import { EngagementPulse } from '../../components/EngagementPulse';
 import { useTranslation } from '../../lib/i18n';
 
 /**
@@ -47,6 +48,7 @@ export default function TabsLayout() {
         <Tabs.Screen name="events" options={{ title: 'Events' }} />
       </Tabs>
       <CreateFab />
+      <EngagementPulse />
     </>
   );
 }
