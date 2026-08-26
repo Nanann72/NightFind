@@ -389,9 +389,26 @@ export const api = {
       body: JSON.stringify({ email, password, name, dob }),
     }),
   login: (email: string, password: string) =>
-    request<{ token: string; user: User }>('/auth/login', {
+    request<{ token: string; user: User; two_factor_required?: boolean; phone_hint?: string }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
+    }),
+  login2FA: (email: string, password: string, code: string) =>
+    request<{ token: string; user: User }>('/auth/login-2fa', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, code }),
+    }),
+  sendPhoneOtp: (phone: string) =>
+    request<{ ok: boolean }>('/phone/send-otp', { method: 'POST', body: JSON.stringify({ phone }) }),
+  verifyPhoneOtp: (phone: string, code: string) =>
+    request<{ ok: boolean; phone_verified: boolean }>('/phone/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ phone, code }),
+    }),
+  setTwoFactor: (enabled: boolean) =>
+    request<{ ok: boolean; two_factor_enabled: boolean }>('/me/two-factor', {
+      method: 'PUT',
+      body: JSON.stringify({ enabled }),
     }),
   forgotPassword: (email: string, mode: 'otp' | 'link' = 'otp') =>
     request<{ ok: boolean; mode: 'otp' | 'link'; message: string }>('/auth/forgot-password', {

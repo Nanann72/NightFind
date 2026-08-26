@@ -356,3 +356,10 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - Réglages : nouvelle ligne "Centre d'aide" (row-help-center) → /support.
 - Testé par testing_agent (backend 5/5, frontend 3/3, pas de "Already read" sur owner-charge).
 - ⚠️ RESTE À FAIRE (demandes utilisateur non traitées, à clarifier) : (1) vérification compte par numéro de téléphone + A2F — nécessite un fournisseur SMS (Twilio = clés utilisateur) ou alternative email-based, (2) ajouter plus de bars/boîtes + problème de détection de lieu (précisions nécessaires), (3) "corriger l'affichage de l'option swipe" (vague — demander capture). La plupart des bugs signalés étaient en PROD non redéployée.
+
+## ✅ TÉLÉPHONE + A2F (Twilio Verify) + GÉOFENCE 150m (août 2026) — iter_41, 11/11 + front PASS
+- Backend : /api/phone/send-otp (E.164, rate-limit 5/j via phone_otp_attempts), /api/phone/verify-otp (→ users.phone/phone_verified), /api/me/two-factor (409 sans phone_verified), /api/auth/login-2fa. Login : si two_factor_enabled + Twilio prêt → envoie OTP + {two_factor_required, phone_hint} SINON token normal (fallback si Twilio HS = ne bloque jamais). Twilio SDK installé (requirements.txt).
+- ⚠️ CLÉS À FOURNIR PAR L'UTILISATEUR : TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_VERIFY_SERVICE (backend/.env vides → 503 propres). Console : twilio.com → Verify → Services → créer service → SID VA...
+- Frontend : /phone-verification (input tel + code + switch A2F, testIDs phone-input/phone-submit-btn/twofa-switch), settings row-phone-2fa, login.tsx champ "Code SMS (A2F)" conditionnel + signIn2FA dans auth.tsx.
+- GeofenceCheckIn.tsx : rayon 50m → 150m (bug SOHO Le Mans à 54m). Couverture bars = recherche Google Places on-demand nationale (pas de seed nécessaire).
+- Fix BeReal préview selfie (double préfixe) déjà appliqué. Test file: /app/backend/tests/test_phone_2fa.py

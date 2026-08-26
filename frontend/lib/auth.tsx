@@ -21,7 +21,8 @@ const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
 type AuthCtx = {
   user: User | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ twoFactorRequired: boolean; phoneHint?: string }>;
+  signIn2FA: (email: string, password: string, code: string) => Promise<void>;
   signUp: (email: string, password: string, name: string, dob: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
@@ -85,7 +86,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [processWebSessionId, refresh]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const res = await api.login(email, password);
+    const res: any = await api.login(email, password);
+    if (res.two_factor_required) {
+      // A2F : le code SMS vient d'être envoyé — l'écran de login gère la saisie
+      return { twoFactorRequired: true as const, phoneHint: res.phone_hint as string };
+    }
+    await saveToken(res.token);
+    setUser(res.user);
+    return { twoFactorRequired: false as const };
+  }, []);
+
+  const signIn2FA = useCallback(async (email: string, password: string, code: string) => {
+    const res = await api.login2FA(email, password, code);
     await saveToken(res.token);
     setUser(res.user);
   }, []);
@@ -184,7 +196,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ user, loading, signIn, signUp, signInWithGoogle, signInWithApple, signOut, refresh, setSession }}>
+    <Ctx.Provider value={{ user, loading, signIn, signIn2FA, signUp, signInWithGoogle, signInWithApple, signOut, refresh, setSession }}>
       {children}
     </Ctx.Provider>
   );

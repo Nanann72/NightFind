@@ -25,9 +25,11 @@ export default function Login() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const { t } = useTranslation();
-  const { signIn } = useAuth();
+  const { signIn, signIn2FA } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [twoFA, setTwoFA] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -40,7 +42,17 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      await signIn(email.trim(), password);
+      if (twoFA) {
+        await signIn2FA(email.trim(), password, otpCode.trim());
+      } else {
+        const r = await signIn(email.trim(), password);
+        if (r?.twoFactorRequired) {
+          setTwoFA(true);
+          setErr(null);
+          setLoading(false);
+          return; // le code SMS vient d'être envoyé
+        }
+      }
       router.replace('/(tabs)');
     } catch (e: any) {
       setErr(e.message || 'Connexion impossible');
@@ -111,6 +123,22 @@ export default function Login() {
             />
           </TouchableOpacity>
         </View>
+
+        {twoFA && (
+          <View style={styles.field}>
+            <Ionicons name="shield-checkmark-outline" size={18} color={colors.textSecondary} />
+            <TextInput
+              value={otpCode}
+              onChangeText={setOtpCode}
+              placeholder="Code SMS (A2F)"
+              placeholderTextColor={colors.textTertiary}
+              keyboardType="number-pad"
+              maxLength={8}
+              style={styles.input}
+              testID="login-2fa-input"
+            />
+          </View>
+        )}
 
         <Link href="/forgot-password" asChild>
           <TouchableOpacity

@@ -581,6 +581,9 @@ export default function Settings() {
           {renderRow('mail-outline', 'Contacter le support', () =>
             Linking.openURL('mailto:support@nightfinder.app?subject=Support%20Night%20Finder').catch(() => {}),
           { testID: 'row-support' })}
+          {renderRow('shield-checkmark-outline', 'Téléphone & double authentification', () =>
+            router.push('/phone-verification' as any),
+          { testID: 'row-phone-2fa' })}
           {renderRow('help-buoy-outline', "Centre d'aide", () =>
             router.push('/support' as any),
           { testID: 'row-help-center' })}

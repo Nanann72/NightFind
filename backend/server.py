@@ -514,8 +514,123 @@ async def login(body: EmailLogin):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    # A2F par SMS (Twilio Verify) : si activée, on n'émet pas le token ici
+    if user.get("two_factor_enabled") and user.get("phone") and _twilio_ready():
+        try:
+            await _twilio_send_otp(user["phone"])
+        except HTTPException:
+            pass  # Twilio HS → ne bloque pas la connexion
+        else:
+            return {"two_factor_required": True, "phone_hint": f"•••{user['phone'][-2:]}"}
     token = make_jwt(user["user_id"])
     return {"token": token, "user": public_user(user)}
+
+
+class Login2FABody(BaseModel):
+    email: str
+    password: str
+    code: str
+
+
+@api_router.post("/auth/login-2fa")
+async def login_2fa(body: Login2FABody):
+    user = await db.users.find_one({"email": body.email.lower()}, {"_id": 0})
+    if not user or not user.get("password_hash") or not verify_password(body.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not user.get("phone"):
+        raise HTTPException(status_code=400, detail="Aucun numéro vérifié")
+    if not await _twilio_check_otp(user["phone"], body.code):
+        raise HTTPException(status_code=401, detail="Code invalide ou expiré")
+    token = make_jwt(user["user_id"])
+    return {"token": token, "user": public_user(user)}
+
+
+# ---- Twilio Verify : vérification téléphone + A2F ----
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "").strip().strip('"')
+TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "").strip().strip('"')
+TWILIO_VERIFY_SERVICE = os.environ.get("TWILIO_VERIFY_SERVICE", "").strip().strip('"')
+import re as _phone_re_mod
+_PHONE_RE = _phone_re_mod.compile(r"^\+[1-9]\d{6,14}$")  # E.164
+
+
+def _twilio_ready() -> bool:
+    return bool(TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_VERIFY_SERVICE)
+
+
+def _twilio_client():
+    from twilio.rest import Client
+    return Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+
+
+async def _twilio_send_otp(phone: str) -> None:
+    if not _twilio_ready():
+        raise HTTPException(status_code=503, detail="Vérification SMS non configurée (clés Twilio manquantes)")
+    def _send():
+        _twilio_client().verify.v2.services(TWILIO_VERIFY_SERVICE).verifications.create(to=phone, channel="sms")
+    try:
+        await asyncio.to_thread(_send)
+    except Exception as exc:  # noqa: BLE001
+        logging.warning("Twilio send failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Envoi du SMS impossible — vérifie le numéro (+33...)")
+
+
+async def _twilio_check_otp(phone: str, code: str) -> bool:
+    if not _twilio_ready():
+        return False
+    def _check():
+        return _twilio_client().verify.v2.services(TWILIO_VERIFY_SERVICE).verification_checks.create(to=phone, code=code)
+    try:
+        res = await asyncio.to_thread(_check)
+        return res.status == "approved"
+    except Exception:  # noqa: BLE001
+        return False
+
+
+class PhoneBody(BaseModel):
+    phone: str
+
+
+class PhoneCodeBody(BaseModel):
+    phone: str
+    code: str
+
+
+@api_router.post("/phone/send-otp")
+async def phone_send_otp(body: PhoneBody, user: dict = Depends(get_current_user)):
+    phone = body.phone.strip().replace(" ", "")
+    if not _PHONE_RE.match(phone):
+        raise HTTPException(status_code=400, detail="Numéro invalide — format international requis (+33612345678)")
+    day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    n = await db.phone_otp_attempts.count_documents({"user_id": user["user_id"], "created_at": {"$gte": day_start}})
+    if n >= 5:
+        raise HTTPException(status_code=429, detail="Trop de SMS envoyés aujourd'hui — réessaie demain.")
+    await db.phone_otp_attempts.insert_one({"user_id": user["user_id"], "created_at": datetime.now(timezone.utc)})
+    await _twilio_send_otp(phone)
+    return {"ok": True}
+
+
+@api_router.post("/phone/verify-otp")
+async def phone_verify_otp(body: PhoneCodeBody, user: dict = Depends(get_current_user)):
+    phone = body.phone.strip().replace(" ", "")
+    if not await _twilio_check_otp(phone, body.code.strip()):
+        raise HTTPException(status_code=401, detail="Code invalide ou expiré")
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"phone": phone, "phone_verified": True, "phone_verified_at": datetime.now(timezone.utc)}},
+    )
+    return {"ok": True, "phone_verified": True}
+
+
+class TwoFactorBody(BaseModel):
+    enabled: bool
+
+
+@api_router.put("/me/two-factor")
+async def set_two_factor(body: TwoFactorBody, user: dict = Depends(get_current_user)):
+    if body.enabled and not user.get("phone_verified"):
+        raise HTTPException(status_code=409, detail="Vérifie d'abord ton numéro de téléphone.")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"two_factor_enabled": body.enabled}})
+    return {"ok": True, "two_factor_enabled": body.enabled}
 
 
 @api_router.post("/auth/forgot-password")

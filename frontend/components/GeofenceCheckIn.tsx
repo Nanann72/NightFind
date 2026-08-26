@@ -30,7 +30,7 @@ import { startLiveListening } from '../lib/audioRecognition';
 import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
 
-const GEOFENCE_RADIUS_KM = 0.05; // 50m
+const GEOFENCE_RADIUS_KM = 0.15; // 150m — le GPS en intérieur/ville dérive facilement de 50-100m
 const POLL_INTERVAL_MS = 60 * 1000;
 // Once the user confirms being at a club, don't ask again for 6h.
 const CONFIRMED_COOLDOWN_MS = 6 * 60 * 60 * 1000;
