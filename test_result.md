@@ -371,3 +371,10 @@ agent_communication:
       accueil marque+compteurs live 👥+Voir, chats recherche+onglets+demandes inline+heure,
       swipe deck-counter X/Y, carte native chips+itinéraire (non testé web — à valider sur device).
       Test file: /app/backend/tests/test_activity_pulse.py. Demande Sofia (démo Apple) préservée.
+
+  - agent: "main"
+    message: |
+      RÉPONSE INVITATION SOIRÉE — auto-testée E2E PASS (curl + Playwright, pas de testing_agent nécessaire).
+      POST /api/messages/{id}/invite-response (yes/no, 403 expéditeur, 409 double), message invite avec
+      payload invite (club_id/club_name/address), carte chat avec boutons J'y serai/Pas dispo + statut +
+      message auto. Messages de test supprimés — démo Apple reviewer préservée.

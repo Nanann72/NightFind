@@ -582,11 +582,21 @@ export const api = {
   listMatches: () => request<any[]>('/matches'),
   listMessages: (match_id: string, since?: string) =>
     request<any[]>(`/matches/${match_id}/messages${since ? `?since=${encodeURIComponent(since)}` : ''}`),
-  sendMessage: (match_id: string, text: string, gif_url?: string) =>
+  sendMessage: (
+    match_id: string,
+    text: string,
+    gif_url?: string,
+    invite?: { club_id: string; club_name: string; address?: string },
+  ) =>
     request<any>(`/matches/${match_id}/messages`, {
       method: 'POST',
-      body: JSON.stringify({ text, gif_url }),
+      body: JSON.stringify({ text, gif_url, invite }),
     }),
+  inviteResponse: (message_id: string, response: 'yes' | 'no') =>
+    request<{ ok: boolean; invite_response: string; reply: any }>(
+      `/messages/${message_id}/invite-response`,
+      { method: 'POST', body: JSON.stringify({ response }) },
+    ),
   gifSearch: (q: string, pos = '') =>
     request<{ results: { id: string; preview_url: string; url: string }[]; next: string }>(
       `/gifs/search?q=${encodeURIComponent(q)}${pos ? `&pos=${encodeURIComponent(pos)}` : ''}`,

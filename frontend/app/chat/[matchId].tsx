@@ -40,6 +40,8 @@ type Message = {
   from_user_id: string;
   text: string;
   gif_url?: string | null;
+  invite?: { club_id: string; club_name: string; address?: string } | null;
+  invite_response?: 'yes' | 'no' | null;
   created_at: string;
   read_at?: string;
   edited_at?: string;
@@ -222,6 +224,18 @@ export default function Chat() {
   const onLongPressMessage = (msg: Message) => {
     if (msg.message_id.startsWith('tmp_') || msg.deleted_at) return;
     setActionMsg(msg);
+  };
+
+  const respondInvite = async (msg: Message, resp: 'yes' | 'no') => {
+    try {
+      const r = await api.inviteResponse(msg.message_id, resp);
+      setMessages((m) =>
+        m.map((x) => (x.message_id === msg.message_id ? { ...x, invite_response: resp } : x)),
+      );
+      if (r?.reply) setMessages((m) => mergeMessages(m, [r.reply as Message]));
+    } catch {
+      // déjà répondu / réseau — le poll re-synchronisera
+    }
   };
 
   const copyMessage = async () => {
@@ -412,6 +426,53 @@ export default function Chat() {
                     <Text style={[styles.bubbleText, styles.deletedText]}>Message supprimé</Text>
                   ) : (
                     <>
+                      {item.invite ? (
+                        <View style={styles.inviteCard}>
+                          <Text style={[styles.inviteTitle, mine && { color: 'rgba(255,255,255,0.9)' }]} allowFontScaling={false}>
+                            🎉 Invitation soirée
+                          </Text>
+                          <Text style={[styles.inviteClub, mine && styles.bubbleTextMine]} numberOfLines={2}>
+                            {item.invite.club_name}
+                          </Text>
+                          {!!item.invite.address && (
+                            <Text
+                              style={[styles.inviteAddr, mine && { color: 'rgba(255,255,255,0.8)' }]}
+                              numberOfLines={2}
+                            >
+                              📍 {item.invite.address}
+                            </Text>
+                          )}
+                          {!mine && !item.invite_response && (
+                            <View style={styles.inviteBtnRow}>
+                              <TouchableOpacity
+                                style={styles.inviteYes}
+                                onPress={() => respondInvite(item, 'yes')}
+                                testID={`invite-yes-${item.message_id}`}
+                              >
+                                <Text style={styles.inviteYesText} allowFontScaling={false}>
+                                  {"J'y serai ✅"}
+                                </Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.inviteNo}
+                                onPress={() => respondInvite(item, 'no')}
+                                testID={`invite-no-${item.message_id}`}
+                              >
+                                <Text style={styles.inviteNoText} allowFontScaling={false}>
+                                  Pas dispo
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                          {!!item.invite_response && (
+                            <Text style={[styles.inviteStatus, mine && { color: 'rgba(255,255,255,0.9)' }]}>
+                              {item.invite_response === 'yes'
+                                ? (mine ? "Réponse : J'y serai ✅" : "Tu as répondu : J'y serai ✅")
+                                : (mine ? 'Réponse : Pas dispo 😔' : 'Tu as répondu : Pas dispo 😔')}
+                            </Text>
+                          )}
+                        </View>
+                      ) : null}
                       {item.gif_url ? (
                         <Image
                           source={{ uri: item.gif_url }}
@@ -419,7 +480,7 @@ export default function Chat() {
                           resizeMode="cover"
                         />
                       ) : null}
-                      {item.text ? (
+                      {item.text && !item.invite ? (
                         <Text style={[styles.bubbleText, mine && styles.bubbleTextMine]}>{item.text}</Text>
                       ) : null}
                     </>
@@ -668,6 +729,28 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   bubbleDeleted: { opacity: 0.6 },
   bubbleText: { color: colors.textPrimary, fontSize: 15, lineHeight: 20 },
   bubbleTextMine: { color: '#fff' },
+  inviteCard: { gap: 3, minWidth: 200 },
+  inviteTitle: { fontSize: 11.5, fontWeight: '800', color: colors.primary, letterSpacing: 0.4 },
+  inviteClub: { fontSize: 15.5, fontWeight: '800', color: colors.textPrimary },
+  inviteAddr: { fontSize: 12, color: colors.textSecondary },
+  inviteBtnRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  inviteYes: {
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  inviteYesText: { color: '#fff', fontSize: 13, fontWeight: '800' },
+  inviteNo: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  inviteNoText: { color: colors.textPrimary, fontSize: 13, fontWeight: '700' },
+  inviteStatus: { fontSize: 12, fontWeight: '700', color: colors.textSecondary, marginTop: 6 },
   deletedText: { fontStyle: 'italic', color: colors.textTertiary },
   bubbleMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 3, alignSelf: 'flex-end' },
   bubbleTime: { color: colors.textTertiary, fontSize: 10, fontWeight: '600' },

@@ -89,7 +89,13 @@ export default function TonightScreen() {
     const text = `🎉 Ce soir je sors au ${club.name} ! Tu viens ?\n📍 ${club.address || ''}`.trim();
     try {
       await Promise.all(
-        [...selected].map((mid) => api.sendMessage(mid, text).catch(() => null)),
+        [...selected].map((mid) =>
+          api.sendMessage(mid, text, undefined, {
+            club_id: club.club_id,
+            club_name: club.name,
+            address: club.address || '',
+          }).catch(() => null),
+        ),
       );
       if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       setSent(true);

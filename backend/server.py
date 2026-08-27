@@ -2458,6 +2458,7 @@ async def list_messages(match_id: str, since: Optional[str] = None, user: dict =
 class SendMessageBody(BaseModel):
     text: str = ""
     gif_url: Optional[str] = None  # GIF Tenor (URL https)
+    invite: Optional[dict] = None  # Invitation soirée {club_id, club_name, address}
 
 
 @api_router.post("/matches/{match_id}/messages", status_code=201)
@@ -2474,12 +2475,21 @@ async def send_message(match_id: str, body: SendMessageBody, user: dict = Depend
     if len(text) > 1000:
         raise HTTPException(status_code=400, detail="Message trop long (max 1000)")
     now = datetime.now(timezone.utc)
+    invite = None
+    if isinstance(body.invite, dict) and body.invite.get("club_name"):
+        invite = {
+            "club_id": str(body.invite.get("club_id") or ""),
+            "club_name": str(body.invite.get("club_name"))[:120],
+            "address": str(body.invite.get("address") or "")[:200],
+        }
     doc = {
         "message_id": f"msg_{uuid.uuid4().hex[:10]}",
         "match_id": match_id,
         "from_user_id": user["user_id"],
         "text": text,
         "gif_url": gif_url,
+        "invite": invite,
+        "invite_response": None,
         "created_at": now,
     }
     await db.messages.insert_one(doc)
@@ -2499,6 +2509,59 @@ async def send_message(match_id: str, body: SendMessageBody, user: dict = Depend
     except Exception as e:
         logger.warning("push (chat) failed: %s", e)
     return doc
+
+
+class InviteResponseBody(BaseModel):
+    response: str  # "yes" | "no"
+
+
+@api_router.post("/messages/{message_id}/invite-response")
+async def respond_invite(message_id: str, body: InviteResponseBody, user: dict = Depends(get_current_user)):
+    """« J'y serai / Pas dispo » — réponse du destinataire à une invitation soirée."""
+    if body.response not in ("yes", "no"):
+        raise HTTPException(status_code=400, detail="Réponse invalide")
+    msg = await db.messages.find_one({"message_id": message_id}, {"_id": 0})
+    if not msg or not msg.get("invite"):
+        raise HTTPException(status_code=404, detail="Invitation introuvable")
+    m = await db.matches.find_one({"match_id": msg["match_id"]}, {"_id": 0})
+    if not m or user["user_id"] not in (m["user_a"], m["user_b"]):
+        raise HTTPException(status_code=404, detail="Match introuvable")
+    if msg["from_user_id"] == user["user_id"]:
+        raise HTTPException(status_code=403, detail="Tu ne peux pas répondre à ta propre invitation")
+    if msg.get("invite_response"):
+        raise HTTPException(status_code=409, detail="Déjà répondu")
+    now = datetime.now(timezone.utc)
+    await db.messages.update_one(
+        {"message_id": message_id},
+        {"$set": {"invite_response": body.response, "invite_responded_at": now}},
+    )
+    club_name = (msg.get("invite") or {}).get("club_name") or "la soirée"
+    yes_text = f"✅ J'y serai ! On se voit au {club_name} 🎉"
+    no_text = "😔 Pas dispo ce soir, une prochaine fois !"
+    reply = {
+        "message_id": f"msg_{uuid.uuid4().hex[:10]}",
+        "match_id": msg["match_id"],
+        "from_user_id": user["user_id"],
+        "text": yes_text if body.response == "yes" else no_text,
+        "gif_url": None,
+        "created_at": now,
+    }
+    await db.messages.insert_one(reply)
+    await db.matches.update_one({"match_id": msg["match_id"]}, {"$set": {"last_message_at": now}})
+    reply.pop("_id", None)
+    responder = user.get("name") or "Ton ami"
+    push_body = "J'y serai !" if body.response == "yes" else "Pas dispo ce soir"
+    try:
+        await push_service.send_push(
+            recipients=[msg["from_user_id"]],
+            title="🎉 Réponse à ton invitation",
+            message=f"{responder} : {push_body}",
+            action_url=f"/chat/{msg['match_id']}",
+            idempotency_key=f"invresp_{message_id}",
+        )
+    except Exception as e:
+        logger.warning("push (invite response) failed: %s", e)
+    return {"ok": True, "invite_response": body.response, "reply": reply}
 
 
 @api_router.get("/swipes/history")

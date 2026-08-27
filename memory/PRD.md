@@ -388,3 +388,9 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - Frontend : /app/frontend/app/tonight.tsx (modal slide_from_bottom dans _layout) — carte héro club (photo, 👥 live, ⭐, distance, styles), boutons Itinéraire (Google Maps directions) / Voir le club / 🔀 autre suggestion (cycle 1/4), sélection d'amis (cercle check) + « Envoyer l'invitation (N) » → api.sendMessage groupé (« 🎉 Ce soir je sors au X ! Tu viens ? 📍 adresse ») → « Invitations envoyées ✅ » + Ouvrir les messages.
 - Accueil : bannière primaire « 🎉 Ce soir je sors » (tonight-banner) au-dessus d'« Explorer la carte ».
 - Testé E2E web : plan chargé (4 suggestions), shuffle OK, invitation envoyée à Lucas confirmée en base.
+
+## ✅ RÉPONSE INVITATION « J'Y SERAI / PAS DISPO » (août 2026) — auto-testé E2E PASS
+- Backend : SendMessageBody.invite {club_id, club_name, address} stocké sur le message (+ invite_response=None). Nouveau POST /api/messages/{message_id}/invite-response {response: yes|no} : réservé au destinataire (403 si expéditeur), 409 si déjà répondu, insère un message auto (« ✅ J'y serai ! On se voit au X 🎉 » / « 😔 Pas dispo ce soir... ») + push à l'inviteur.
+- tonight.tsx : sendInvites passe le payload invite (le message devient une carte).
+- chat/[matchId].tsx : rendu carte « 🎉 Invitation soirée » (nom club + 📍 adresse) dans la bulle ; destinataire sans réponse → boutons « J'y serai ✅ » (invite-yes-*) / « Pas dispo » (invite-no-*) ; après réponse → statut « Tu as répondu : ... » / « Réponse : ... » côté inviteur ; réponse maj optimiste + reply mergé (poll 3s sinon).
+- Testé E2E : envoi via Mode Soirée (reviewer→Emma), carte côté expéditeur, boutons côté Emma, réponse yes → statut + message auto. 409/403 vérifiés. Messages de test nettoyés (démo Apple intacte).
