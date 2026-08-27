@@ -41,8 +41,8 @@ import { radius, spacing, type ThemeColors } from '../../lib/theme';
 import { useThemeColors } from '../../lib/themeContext';
 
 const { width, height } = Dimensions.get('window');
-const CARD_W = width - 32;
-const CARD_H = Math.min(620, Math.round(width * 1.55), Math.max(420, height - 360));
+const CARD_W = width - 24;
+const CARD_H = Math.max(500, height - 270);
 const SWIPE_THRESHOLD = width * 0.28;
 const SWIPE_UP_THRESHOLD = height * 0.16;
 
@@ -207,6 +207,7 @@ export default function SwipePeople() {
   const [photoIdx, setPhotoIdx] = useState(0);
   const [sameClub, setSameClub] = useState(false);
   const [limitModalOpen, setLimitModalOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [premiumFeature, setPremiumFeature] = useState<null | 'rewind' | 'boost'>(null);
   const [match, setMatch] = useState<MatchInfo | null>(null);
   const [busy, setBusy] = useState(false);
@@ -436,16 +437,32 @@ export default function SwipePeople() {
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity
-            onPress={goBack}
-            style={styles.backBtn}
-            testID="swipe-back-btn"
+            style={styles.hIconBtn}
+            onPress={() => router.push('/swipe-profile' as any)}
+            testID="swipe-prefs-btn"
             hitSlop={8}
           >
-            <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
+            <Ionicons name="options-outline" size={19} color={colors.textPrimary} />
           </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.brand}>SWIPE</Text>
-            <Text style={styles.title}>Découvre du monde</Text>
+          <View style={styles.modeChips}>
+            <TouchableOpacity
+              style={[styles.modePill, !sameClub && styles.modePillActive]}
+              onPress={() => setSameClub(false)}
+              testID="swipe-mode-all"
+            >
+              <Text style={[styles.modePillText, !sameClub && styles.modePillTextActive]} allowFontScaling={false}>
+                Partout
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modePill, sameClub && styles.modePillActive]}
+              onPress={() => setSameClub(true)}
+              testID="swipe-mode-club"
+            >
+              <Text style={[styles.modePillText, sameClub && styles.modePillTextActive]} allowFontScaling={false}>
+                Dans mon club
+              </Text>
+            </TouchableOpacity>
           </View>
           {deckTotal > 0 && deck.length > 0 && (
             <View style={styles.deckCounter} testID="deck-counter">
@@ -454,87 +471,25 @@ export default function SwipePeople() {
               </Text>
             </View>
           )}
-          {quota?.boost_active && (
-            <View style={styles.boostPill} testID="boost-active-pill">
-              <Ionicons name="flash" size={13} color="#E6C15A" />
-              <Text style={styles.boostPillText}>Boost actif</Text>
-            </View>
-          )}
           <TouchableOpacity
-            style={styles.likesHubBtn}
+            style={styles.hIconBtn}
+            onPress={() => setStatsOpen(true)}
+            testID="swipe-stats-btn"
+            hitSlop={8}
+          >
+            <Ionicons
+              name="flash"
+              size={18}
+              color={quota?.boost_active || quota?.activity_boost_active ? '#E6C15A' : colors.primary}
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.hIconBtn}
             onPress={() => router.push('/likes-hub' as any)}
             testID="likes-hub-btn"
             hitSlop={8}
           >
-            <Ionicons name="heart" size={20} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
-        {/* Analyse de crush — boost d'activité Tinder-like (10 likes) */}
-        {quota && (
-          quota.activity_boost_active ? (
-            <View style={[styles.crushBanner, styles.crushBannerActive]} testID="crush-banner">
-              <Text style={styles.crushIcon}>🚀</Text>
-              <Text style={styles.crushText}>Ton profil est mis en avant — continue de liker !</Text>
-            </View>
-          ) : (
-            <View style={styles.crushBanner} testID="crush-banner">
-              <Text style={styles.crushIcon}>💘</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.crushTitle}>Analyse de crush</Text>
-                <Text style={styles.crushText}>
-                  Envoie encore {Math.max(0, (quota.activity_boost_target ?? 10) - (quota.likes_given_7d ?? 0))} likes pour être mis en avant
-                </Text>
-              </View>
-            </View>
-          )
-        )}
-        {/* Complétion du profil */}
-        {quota != null && (quota.profile_completion ?? 100) < 100 && (
-          <TouchableOpacity
-            style={styles.completionPill}
-            onPress={() => router.push('/swipe-profile' as any)}
-            testID="completion-pill"
-          >
-            <View style={styles.completionBarBg}>
-              <View style={[styles.completionBarFill, { width: `${quota.profile_completion ?? 0}%` }]} />
-            </View>
-            <Text style={styles.completionText}>
-              Profil complété à {quota.profile_completion}% — complète-le pour plus de matchs →
-            </Text>
-          </TouchableOpacity>
-        )}
-        <View style={styles.quotaRow}>
-          <Ionicons name="flash" size={14} color={colors.primary} />
-          <Text style={styles.quotaText}>
-            {quota?.is_premium
-              ? 'Swipes illimités · Premium 💎'
-              : `${quota?.remaining ?? 10} / ${quota?.limit ?? 10} swipes restants aujourd'hui`}
-          </Text>
-          <Text style={styles.quotaDot}>·</Text>
-          <Ionicons name="star" size={13} color="#0ea5e9" />
-          <Text style={styles.quotaText}>{quota?.superlikes_remaining ?? 1} Super Like{(quota?.superlikes_remaining ?? 1) > 1 ? 's' : ''}</Text>
-        </View>
-        {/* Toggle "Swipe en club" — onboarding slide #03 */}
-        <View style={styles.modeRow}>
-          <TouchableOpacity
-            style={[styles.modePill, !sameClub && styles.modePillActive]}
-            onPress={() => setSameClub(false)}
-            testID="swipe-mode-all"
-          >
-            <Ionicons name="globe" size={13} color={!sameClub ? colors.bg : '#A1A1AA'} />
-            <Text style={[styles.modePillText, !sameClub && styles.modePillTextActive]}>
-              Partout
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.modePill, sameClub && styles.modePillActive]}
-            onPress={() => setSameClub(true)}
-            testID="swipe-mode-club"
-          >
-            <Ionicons name="location" size={13} color={sameClub ? colors.bg : '#F472B6'} />
-            <Text style={[styles.modePillText, sameClub && styles.modePillTextActive]}>
-              Dans mon club
-            </Text>
+            <Ionicons name="heart" size={18} color={colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -676,23 +631,11 @@ export default function SwipePeople() {
                       <Ionicons name="chevron-up-circle" size={30} color="#fff" />
                     </TouchableOpacity>
                   </View>
-                  {!!top.city && <Text style={styles.city}>{top.city}</Text>}
-                  {!!top.bio && (
-                    <Text style={styles.bio} numberOfLines={3}>
-                      {top.bio}
-                    </Text>
-                  )}
-                  {top.music_prefs && top.music_prefs.length > 0 && (
-                    <View style={styles.tagsRow}>
-                      {top.music_prefs.slice(0, 4).map((m) => (
-                        <View key={m} style={styles.tag}>
-                          <Text style={styles.tagText}>{m}</Text>
-                        </View>
-                      ))}
+                  {!!top.city && (
+                    <View style={styles.cityRow}>
+                      <Ionicons name="location" size={14} color="rgba(255,255,255,0.85)" />
+                      <Text style={styles.city}>{top.city}</Text>
                     </View>
-                  )}
-                  {!!top.instagram && (
-                    <Text style={styles.insta}>📸 @{String(top.instagram).replace(/^@+/, '')}</Text>
                   )}
                 </View>
               </Animated.View>
@@ -756,6 +699,71 @@ export default function SwipePeople() {
           </View>
         </>
       )}
+
+      {/* ================= Stats & boosts (⚡) ================= */}
+      <Modal visible={statsOpen} transparent animationType="slide" onRequestClose={() => setStatsOpen(false)}>
+        <View style={styles.statsRoot}>
+          <TouchableOpacity style={styles.statsBackdrop} activeOpacity={1} onPress={() => setStatsOpen(false)} />
+          <View style={[styles.statsSheet, { paddingBottom: insets.bottom + 24 }]}>
+            <View style={styles.statsHandle} />
+            <Text style={styles.statsTitle}>Ton activité ⚡</Text>
+            <View style={styles.quotaRow}>
+              <Ionicons name="flash" size={14} color={colors.primary} />
+              <Text style={styles.quotaText}>
+                {quota?.is_premium
+                  ? 'Swipes illimités · Premium 💎'
+                  : `${quota?.remaining ?? 10} / ${quota?.limit ?? 10} swipes restants aujourd'hui`}
+              </Text>
+              <Text style={styles.quotaDot}>·</Text>
+              <Ionicons name="star" size={13} color="#0ea5e9" />
+              <Text style={styles.quotaText}>
+                {quota?.superlikes_remaining ?? 1} Super Like{(quota?.superlikes_remaining ?? 1) > 1 ? 's' : ''}
+              </Text>
+            </View>
+            {quota?.boost_active && (
+              <View style={styles.boostPill} testID="boost-active-pill">
+                <Ionicons name="flash" size={13} color="#E6C15A" />
+                <Text style={styles.boostPillText}>Boost actif</Text>
+              </View>
+            )}
+            {quota && (
+              quota.activity_boost_active ? (
+                <View style={[styles.crushBanner, styles.crushBannerActive]} testID="crush-banner">
+                  <Text style={styles.crushIcon}>🚀</Text>
+                  <Text style={styles.crushText}>Ton profil est mis en avant — continue de liker !</Text>
+                </View>
+              ) : (
+                <View style={styles.crushBanner} testID="crush-banner">
+                  <Text style={styles.crushIcon}>💘</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.crushTitle}>Analyse de crush</Text>
+                    <Text style={styles.crushText}>
+                      Envoie encore {Math.max(0, (quota.activity_boost_target ?? 10) - (quota.likes_given_7d ?? 0))} likes pour être mis en avant
+                    </Text>
+                  </View>
+                </View>
+              )
+            )}
+            {quota != null && (quota.profile_completion ?? 100) < 100 && (
+              <TouchableOpacity
+                style={styles.completionPill}
+                onPress={() => {
+                  setStatsOpen(false);
+                  router.push('/swipe-profile' as any);
+                }}
+                testID="completion-pill"
+              >
+                <View style={styles.completionBarBg}>
+                  <View style={[styles.completionBarFill, { width: `${quota.profile_completion ?? 0}%` }]} />
+                </View>
+                <Text style={styles.completionText}>
+                  Profil complété à {quota.profile_completion}% — complète-le pour plus de matchs →
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* ================= "C'EST UN MATCH !" ================= */}
       <Modal visible={!!match} transparent animationType="fade" onRequestClose={() => setMatch(null)}>
@@ -929,7 +937,31 @@ export default function SwipePeople() {
 const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', backgroundColor: colors.bg, padding: 24 },
-  header: { width: '100%', paddingHorizontal: spacing.lg, marginBottom: 12, alignSelf: 'flex-start' },
+  header: { width: '100%', paddingHorizontal: spacing.md, marginBottom: 8, alignSelf: 'flex-start' },
+  hIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeChips: { flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center' },
+  cityRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
+  statsRoot: { flex: 1, justifyContent: 'flex-end' },
+  statsBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
+  statsSheet: {
+    backgroundColor: colors.surfaceElevated,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    gap: 10,
+  },
+  statsHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', backgroundColor: colors.border, marginBottom: 8 },
+  statsTitle: { color: colors.textPrimary, fontSize: 20, fontWeight: '900', marginBottom: 4 },
   headerTopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   backBtnFloating: { position: 'absolute', left: spacing.lg, zIndex: 10 },
   backBtn: {

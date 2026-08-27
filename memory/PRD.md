@@ -394,3 +394,9 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - tonight.tsx : sendInvites passe le payload invite (le message devient une carte).
 - chat/[matchId].tsx : rendu carte « 🎉 Invitation soirée » (nom club + 📍 adresse) dans la bulle ; destinataire sans réponse → boutons « J'y serai ✅ » (invite-yes-*) / « Pas dispo » (invite-no-*) ; après réponse → statut « Tu as répondu : ... » / « Réponse : ... » côté inviteur ; réponse maj optimiste + reply mergé (poll 3s sinon).
 - Testé E2E : envoi via Mode Soirée (reviewer→Emma), carte côté expéditeur, boutons côté Emma, réponse yes → statut + message auto. 409/403 vérifiés. Messages de test nettoyés (démo Apple intacte).
+
+## ✅ SWIPE REDESIGN FAÇON TINDER (août 2026) — auto-testé screenshots PASS
+- swipe.tsx : header compact 1 ligne (⚙ options → /swipe-profile [swipe-prefs-btn], chips Partout/Dans mon club centrés, compteur X/Y, ⚡ [swipe-stats-btn], ❤ likes-hub). Supprimés de l'écran : titre « SWIPE / Découvre du monde », back btn, bannière crush, barre complétion, ligne quota (RÉORGANISÉS, pas supprimés).
+- Bottom sheet « Ton activité ⚡ » (statsOpen) : quota swipes/super likes, boost actif, analyse de crush, complétion profil (lien swipe-profile). Tous les testIDs conservés (crush-banner, completion-pill, boost-active-pill).
+- Carte agrandie : CARD_W=width-24, CARD_H=max(500, height-270). Overlay minimal : nom+âge+badge vérifié + 📍 ville (bio/tags/insta restent visibles via chevron → /user/{id}).
+- CreateFab masqué sur l'écran swipe (usePathname) — il chevauchait le bouton boost.

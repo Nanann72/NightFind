@@ -5,7 +5,7 @@
  */
 import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -20,8 +20,12 @@ const ACTIONS = [
 export function CreateFab() {
   const colors = useThemeColors();
   const router = useRouter();
+  const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
+
+  // Masqué sur l'écran Swipe (les boutons d'action occupent déjà le bas)
+  if (pathname?.includes('swipe')) return null;
 
   const toggle = () => {
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
