@@ -410,3 +410,6 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - CreateFab masqué aussi sur /events (double bouton « + ») — pathname.includes('swipe'|'events').
 - swipe-profile.tsx façon Tinder : bannière « Complète ton profil X% » (api.profileCompletion, barre de progression), section « Mes photos » avec hint rose « Ajoute X autres photos », 3 slots toujours visibles (tuiles + en pointillés avec pastille + rose en bas à droite façon Tinder), badge « Principale » sur la 1re photo. Reste inchangé.
 - profile.tsx façon Instagram : stories à la une = cercles 66px avec anneau gris fin (fini l'anneau arc-en-ciel), publications = grille 3 colonnes en pixels EXPLICITES (GRID_TILE=width/3, plus de largeurs en % qui cassaient l'affichage sur iPhone).
+
+## ✅ PROFIL SWIPE FAÇON TINDER v2 (août 2026) — auto-testé screenshot PASS
+- swipe-profile.tsx : héro avatar 64px + prénom + badge vérifié + « Profil complété à X% » ; pill centrée « ❗ Complète ton profil X% » ; chips horizontales des infos manquantes avec « + » et point rose (labels courts via MISSING_LABELS mappés depuis /me/profile-completion missing[] : Photo, 3 photos, Bio, Date de naissance, Ville, Musique, Instagram, Clubs favoris) ; « Mes photos » en titre 24 gras + hint rose. Reste des sections inchangé.

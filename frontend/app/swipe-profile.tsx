@@ -24,6 +24,17 @@ import { MaskedDOBInput } from '../components/MaskedDOBInput';
 import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
 
+const MISSING_LABELS: Record<string, string> = {
+  'Ajoute une photo': 'Photo',
+  'Ajoute 3 photos': '3 photos',
+  'Écris une bio': 'Bio',
+  'Renseigne ta date de naissance': 'Date de naissance',
+  'Indique ta ville': 'Ville',
+  'Ajoute tes goûts musicaux': 'Musique',
+  'Lie ton Instagram': 'Instagram',
+  'Ajoute tes clubs favoris': 'Clubs favoris',
+};
+
 export default function SwipeProfileEdit() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -40,10 +51,14 @@ export default function SwipeProfileEdit() {
   const [saving, setSaving] = useState(false);
   const [savingState, setSavingState] = useState<'idle' | 'moderating' | 'saving'>('idle');
   const [completion, setCompletion] = useState<number | null>(null);
+  const [missing, setMissing] = useState<string[]>([]);
 
   useEffect(() => {
     api.profileCompletion()
-      .then((r) => setCompletion(r.percent))
+      .then((r) => {
+        setCompletion(r.percent);
+        setMissing(r.missing || []);
+      })
       .catch(() => {});
   }, []);
 
@@ -199,21 +214,60 @@ export default function SwipeProfileEdit() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 80 }}>
-        {/* ── Complétez votre profil (Tinder-like) ── */}
+        {/* ── Héro Tinder-like : avatar + nom + badge ── */}
+        <View style={styles.hero}>
+          {photos[0] ? (
+            <Image source={{ uri: photos[0] }} style={styles.heroAvatar} />
+          ) : (
+            <View style={[styles.heroAvatar, styles.heroAvatarFb]}>
+              <Ionicons name="person" size={30} color={colors.textTertiary} />
+            </View>
+          )}
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.heroName} numberOfLines={1}>
+                {((u.name as string) || 'Toi').split(' ')[0]}
+              </Text>
+              {verified && <Ionicons name="checkmark-circle" size={20} color="#3B82F6" />}
+            </View>
+            {completion != null && (
+              <Text style={styles.heroSub}>Profil complété à {completion}%</Text>
+            )}
+          </View>
+        </View>
+
+        {/* ── Complétez votre profil (pill Tinder) ── */}
         {completion != null && completion < 100 && (
-          <View style={styles.completionBanner} testID="sf-completion-banner">
-            <View style={styles.completionTop}>
-              <Ionicons name="alert-circle" size={18} color={colors.primary} />
-              <Text style={styles.completionTitle}>Complète ton profil</Text>
-              <Text style={styles.completionPct}>{completion}%</Text>
-            </View>
-            <View style={styles.completionBarBg}>
-              <View style={[styles.completionBarFill, { width: `${completion}%` }]} />
-            </View>
+          <View style={styles.completionPillBanner} testID="sf-completion-banner">
+            <Ionicons name="alert-circle" size={18} color={colors.primary} />
+            <Text style={styles.completionPillText}>Complète ton profil</Text>
+            <Text style={styles.completionPct}>{completion}%</Text>
           </View>
         )}
 
-        <Text style={styles.label}>Mes photos</Text>
+        {/* ── Chips des infos manquantes ── */}
+        {missing.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.missingRow}
+            style={{ marginBottom: 20 }}
+          >
+            {missing.map((m) => (
+              <View key={m} style={styles.missingChip}>
+                <Text style={styles.missingChipText} allowFontScaling={false}>
+                  {MISSING_LABELS[m] || m}
+                </Text>
+                <Ionicons name="add" size={15} color={colors.textPrimary} />
+                <View style={styles.missingDot} />
+              </View>
+            ))}
+          </ScrollView>
+        )}
+
+        <Text style={styles.photosTitle}>
+          Mes photos {photos.length < 3 ? '❗' : ''}
+        </Text>
         {photos.length < 3 && (
           <Text style={styles.photosHint}>
             Ajoute {3 - photos.length} autre{3 - photos.length > 1 ? 's' : ''} photo{3 - photos.length > 1 ? 's' : ''} et augmente tes chances d&apos;être liké·e.
@@ -558,6 +612,47 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   completionTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   completionTitle: { flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: '800' },
   completionPct: { color: colors.primary, fontSize: 15, fontWeight: '900' },
+  hero: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 18 },
+  heroAvatar: { width: 64, height: 64, borderRadius: 18 },
+  heroAvatarFb: { backgroundColor: colors.surfaceElevated, alignItems: 'center', justifyContent: 'center' },
+  heroName: { color: colors.textPrimary, fontSize: 26, fontWeight: '900' },
+  heroSub: { color: colors.textSecondary, fontSize: 13, marginTop: 3 },
+  completionPillBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 26,
+    paddingVertical: 13,
+    marginBottom: 14,
+  },
+  completionPillText: { color: colors.textPrimary, fontSize: 15.5, fontWeight: '800' },
+  missingRow: { gap: 8, paddingRight: 20 },
+  missingChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  missingChipText: { color: colors.textPrimary, fontSize: 13.5, fontWeight: '700' },
+  missingDot: {
+    position: 'absolute',
+    top: 4,
+    right: 6,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+  },
+  photosTitle: { color: colors.textPrimary, fontSize: 24, fontWeight: '900', marginBottom: 4 },
   completionBarBg: { height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' },
   completionBarFill: { height: '100%', borderRadius: 3, backgroundColor: colors.primary },
 });
