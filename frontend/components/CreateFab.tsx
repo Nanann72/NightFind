@@ -24,8 +24,8 @@ export function CreateFab() {
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
 
-  // Masqué sur l'écran Swipe (les boutons d'action occupent déjà le bas)
-  if (pathname?.includes('swipe')) return null;
+  // Masqué sur Swipe (boutons d'action) et Soirées (bouton + local existant)
+  if (pathname?.includes('swipe') || pathname?.includes('events')) return null;
 
   const toggle = () => {
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});

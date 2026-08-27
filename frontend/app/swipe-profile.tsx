@@ -39,6 +39,13 @@ export default function SwipeProfileEdit() {
   const [photos, setPhotos] = useState<string[]>(Array.isArray(u.photos) ? u.photos : []);
   const [saving, setSaving] = useState(false);
   const [savingState, setSavingState] = useState<'idle' | 'moderating' | 'saving'>('idle');
+  const [completion, setCompletion] = useState<number | null>(null);
+
+  useEffect(() => {
+    api.profileCompletion()
+      .then((r) => setCompletion(r.percent))
+      .catch(() => {});
+  }, []);
 
   // Detect which photos are brand-new vs already on the account
   const initialPhotosRef = useRef<string[]>([]);
@@ -192,7 +199,26 @@ export default function SwipeProfileEdit() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 80 }}>
-        <Text style={styles.label}>Photos (max 3) *</Text>
+        {/* ── Complétez votre profil (Tinder-like) ── */}
+        {completion != null && completion < 100 && (
+          <View style={styles.completionBanner} testID="sf-completion-banner">
+            <View style={styles.completionTop}>
+              <Ionicons name="alert-circle" size={18} color={colors.primary} />
+              <Text style={styles.completionTitle}>Complète ton profil</Text>
+              <Text style={styles.completionPct}>{completion}%</Text>
+            </View>
+            <View style={styles.completionBarBg}>
+              <View style={[styles.completionBarFill, { width: `${completion}%` }]} />
+            </View>
+          </View>
+        )}
+
+        <Text style={styles.label}>Mes photos</Text>
+        {photos.length < 3 && (
+          <Text style={styles.photosHint}>
+            Ajoute {3 - photos.length} autre{3 - photos.length > 1 ? 's' : ''} photo{3 - photos.length > 1 ? 's' : ''} et augmente tes chances d&apos;être liké·e.
+          </Text>
+        )}
         <View style={styles.photosRow}>
           {photos.map((p, i) => (
             <View key={i} style={styles.photoCell}>
@@ -204,13 +230,25 @@ export default function SwipeProfileEdit() {
               >
                 <Ionicons name="close" size={14} color="#fff" />
               </TouchableOpacity>
+              {i === 0 && (
+                <View style={styles.mainBadge}>
+                  <Text style={styles.mainBadgeText} allowFontScaling={false}>Principale</Text>
+                </View>
+              )}
             </View>
           ))}
-          {photos.length < 3 && (
-            <TouchableOpacity style={styles.photoAdd} onPress={pickPhoto} testID="sf-add-photo">
-              <Ionicons name="add" size={36} color={colors.textTertiary} />
+          {Array.from({ length: Math.max(0, 3 - photos.length) }).map((_, i) => (
+            <TouchableOpacity
+              key={`add-${i}`}
+              style={styles.photoAdd}
+              onPress={pickPhoto}
+              testID={i === 0 ? 'sf-add-photo' : `sf-add-photo-${i}`}
+            >
+              <View style={styles.photoAddPlus}>
+                <Ionicons name="add" size={20} color="#fff" />
+              </View>
             </TouchableOpacity>
-          )}
+          ))}
         </View>
         <Text style={styles.helper}>La première photo est ta photo principale.</Text>
 
@@ -483,8 +521,45 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     borderColor: colors.borderStrong,
     borderStyle: 'dashed',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: 8,
+    paddingRight: 0,
   },
+  photoAddPlus: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-end',
+    marginRight: 8,
+  },
+  photosHint: { color: colors.primary, fontSize: 13, fontWeight: '700', marginBottom: 10 },
+  mainBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  mainBadgeText: { color: '#fff', fontSize: 9.5, fontWeight: '800' },
+  completionBanner: {
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: 14,
+    marginBottom: 20,
+    gap: 10,
+  },
+  completionTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  completionTitle: { flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: '800' },
+  completionPct: { color: colors.primary, fontSize: 15, fontWeight: '900' },
+  completionBarBg: { height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' },
+  completionBarFill: { height: '100%', borderRadius: 3, backgroundColor: colors.primary },
 });
 
 

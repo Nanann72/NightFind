@@ -405,3 +405,8 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - Photo edge-to-edge plein écran (cardArea absolute width/height explicites — ⚠️ StyleSheet.absoluteFill et inset ne fonctionnaient PAS sur RN web ici, h=0 ; utiliser {position:'absolute',top:0,left:0,width,height} des Dimensions).
 - Header (chips/compteur/⚡/❤) en overlay absolu sur la photo (top insets.top+8, zIndex 50). Dots photos top insets.top+58, menu/badge superlike top insets.top+70.
 - Dégradé LinearGradient transparent→noir (h=380) en bas. Info (nom+📍ville) à bottom insets.bottom+178, juste au-dessus des 5 boutons d'action qui flottent SUR la photo. Carte borderRadius 0, sans ombre.
+
+## ✅ FIXES UI : DOUBLE «+», PROFIL SWIPE TINDER, PROFIL INSTAGRAM (août 2026) — auto-testé screenshots PASS
+- CreateFab masqué aussi sur /events (double bouton « + ») — pathname.includes('swipe'|'events').
+- swipe-profile.tsx façon Tinder : bannière « Complète ton profil X% » (api.profileCompletion, barre de progression), section « Mes photos » avec hint rose « Ajoute X autres photos », 3 slots toujours visibles (tuiles + en pointillés avec pastille + rose en bas à droite façon Tinder), badge « Principale » sur la 1re photo. Reste inchangé.
+- profile.tsx façon Instagram : stories à la une = cercles 66px avec anneau gris fin (fini l'anneau arc-en-ciel), publications = grille 3 colonnes en pixels EXPLICITES (GRID_TILE=width/3, plus de largeurs en % qui cassaient l'affichage sur iPhone).

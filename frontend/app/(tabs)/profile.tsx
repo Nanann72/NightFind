@@ -11,6 +11,7 @@ import {
   ScrollView,
   Modal,
   Share,
+  Dimensions,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
@@ -28,6 +29,8 @@ import { useThemeColors } from '../../lib/themeContext';
 import { Skeleton as SkeletonUI } from '../../components/ui/Skeleton';
 import { useTranslation } from '../../lib/i18n';
 import { radius, spacing, type ThemeColors } from '../../lib/theme';
+
+const GRID_TILE = Math.floor(Dimensions.get('window').width / 3);
 
 export default function Profile() {
   const insets = useSafeAreaInsets();
@@ -194,12 +197,7 @@ export default function Profile() {
                     onPress={() => setPreviewMoment(m)}
                     testID={`highlight-${m.moment_id}`}
                   >
-                    <LinearGradient
-                      colors={['#F2C94C', '#E01A4F', '#9B23E6'] as any}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.highlightRing}
-                    >
+                    <View style={styles.highlightRing}>
                       <View style={styles.highlightInner}>
                         {img ? (
                           <Image source={{ uri: img }} style={styles.highlightImg} />
@@ -209,7 +207,7 @@ export default function Profile() {
                           </View>
                         )}
                       </View>
-                    </LinearGradient>
+                    </View>
                     <Text style={styles.highlightLabel} numberOfLines={1}>
                       {m.club_name || t('profile.momentFallback')}
                     </Text>
@@ -653,24 +651,26 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
 
   // Story Highlights
   highlightsWrap: { marginTop: spacing.lg },
-  highlightsContent: { paddingHorizontal: spacing.lg, gap: 14, alignItems: 'flex-start' },
-  highlightItem: { alignItems: 'center', width: 72 },
+  highlightsContent: { paddingHorizontal: spacing.lg, gap: 16, alignItems: 'flex-start' },
+  highlightItem: { alignItems: 'center', width: 66 },
   highlightRing: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    padding: 2.5,
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    padding: 3,
     alignItems: 'center',
     justifyContent: 'center',
   },
   highlightInner: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 32,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.bg,
     padding: 2,
   },
-  highlightImg: { width: '100%', height: '100%', borderRadius: 30 },
+  highlightImg: { width: 52, height: 52, borderRadius: 26 },
   highlightImgFallback: {
     backgroundColor: colors.surfaceElevated,
     alignItems: 'center',
@@ -702,14 +702,14 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   tabIndicatorActive: { backgroundColor: colors.textPrimary },
 
   // Grid
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 0 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
   gridCell: {
-    width: `${100 / 3}%`,
-    aspectRatio: 1,
+    width: GRID_TILE,
+    height: GRID_TILE,
     padding: 1,
     position: 'relative',
   },
-  gridImage: { width: '100%', height: '100%', backgroundColor: colors.surfaceElevated },
+  gridImage: { width: GRID_TILE - 2, height: GRID_TILE - 2, backgroundColor: colors.surfaceElevated },
   gridLabelOverlay: {
     position: 'absolute',
     left: 1,
