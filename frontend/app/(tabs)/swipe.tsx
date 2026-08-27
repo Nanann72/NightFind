@@ -41,8 +41,6 @@ import { radius, spacing, type ThemeColors } from '../../lib/theme';
 import { useThemeColors } from '../../lib/themeContext';
 
 const { width, height } = Dimensions.get('window');
-const CARD_W = width - 24;
-const CARD_H = Math.max(500, height - 270);
 const SWIPE_THRESHOLD = width * 0.28;
 const SWIPE_UP_THRESHOLD = height * 0.16;
 
@@ -433,8 +431,8 @@ export default function SwipePeople() {
   const myPhoto = photoUri(((user as any)?.photos || [])[0]);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 8 }]} testID="swipe-people-screen">
-      <View style={styles.header}>
+    <View style={styles.container} testID="swipe-people-screen">
+      <View style={[styles.header, { top: insets.top + 8 }]}>
         <View style={styles.headerTopRow}>
           <TouchableOpacity
             style={styles.hIconBtn}
@@ -495,7 +493,7 @@ export default function SwipePeople() {
       </View>
 
       {!top ? (
-        <View style={[styles.center, { paddingTop: 40 }]}>
+        <View style={[styles.center, { paddingTop: insets.top + 100 }]}>
           <Ionicons name="sparkles" size={64} color={colors.tertiary} />
           <Text style={styles.bigTitle}>Plus personne à découvrir</Text>
           <Text style={styles.sub}>Repasse demain ou invite tes amis sur Night Finder.</Text>
@@ -505,7 +503,7 @@ export default function SwipePeople() {
         </View>
       ) : (
         <>
-          <View style={[styles.cardArea, { width: CARD_W, height: CARD_H }]}>
+          <View style={[styles.cardArea, { position: 'absolute', top: 0, left: 0, width, height }]}>
             {/* ---- Card stack: 2 cards behind ---- */}
             {behind
               .map((p, i) => {
@@ -530,7 +528,7 @@ export default function SwipePeople() {
                         </View>
                       </View>
                     )}
-                    <View style={styles.gradient} />
+                    <LinearGradient colors={['transparent', 'rgba(0,0,0,0.9)']} style={styles.gradient} />
                   </Animated.View>
                 );
               })
@@ -551,7 +549,7 @@ export default function SwipePeople() {
                 )}
                 {/* Photo progress bars */}
                 {validPhotos.length > 1 && (
-                  <View style={styles.dotsRow}>
+                  <View style={[styles.dotsRow, { top: insets.top + 58 }]}>
                     {validPhotos.map((_, i) => (
                       <View key={i} style={[styles.dot, i === photoIdx && styles.dotActive]} />
                     ))}
@@ -559,13 +557,13 @@ export default function SwipePeople() {
                 )}
                 {/* "T'a super-liké" badge */}
                 {top.superliked_you && (
-                  <View style={styles.superlikedBadge} testID="superliked-you-badge">
+                  <View style={[styles.superlikedBadge, { top: insets.top + 70 }]} testID="superliked-you-badge">
                     <Ionicons name="star" size={13} color="#fff" />
                     <Text style={styles.superlikedBadgeText}>{"T'a super-liké"}</Text>
                   </View>
                 )}
                 {/* Report/Block menu — Apple 1.2 UGC */}
-                <View style={styles.menuBtn} pointerEvents="box-none">
+                <View style={[styles.menuBtn, { top: insets.top + 70 }]} pointerEvents="box-none">
                   <UserActionsMenu
                     targetUserId={top.user_id}
                     targetName={top.name}
@@ -611,8 +609,8 @@ export default function SwipePeople() {
                   <Ionicons name="star" size={26} color="#0ea5e9" />
                 </Animated.View>
 
-                <View style={styles.gradient} />
-                <View style={styles.info}>
+                <LinearGradient colors={['transparent', 'rgba(0,0,0,0.92)']} style={styles.gradient} />
+                <View style={[styles.info, { bottom: insets.bottom + 178 }]}>
                   <View style={styles.infoTopRow}>
                     <Text style={styles.name}>
                       {top.name}
@@ -937,7 +935,13 @@ export default function SwipePeople() {
 const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, alignItems: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', backgroundColor: colors.bg, padding: 24 },
-  header: { width: '100%', paddingHorizontal: spacing.md, marginBottom: 8, alignSelf: 'flex-start' },
+  header: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 50,
+    paddingHorizontal: spacing.md,
+  },
   hIconBtn: {
     width: 38,
     height: 38,
@@ -1057,14 +1061,9 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
     width: '100%',
     height: '100%',
-    borderRadius: radius.lg,
+    borderRadius: 0,
     backgroundColor: colors.surface,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowOffset: { width: 0, height: 8 },
-    shadowRadius: 18,
-    elevation: 6,
   },
   cardBehind: { position: 'absolute', top: 0, left: 0 },
   photo: { width: '100%', height: '100%' },
@@ -1173,10 +1172,9 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 220,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    height: 380,
   },
-  info: { position: 'absolute', bottom: 18, left: 18, right: 18 },
+  info: { position: 'absolute', left: 18, right: 18 },
   infoTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   detailsBtn: { marginLeft: 10 },
   name: { color: '#fff', fontSize: 28, fontWeight: '900', letterSpacing: -0.5, flex: 1 },

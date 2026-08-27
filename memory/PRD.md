@@ -400,3 +400,8 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - Bottom sheet « Ton activité ⚡ » (statsOpen) : quota swipes/super likes, boost actif, analyse de crush, complétion profil (lien swipe-profile). Tous les testIDs conservés (crush-banner, completion-pill, boost-active-pill).
 - Carte agrandie : CARD_W=width-24, CARD_H=max(500, height-270). Overlay minimal : nom+âge+badge vérifié + 📍 ville (bio/tags/insta restent visibles via chevron → /user/{id}).
 - CreateFab masqué sur l'écran swipe (usePathname) — il chevauchait le bouton boost.
+
+## ✅ SWIPE PLEIN ÉCRAN FAÇON TINDER v2 (août 2026) — auto-testé screenshot PASS
+- Photo edge-to-edge plein écran (cardArea absolute width/height explicites — ⚠️ StyleSheet.absoluteFill et inset ne fonctionnaient PAS sur RN web ici, h=0 ; utiliser {position:'absolute',top:0,left:0,width,height} des Dimensions).
+- Header (chips/compteur/⚡/❤) en overlay absolu sur la photo (top insets.top+8, zIndex 50). Dots photos top insets.top+58, menu/badge superlike top insets.top+70.
+- Dégradé LinearGradient transparent→noir (h=380) en bas. Info (nom+📍ville) à bottom insets.bottom+178, juste au-dessus des 5 boutons d'action qui flottent SUR la photo. Carte borderRadius 0, sans ombre.
