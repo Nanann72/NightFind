@@ -423,3 +423,7 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 
 ## ✅ STORIES PLEIN ÉCRAN FAÇON INSTAGRAM (sept 2026) — auto-testé screenshot PASS
 - profile.tsx Moment Preview Modal : fini le carré (aspectRatio 1 + carte centrée) → plein écran noir façon story Insta : image cover 100%, overlay bas (📍 club + légende, fond rgba noir), croix top 54/right 16. Vaut pour les « À la une » ET les publications de la grille (même modale).
+
+## ✅ VUE PUBLICATION FAÇON INSTAGRAM (sept 2026) — auto-testé screenshot PASS
+- profile.tsx : tap sur une vignette de la grille (grid-moment-*) → nouvelle modale « Publications » (moment-post-modal) façon post Instagram : header retour + « Publications / username », ligne auteur (avatar/initiales + nom + badge vérifié + lieu), photo 4:5 avec mini-selfie BeReal, rangée actions ❤ likes · 💬 · partage (Share natif), légende « **Nom** texte », date FR. Les « À la une » gardent la story plein écran (previewMoment).
+- Lien site vitrine communiqué : préview /api/site, prod https://fan-culture-app.emergent.host/api/site après redéploiement.

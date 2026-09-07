@@ -53,6 +53,7 @@ export default function Profile() {
   const [loadingMoments, setLoadingMoments] = useState(true);
   const [activeTab, setActiveTab] = useState<'moments' | 'favorites'>('moments');
   const [previewMoment, setPreviewMoment] = useState<any | null>(null);
+  const [postMoment, setPostMoment] = useState<any | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
 
   const shareUrl = useMemo(() => {
@@ -296,7 +297,7 @@ export default function Profile() {
                     key={m.moment_id || idx}
                     style={styles.gridCell}
                     activeOpacity={0.8}
-                    onPress={() => setPreviewMoment(m)}
+                    onPress={() => setPostMoment(m)}
                     testID={`grid-moment-${idx}`}
                   >
                     {img ? (
@@ -479,6 +480,114 @@ export default function Profile() {
               <Ionicons name="close" size={22} color={colors.textPrimary} />
             </TouchableOpacity>
           </View>
+        </View>
+      </Modal>
+
+      {/* Post Moment Modal — publication façon Instagram */}
+      <Modal
+        visible={!!postMoment}
+        animationType="slide"
+        onRequestClose={() => setPostMoment(null)}
+      >
+        <View style={[styles.postRoot, { paddingTop: insets.top + 6 }]} testID="moment-post-modal">
+          {/* Header */}
+          <View style={styles.postHeader}>
+            <TouchableOpacity onPress={() => setPostMoment(null)} style={styles.postBack} hitSlop={8} testID="post-back">
+              <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={styles.postHeaderTitle}>Publications</Text>
+              <Text style={styles.postHeaderSub} numberOfLines={1}>
+                {(user as any)?.username || user?.name || ''}
+              </Text>
+            </View>
+            <View style={{ width: 38 }} />
+          </View>
+
+          {postMoment && (
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}>
+              {/* Auteur */}
+              <View style={styles.postAuthorRow}>
+                {user?.picture ? (
+                  <Image source={{ uri: user.picture }} style={styles.postAvatar} />
+                ) : (
+                  <View style={[styles.postAvatar, styles.highlightImgFallback]}>
+                    <Text style={styles.postAvatarInitials}>{initials}</Text>
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={styles.postAuthorName} numberOfLines={1}>
+                      {user?.name || 'Moi'}
+                    </Text>
+                    <Ionicons name="checkmark-circle" size={14} color="#3B82F6" />
+                  </View>
+                  {!!postMoment.club_name && (
+                    <Text style={styles.postLocation} numberOfLines={1}>{postMoment.club_name}</Text>
+                  )}
+                </View>
+              </View>
+
+              {/* Photo */}
+              {(() => {
+                const raw = postMoment.image;
+                const img = raw
+                  ? (typeof raw === 'string' && raw.startsWith('data:') ? raw : `data:image/jpeg;base64,${raw}`)
+                  : null;
+                const rawS = postMoment.selfie;
+                const selfie = rawS
+                  ? (typeof rawS === 'string' && rawS.startsWith('data:') ? rawS : `data:image/jpeg;base64,${rawS}`)
+                  : null;
+                return (
+                  <View style={styles.postImageWrap}>
+                    {img ? (
+                      <Image source={{ uri: img }} style={styles.postImage} resizeMode="cover" />
+                    ) : (
+                      <View style={[styles.postImage, styles.highlightImgFallback]}>
+                        <Ionicons name="image" size={44} color={colors.textTertiary} />
+                      </View>
+                    )}
+                    {selfie && <Image source={{ uri: selfie }} style={styles.postSelfie} resizeMode="cover" />}
+                  </View>
+                );
+              })()}
+
+              {/* Actions ❤ 💬 partage */}
+              <View style={styles.postActionsRow}>
+                <Ionicons name="heart" size={26} color={colors.primary} />
+                <Text style={styles.postActionCount}>{postMoment.likes_count ?? 0}</Text>
+                <Ionicons name="chatbubble-outline" size={23} color={colors.textPrimary} style={{ marginLeft: 14 }} />
+                <Text style={styles.postActionCount}>{postMoment.comments_count ?? 0}</Text>
+                <TouchableOpacity
+                  style={{ marginLeft: 14 }}
+                  onPress={() => Share.share({ message: `${user?.name || ''} — ${postMoment.caption || 'Moment Night Finder'} 🌙` }).catch(() => {})}
+                  testID="post-share"
+                >
+                  <Ionicons name="paper-plane-outline" size={23} color={colors.textPrimary} />
+                </TouchableOpacity>
+                <View style={{ flex: 1 }} />
+                {!postMoment.active && (
+                  <View style={styles.previewExpired}>
+                    <Ionicons name="time-outline" size={12} color={colors.textTertiary} />
+                    <Text style={styles.previewExpiredText}>{t('profile.expired')}</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Légende + date */}
+              {postMoment.caption ? (
+                <Text style={styles.postCaption}>
+                  <Text style={styles.postCaptionName}>{user?.name || ''} </Text>
+                  {postMoment.caption}
+                </Text>
+              ) : null}
+              {!!postMoment.created_at && (
+                <Text style={styles.postDate}>
+                  {new Date(postMoment.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              )}
+            </ScrollView>
+          )}
         </View>
       </Modal>
 
@@ -795,6 +904,33 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   premiumBadgeText: { color: '#0a0a0a', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
 
   // Moment Preview Modal — plein écran façon story Instagram
+  postRoot: { flex: 1, backgroundColor: colors.bg },
+  postHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingBottom: 8 },
+  postBack: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  postHeaderTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: '800' },
+  postHeaderSub: { color: colors.textSecondary, fontSize: 11.5, marginTop: 1 },
+  postAuthorRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 10 },
+  postAvatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  postAvatarInitials: { color: colors.textPrimary, fontSize: 14, fontWeight: '800' },
+  postAuthorName: { color: colors.textPrimary, fontSize: 14.5, fontWeight: '800' },
+  postLocation: { color: colors.textSecondary, fontSize: 12, marginTop: 1 },
+  postImageWrap: { width: '100%', aspectRatio: 4 / 5, backgroundColor: '#000' },
+  postImage: { width: '100%', height: '100%' },
+  postSelfie: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    width: 74,
+    height: 98,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  postActionsRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 12 },
+  postActionCount: { color: colors.textPrimary, fontSize: 14.5, fontWeight: '800', marginLeft: 6 },
+  postCaption: { color: colors.textPrimary, fontSize: 14, lineHeight: 19.5, paddingHorizontal: 14, paddingTop: 10 },
+  postCaptionName: { fontWeight: '800' },
+  postDate: { color: colors.textTertiary, fontSize: 12, paddingHorizontal: 14, paddingTop: 8 },
   previewRoot: {
     flex: 1,
     backgroundColor: '#000',
