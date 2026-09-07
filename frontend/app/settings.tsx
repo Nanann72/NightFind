@@ -123,6 +123,21 @@ export default function Settings() {
       setSavingUsername(false);
     }
   };
+  const [isPrivate, setIsPrivate] = useState<boolean>(!!(user as any)?.is_private);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
+  const togglePrivacy = async (val: boolean) => {
+    setSavingPrivacy(true);
+    try {
+      await api.setPrivacy(val);
+      setIsPrivate(val);
+      await refresh();
+    } catch (e: any) {
+      Alert.alert('Erreur', e.message || 'Impossible de mettre à jour.');
+    } finally {
+      setSavingPrivacy(false);
+    }
+  };
+
   const toggleVisibility = async (val: boolean) => {
     const next = val ? 'clubs_only' : 'hidden';
     setSavingVis(true);
@@ -495,6 +510,23 @@ export default function Settings() {
         {/* SECTION — Confidentialité */}
         <SectionHeader title={t('settings.sectionPrivacy')} />
         <View style={styles.group}>
+          {renderRow(isPrivate ? 'lock-closed-outline' : 'lock-open-outline', 'Compte privé', undefined, {
+            subtext: isPrivate
+              ? 'Ton profil est masqué du swipe et de la carte'
+              : 'Ton profil est visible de tous',
+            right: savingPrivacy ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <Switch
+                value={isPrivate}
+                onValueChange={togglePrivacy}
+                trackColor={{ false: colors.fillStrong, true: colors.primary }}
+                thumbColor="#fff"
+                testID="switch-private-account"
+              />
+            ),
+            testID: 'row-private-account',
+          })}
           {renderRow(visibility === 'clubs_only' ? 'eye-outline' : 'eye-off-outline', t('settings.visibility'), undefined, {
             subtext:
               visibility === 'clubs_only'

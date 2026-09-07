@@ -1731,9 +1731,11 @@ async def swipe_deck(
         # Only public profiles can be swiped in-club (visibility != hidden,
         # not private). We treat visibility=="hidden" or "private" as opt-out.
         extra_filter["visibility"] = {"$nin": ["hidden", "private"]}
+        extra_filter["is_private"] = {"$ne": True}
     else:
         extra_filter["user_id"] = {"$nin": list(exclude)}
         extra_filter["visibility"] = {"$ne": "hidden"}
+        extra_filter["is_private"] = {"$ne": True}
 
     cursor = db.users.find(
         {
@@ -2439,6 +2441,128 @@ async def tonight_plan(
     }
 
 
+# ═══════════════ Carrés VIP — réservation avec plan des tables ═══════════════
+
+_VIP_SPOTS = [
+    # (nom, x, y, capacité) — positions relatives 0-1 sur le plan de salle
+    ("V1", 0.16, 0.28, 4),
+    ("V2", 0.16, 0.60, 6),
+    ("V3", 0.50, 0.14, 8),
+    ("V4", 0.84, 0.28, 4),
+    ("V5", 0.84, 0.60, 6),
+    ("V6", 0.50, 0.84, 10),
+]
+
+
+def _vip_layout(club_id: str) -> list[dict]:
+    """Plan de salle déterministe par club : 6 carrés VIP autour du dancefloor."""
+    h = int(hashlib.md5(club_id.encode()).hexdigest()[:8], 16)
+    base_price = 250 + (h % 6) * 50  # 250-500 € selon le club
+    return [
+        {
+            "table_id": f"{club_id}_t{i + 1}",
+            "name": name,
+            "x": x,
+            "y": y,
+            "capacity": cap,
+            "price": base_price + (cap - 4) * 75,
+        }
+        for i, (name, x, y, cap) in enumerate(_VIP_SPOTS)
+    ]
+
+
+@api_router.get("/clubs/{club_id}/vip-tables")
+async def vip_tables(club_id: str, date: str, user: dict = Depends(get_current_user)):
+    """Plan des carrés VIP + disponibilité pour une date (YYYY-MM-DD)."""
+    tables = _vip_layout(club_id)
+    booked = {
+        r["table_id"]
+        async for r in db.vip_reservations.find(
+            {"club_id": club_id, "date": date, "status": "confirmed"},
+            {"_id": 0, "table_id": 1},
+        )
+    }
+    mine = await db.vip_reservations.find_one(
+        {"club_id": club_id, "date": date, "user_id": user["user_id"], "status": "confirmed"},
+        {"_id": 0},
+    )
+    for t in tables:
+        t["booked"] = t["table_id"] in booked
+    return {"date": date, "tables": tables, "my_reservation": mine}
+
+
+class VipReserveBody(BaseModel):
+    table_id: str
+    date: str  # YYYY-MM-DD
+    party_size: int = 4
+
+
+@api_router.post("/clubs/{club_id}/vip-reservations", status_code=201)
+async def vip_reserve(club_id: str, body: VipReserveBody, user: dict = Depends(get_current_user)):
+    try:
+        datetime.strptime(body.date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Date invalide (YYYY-MM-DD)")
+    table = next((t for t in _vip_layout(club_id) if t["table_id"] == body.table_id), None)
+    if not table:
+        raise HTTPException(status_code=404, detail="Carré introuvable")
+    if body.party_size < 1 or body.party_size > table["capacity"]:
+        raise HTTPException(status_code=400, detail=f"Ce carré accueille {table['capacity']} personnes max")
+    taken = await db.vip_reservations.find_one(
+        {"club_id": club_id, "date": body.date, "table_id": body.table_id, "status": "confirmed"}
+    )
+    if taken:
+        raise HTTPException(status_code=409, detail="Ce carré est déjà réservé pour cette date")
+    dup = await db.vip_reservations.find_one(
+        {"club_id": club_id, "date": body.date, "user_id": user["user_id"], "status": "confirmed"}
+    )
+    if dup:
+        raise HTTPException(status_code=409, detail="Tu as déjà un carré réservé ce soir-là dans ce club")
+    doc = {
+        "reservation_id": f"vip_{uuid.uuid4().hex[:10]}",
+        "user_id": user["user_id"],
+        "user_name": user.get("name") or "",
+        "club_id": club_id,
+        "table_id": body.table_id,
+        "table_name": table["name"],
+        "date": body.date,
+        "party_size": body.party_size,
+        "price": table["price"],
+        "status": "confirmed",
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.vip_reservations.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/me/vip-reservations")
+async def my_vip_reservations(user: dict = Depends(get_current_user)):
+    rows = await db.vip_reservations.find(
+        {"user_id": user["user_id"], "status": "confirmed"}, {"_id": 0}
+    ).sort("date", -1).limit(50).to_list(50)
+    club_ids = list({r["club_id"] for r in rows})
+    names: dict = {}
+    if club_ids:
+        for coll in (db.clubs, db.places):
+            async for c in coll.find({"club_id": {"$in": club_ids}}, {"_id": 0, "club_id": 1, "name": 1}):
+                names.setdefault(c["club_id"], c.get("name"))
+    for r in rows:
+        r["club_name"] = names.get(r["club_id"])
+    return rows
+
+
+@api_router.delete("/vip-reservations/{reservation_id}")
+async def cancel_vip_reservation(reservation_id: str, user: dict = Depends(get_current_user)):
+    r = await db.vip_reservations.find_one({"reservation_id": reservation_id}, {"_id": 0})
+    if not r or r["user_id"] != user["user_id"]:
+        raise HTTPException(status_code=404, detail="Réservation introuvable")
+    await db.vip_reservations.update_one(
+        {"reservation_id": reservation_id}, {"$set": {"status": "cancelled"}}
+    )
+    return {"ok": True}
+
+
 @api_router.get("/matches/{match_id}/messages")
 async def list_messages(match_id: str, since: Optional[str] = None, user: dict = Depends(get_current_user)):
     m = await db.matches.find_one({"match_id": match_id}, {"_id": 0})
@@ -2590,6 +2714,7 @@ class MomentUploadBody(BaseModel):
     image: str  # base64 (data URI ok) — composite or main photo
     caption: Optional[str] = None
     selfie: Optional[str] = None  # optional base64 selfie for BeReal-style dual view
+    audience: Optional[str] = "public"  # "public" | "friends" (abonnés uniquement)
 
 
 @api_router.post("/clubs/{club_id}/moments")
@@ -2653,6 +2778,7 @@ async def upload_moment(
         "image": body.image,
         "selfie": body.selfie or None,
         "caption": (body.caption or "")[:280],
+        "audience": "friends" if body.audience == "friends" else "public",
         "is_premium_author": bool(user.get("is_premium")),
         "created_at": now,
         "expires_at": now + timedelta(hours=ttl_hours),
@@ -2679,8 +2805,21 @@ async def list_club_moments(
 ):
     """Get all currently-active moments for a club (sorted newest first)."""
     now = datetime.now(timezone.utc)
+    my_following = [
+        f["following_id"]
+        async for f in db.follows.find(
+            {"follower_id": user["user_id"]}, {"_id": 0, "following_id": 1}
+        )
+    ]
     cursor = db.club_moments.find(
-        {"club_id": club_id, "expires_at": {"$gt": now}},
+        {
+            "club_id": club_id,
+            "expires_at": {"$gt": now},
+            "$or": [
+                {"audience": {"$ne": "friends"}},
+                {"user_id": {"$in": my_following + [user["user_id"]]}},
+            ],
+        },
         {"_id": 0},
     ).sort("created_at", -1).limit(50)
     return [_normalize_selfie(m) for m in await cursor.to_list(50)]
@@ -2790,9 +2929,20 @@ async def moments_feed(
     limit = max(1, min(limit, 100))
     now = datetime.now(timezone.utc)
     blocked = await _blocked_user_ids(user["user_id"])
+    # Moments "amis" : visibles uniquement par les abonnés de l'auteur (+ l'auteur)
+    my_following = [
+        f["following_id"]
+        async for f in db.follows.find(
+            {"follower_id": user["user_id"]}, {"_id": 0, "following_id": 1}
+        )
+    ]
     query: dict = {
         "expires_at": {"$gt": now},
         "user_id": {"$nin": list(blocked)},
+        "$or": [
+            {"audience": {"$ne": "friends"}},
+            {"user_id": {"$in": my_following + [user["user_id"]]}},
+        ],
     }
     if user_id:
         # Filter by that specific user (still respects block list)
@@ -3458,6 +3608,19 @@ async def set_visibility(body: VisibilityBody, user: dict = Depends(get_current_
         {"user_id": user["user_id"]}, {"$set": {"visibility": body.visibility}}
     )
     return {"ok": True, "visibility": body.visibility}
+
+
+class PrivacyBody(BaseModel):
+    is_private: bool
+
+
+@api_router.put("/profile/privacy")
+async def set_privacy(body: PrivacyBody, user: dict = Depends(get_current_user)):
+    """Compte public / privé. Privé = invisible dans le swipe et sur la carte."""
+    await db.users.update_one(
+        {"user_id": user["user_id"]}, {"$set": {"is_private": bool(body.is_private)}}
+    )
+    return {"ok": True, "is_private": bool(body.is_private)}
 
 
 @api_router.get("/friends/search")
@@ -5148,6 +5311,7 @@ async def users_nearby(
     cursor = db.users.find(
         {
             "location.lat": {"$gte": lat - lat_delta, "$lte": lat + lat_delta},
+            "is_private": {"$ne": True},
             "location.lng": {"$gte": lng - lng_delta, "$lte": lng + lng_delta},
             "user_id": {"$nin": list(exclude)},
             "visibility": {"$nin": ["hidden", "private"]},

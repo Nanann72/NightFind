@@ -376,6 +376,18 @@ export default function ClubDetail() {
             {checkingIn ? 'Vérification de ta position…' : 'Je suis ici — Check-in'}
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.vipBtn}
+          onPress={() => router.push(`/vip-booking/${club.club_id}` as any)}
+          testID="vip-booking-btn"
+        >
+          <Text style={styles.vipEmoji} allowFontScaling={false}>🍾</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.vipTitle}>Réserver un carré VIP</Text>
+            <Text style={styles.vipSub}>Choisis ta table sur le plan de salle</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+        </TouchableOpacity>
         <View style={styles.footerRow}>
           <TouchableOpacity
             style={styles.directionsBtn}
@@ -568,6 +580,21 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     borderColor: colors.borderStrong,
   },
   directionsText: { color: colors.textPrimary, fontWeight: '700' },
+  vipBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: 'rgba(225,29,72,0.4)',
+    borderRadius: 16,
+    padding: 14,
+    marginHorizontal: spacing.lg,
+    marginTop: 10,
+  },
+  vipEmoji: { fontSize: 22 },
+  vipTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: '800' },
+  vipSub: { color: colors.textSecondary, fontSize: 12, marginTop: 1 },
   favBtn: {
     flex: 1,
     flexDirection: 'row',

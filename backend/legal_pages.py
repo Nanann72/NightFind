@@ -366,6 +366,71 @@ SUPPORT_HTML = f"""<!DOCTYPE html>
 </html>"""
 
 
+_LANDING_HTML = f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Night Finder — Trouve ta soirée, rencontre ta nuit</title>
+<meta name="description" content="Night Finder : la carte des clubs et bars festifs, le swipe des noctambules, les moments de soirée. Télécharge l'app et sors ce soir." />
+<style>
+:root {{ color-scheme: dark; }}
+* {{ box-sizing: border-box; margin: 0; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #09090B; color: #F4F4F5; }}
+.hero {{ min-height: 72vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 60px 24px 40px; background: radial-gradient(ellipse at 50% -20%, rgba(225,29,72,0.35), transparent 60%); }}
+.logo {{ width: 72px; height: 72px; border-radius: 20px; background: linear-gradient(135deg,#E11D48,#7C3AED); display:flex; align-items:center; justify-content:center; font-size: 34px; margin-bottom: 20px; }}
+h1 {{ font-size: clamp(34px, 7vw, 56px); font-weight: 900; letter-spacing: -1px; }}
+h1 span {{ color: #E11D48; }}
+.tag {{ color: #A1A1AA; font-size: clamp(16px, 3vw, 20px); margin: 14px 0 30px; max-width: 560px; }}
+.cta {{ display:inline-block; background:#E11D48; color:#fff; font-weight:800; padding: 15px 34px; border-radius: 18px; text-decoration:none; font-size: 17px; box-shadow: 0 8px 30px rgba(225,29,72,.45); }}
+.cta.ghost {{ background: transparent; border: 1px solid #3F3F46; box-shadow:none; margin-left: 10px; }}
+.features {{ display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; max-width: 960px; margin: 0 auto; padding: 20px 24px 60px; }}
+.card {{ background:#141417; border:1px solid #27272A; border-radius: 20px; padding: 26px 22px; }}
+.card .emoji {{ font-size: 30px; }}
+.card h3 {{ margin: 12px 0 6px; font-size: 18px; }}
+.card p {{ color:#A1A1AA; font-size: 14.5px; line-height: 1.55; }}
+footer {{ border-top: 1px solid #1F1F23; padding: 30px 24px 50px; text-align:center; color:#71717A; font-size: 14px; }}
+footer a {{ color:#F472B6; text-decoration:none; margin: 0 12px; }}
+footer a:hover {{ text-decoration:underline; }}
+</style>
+</head>
+<body>
+  <section class="hero">
+    <div class="logo">🌙</div>
+    <h1>Night <span>Finder</span></h1>
+    <p class="tag">Trouve ta soirée, rencontre ta nuit. La carte des clubs et bars festifs, le swipe des noctambules et les moments de soirée — dans une seule app.</p>
+    <div>
+      <a class="cta" href="mailto:support@nightfinder.app?subject=Acc%C3%A8s%20Night%20Finder">Rejoindre l'aventure</a>
+      <a class="cta ghost" href="{SUPPORT_PUBLIC_URL}">Support</a>
+    </div>
+  </section>
+  <section class="features">
+    <div class="card"><div class="emoji">🗺️</div><h3>La carte de la nuit</h3><p>Clubs, rooftops et bars festifs autour de toi, avec l'affluence en direct et l'itinéraire en un tap.</p></div>
+    <div class="card"><div class="emoji">🔥</div><h3>Le swipe des noctambules</h3><p>Rencontre les gens qui sortent comme toi — partout ou directement dans ton club ce soir.</p></div>
+    <div class="card"><div class="emoji">📸</div><h3>Moments de soirée</h3><p>Capture l'instant façon BeReal, partage-le à tes amis ou à toute la communauté.</p></div>
+    <div class="card"><div class="emoji">🍾</div><h3>Carrés VIP</h3><p>Réserve ton carré VIP sur le plan de salle du club, en quelques secondes.</p></div>
+  </section>
+  <footer>
+    <div>
+      <a href="/privacy">Confidentialité</a>
+      <a href="/terms">Conditions</a>
+      <a href="{SUPPORT_PUBLIC_URL}">Support</a>
+      <a href="mailto:support@nightfinder.app">Contact</a>
+    </div>
+    <p style="margin-top:14px">© 2026 Night Finder — nightfinder.app</p>
+  </footer>
+</body>
+</html>"""
+
+
+@router.get("/", response_class=HTMLResponse, include_in_schema=False)
+@router.get("/site", response_class=HTMLResponse)
+@router.get("/api/site", response_class=HTMLResponse)
+async def landing_page() -> str:
+    """Site vitrine nightfinder.app — renvoie vers support & privacy."""
+    return _LANDING_HTML
+
+
 @router.get("/privacy", response_class=HTMLResponse)
 @router.get("/api/legal/privacy", response_class=HTMLResponse)
 async def privacy_page() -> str:

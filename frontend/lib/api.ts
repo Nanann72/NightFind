@@ -39,6 +39,16 @@ export type MenuItem = {
   category?: string;
 };
 
+export type VipTable = {
+  table_id: string;
+  name: string;
+  x: number;
+  y: number;
+  capacity: number;
+  price: number;
+  booked?: boolean;
+};
+
 export type TonightClub = {
   club_id: string;
   name: string;
@@ -861,6 +871,23 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ visibility }),
     }),
+  setPrivacy: (is_private: boolean) =>
+    request<{ ok: boolean; is_private: boolean }>('/profile/privacy', {
+      method: 'PUT',
+      body: JSON.stringify({ is_private }),
+    }),
+  vipTables: (clubId: string, date: string) =>
+    request<{ date: string; tables: VipTable[]; my_reservation: any }>(
+      `/clubs/${clubId}/vip-tables?date=${date}`,
+    ),
+  vipReserve: (clubId: string, table_id: string, date: string, party_size: number) =>
+    request<any>(`/clubs/${clubId}/vip-reservations`, {
+      method: 'POST',
+      body: JSON.stringify({ table_id, date, party_size }),
+    }),
+  myVipReservations: () => request<any[]>('/me/vip-reservations'),
+  cancelVipReservation: (id: string) =>
+    request<{ ok: boolean }>(`/vip-reservations/${id}`, { method: 'DELETE' }),
   searchFriends: (q: string) =>
     request<{ user_id: string; username: string; name: string }[]>(`/friends/search?q=${encodeURIComponent(q)}`),
   sendFriendRequest: (target_user_id: string) =>
@@ -931,10 +958,10 @@ export const api = {
 
 
   // Club Moments (live-photo) ---------------------------------------
-  uploadMoment: (clubId: string, image: string, caption?: string, selfie?: string) =>
+  uploadMoment: (clubId: string, image: string, caption?: string, selfie?: string, audience?: 'public' | 'friends') =>
     request<any>(`/clubs/${clubId}/moments`, {
       method: 'POST',
-      body: JSON.stringify({ image, caption: caption || null, selfie: selfie || null }),
+      body: JSON.stringify({ image, caption: caption || null, selfie: selfie || null, audience: audience || 'public' }),
     }),
   // Instagram-style feed / stories / likes / comments
   momentsFeed: (limit = 30, clubId?: string, userId?: string) => {

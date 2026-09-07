@@ -61,6 +61,8 @@ export default function MomentCapture() {
   const [compositeB64, setCompositeB64] = useState<string | null>(null); // base64 for upload
 
   const [caption, setCaption] = useState('');
+  const [flashOn, setFlashOn] = useState(false);
+  const [audience, setAudience] = useState<'public' | 'friends'>('public');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -339,7 +341,7 @@ export default function MomentCapture() {
     setSubmitting(true);
     setError(null);
     try {
-      await api.uploadMoment(clubId, compositeB64, caption.trim() || undefined, frontPhoto || undefined);
+      await api.uploadMoment(clubId, compositeB64, caption.trim() || undefined, frontPhoto || undefined, audience);
       buzz('success');
       router.replace({ pathname: '/(tabs)', params: { moment_posted: '1' } });
     } catch (e: any) {
@@ -416,10 +418,20 @@ export default function MomentCapture() {
               ref={cameraRef}
               style={styles.camera}
               facing={facing}
+              flash={flashOn ? 'on' : 'off'}
+              enableTorch={flashOn && facing === 'back'}
               onCameraReady={onCameraReady}
               animateShutter={false}
             />
             <View style={styles.cameraOverlay} pointerEvents="box-none">
+              <TouchableOpacity
+                style={[styles.flashBtn, flashOn && styles.flashBtnOn]}
+                onPress={() => setFlashOn((f) => !f)}
+                testID="moment-flash-toggle"
+                hitSlop={8}
+              >
+                <Ionicons name={flashOn ? 'flash' : 'flash-off'} size={18} color={flashOn ? '#111' : '#fff'} />
+              </TouchableOpacity>
               <Text style={styles.cameraHint}>
                 {step === 'capturing-front' || facing === 'front'
                   ? '🤳 Selfie automatique… ne bouge pas'
@@ -482,6 +494,29 @@ export default function MomentCapture() {
                 testID="moment-caption"
               />
               <Text style={styles.captionCount}>{caption.length}/140</Text>
+            </View>
+
+            {/* ── Audience : Public / Amis ── */}
+            <View style={styles.audienceRow}>
+              <TouchableOpacity
+                style={[styles.audienceChip, audience === 'public' && styles.audienceChipActive]}
+                onPress={() => setAudience('public')}
+                testID="moment-audience-public"
+              >
+                <Ionicons name="globe-outline" size={15} color={audience === 'public' ? '#fff' : colors.textSecondary} />
+                <Text style={[styles.audienceText, audience === 'public' && styles.audienceTextActive]}>Public</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.audienceChip, audience === 'friends' && styles.audienceChipActive]}
+                onPress={() => setAudience('friends')}
+                testID="moment-audience-friends"
+              >
+                <Ionicons name="people-outline" size={15} color={audience === 'friends' ? '#fff' : colors.textSecondary} />
+                <Text style={[styles.audienceText, audience === 'friends' && styles.audienceTextActive]}>Amis</Text>
+              </TouchableOpacity>
+              <Text style={styles.audienceHint}>
+                {audience === 'friends' ? 'Visible par tes abonnés uniquement' : 'Visible par tout le monde'}
+              </Text>
             </View>
             {!!error && <Text style={styles.error}>{error}</Text>}
           </Animated.View>
@@ -561,6 +596,34 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'flex-end',
     alignItems: 'center',
   },
+  flashBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  flashBtnOn: { backgroundColor: '#FDE047' },
+  audienceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' },
+  audienceChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+  },
+  audienceChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  audienceText: { color: colors.textSecondary, fontSize: 13, fontWeight: '700' },
+  audienceTextActive: { color: '#fff' },
+  audienceHint: { color: colors.textTertiary, fontSize: 11.5, flexShrink: 1 },
   cameraHint: {
     color: '#fff',
     fontSize: 13,
