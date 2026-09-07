@@ -511,7 +511,7 @@ export default function Profile() {
                       : `data:image/jpeg;base64,${rawSelfie}`)
                   : null;
                 return img ? (
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Image source={{ uri: img }} style={styles.previewImage} resizeMode="cover" />
                     {selfie && (
                       <Image source={{ uri: selfie }} style={styles.previewSelfie} resizeMode="cover" />
@@ -523,21 +523,23 @@ export default function Profile() {
                   </View>
                 );
               })()}
-              <View style={styles.previewMeta}>
-                <Ionicons name="location" size={14} color={colors.textSecondary} />
-                <Text style={styles.previewClubName} numberOfLines={1}>
-                  {previewMoment.club_name || 'Club'}
-                </Text>
-                {!previewMoment.active && (
-                  <View style={styles.previewExpired}>
-                    <Ionicons name="time-outline" size={12} color={colors.textTertiary} />
-                    <Text style={styles.previewExpiredText}>{t('profile.expired')}</Text>
-                  </View>
-                )}
+              <View style={styles.previewBottom}>
+                <View style={styles.previewMeta}>
+                  <Ionicons name="location" size={14} color="#fff" />
+                  <Text style={styles.previewClubName} numberOfLines={1}>
+                    {previewMoment.club_name || 'Club'}
+                  </Text>
+                  {!previewMoment.active && (
+                    <View style={styles.previewExpired}>
+                      <Ionicons name="time-outline" size={12} color={colors.textTertiary} />
+                      <Text style={styles.previewExpiredText}>{t('profile.expired')}</Text>
+                    </View>
+                  )}
+                </View>
+                {previewMoment.caption ? (
+                  <Text style={styles.previewCaption}>{previewMoment.caption}</Text>
+                ) : null}
               </View>
-              {previewMoment.caption ? (
-                <Text style={styles.previewCaption}>{previewMoment.caption}</Text>
-              ) : null}
               <TouchableOpacity
                 style={styles.previewClose}
                 onPress={() => setPreviewMoment(null)}
@@ -792,35 +794,36 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   premiumBadgeText: { color: '#0a0a0a', fontSize: 10, fontWeight: '900', letterSpacing: 1 },
 
-  // Moment Preview Modal
+  // Moment Preview Modal — plein écran façon story Instagram
   previewRoot: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.92)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.lg,
+    backgroundColor: '#000',
   },
   previewCard: {
+    flex: 1,
     width: '100%',
-    maxWidth: 480,
-    backgroundColor: colors.surface,
-    borderRadius: radius.xl,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: '#000',
   },
-  previewImage: { width: '100%', aspectRatio: 1, backgroundColor: '#000' },
+  previewImage: { width: '100%', height: '100%', backgroundColor: '#000' },
+  previewBottom: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 18,
+    paddingTop: 24,
+    paddingBottom: 40,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
   previewMeta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 16,
-    paddingTop: 14,
   },
   previewClubName: {
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '700',
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
     flex: 1,
   },
   previewExpired: {
@@ -834,17 +837,15 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   previewExpiredText: { color: colors.textTertiary, fontSize: 11, fontWeight: '600' },
   previewCaption: {
-    color: colors.textSecondary,
-    fontSize: 14,
-    paddingHorizontal: 16,
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 14.5,
     paddingTop: 8,
-    paddingBottom: 16,
-    lineHeight: 19,
+    lineHeight: 20,
   },
   previewClose: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: 54,
+    right: 16,
     width: 36,
     height: 36,
     borderRadius: 18,
