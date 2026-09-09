@@ -958,10 +958,16 @@ export const api = {
 
 
   // Club Moments (live-photo) ---------------------------------------
-  uploadMoment: (clubId: string, image: string, caption?: string, selfie?: string, audience?: 'public' | 'friends') =>
+  uploadMoment: (clubId: string, image?: string, caption?: string, selfie?: string, audience?: 'public' | 'friends', video_media_id?: string) =>
     request<any>(`/clubs/${clubId}/moments`, {
       method: 'POST',
-      body: JSON.stringify({ image, caption: caption || null, selfie: selfie || null, audience: audience || 'public' }),
+      body: JSON.stringify({
+        image: image || null,
+        caption: caption || null,
+        selfie: selfie || null,
+        audience: audience || 'public',
+        video_media_id: video_media_id || null,
+      }),
     }),
   // Instagram-style feed / stories / likes / comments
   momentsFeed: (limit = 30, clubId?: string, userId?: string) => {

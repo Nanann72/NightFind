@@ -57,6 +57,7 @@ export default function VipBooking() {
   const [partySize, setPartySize] = useState(4);
   const [booking, setBooking] = useState(false);
   const [confirmed, setConfirmed] = useState<any | null>(null);
+  const [awaitingPay, setAwaitingPay] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -96,7 +97,13 @@ export default function VipBooking() {
     try {
       const r = await api.vipReserve(clubId, selected.table_id, date, partySize);
       if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      setConfirmed(r);
+      if (r?.checkout_url) {
+        // Paiement Stripe hébergé
+        setAwaitingPay(r);
+        Linking.openURL(r.checkout_url).catch(() => {});
+      } else {
+        setConfirmed(r);
+      }
     } catch (e: any) {
       setError(e?.message || 'Réservation impossible. Réessaie.');
     } finally {
@@ -143,7 +150,28 @@ export default function VipBooking() {
           ))}
         </ScrollView>
 
-        {confirmed || myRes ? (
+        {awaitingPay && !confirmed && !myRes ? (
+          <View style={styles.confirmCard} testID="vip-awaiting-payment">
+            <Text style={styles.confirmEmoji}>💳</Text>
+            <Text style={styles.confirmTitle}>Paiement en cours…</Text>
+            <Text style={styles.confirmSub}>
+              Carré {awaitingPay.table_name} · {awaitingPay.price}€ — finalise le paiement Stripe dans ton navigateur.
+            </Text>
+            <TouchableOpacity
+              style={styles.reserveBtn}
+              onPress={() => { setAwaitingPay(null); load(); }}
+              testID="vip-refresh-payment"
+            >
+              <Text style={styles.reserveText}>J'ai payé — actualiser</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.cancelBtn}
+              onPress={() => awaitingPay.checkout_url && Linking.openURL(awaitingPay.checkout_url).catch(() => {})}
+            >
+              <Text style={styles.cancelText}>Rouvrir la page de paiement</Text>
+            </TouchableOpacity>
+          </View>
+        ) : confirmed || myRes ? (
           /* ── Confirmation / réservation existante ── */
           <View style={styles.confirmCard} testID="vip-confirmation">
             <Text style={styles.confirmEmoji}>🎉</Text>
@@ -254,7 +282,7 @@ export default function VipBooking() {
                     <Text style={styles.reserveText}>Réserver le carré {selected.name} — {selected.price}€</Text>
                   )}
                 </TouchableOpacity>
-                <Text style={styles.payHint}>Paiement sur place à l'arrivée.</Text>
+                <Text style={styles.payHint}>Paiement sécurisé par Stripe 💳</Text>
               </View>
             )}
           </>

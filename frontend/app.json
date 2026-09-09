@@ -226,7 +226,8 @@
       "expo-audio",
       "@react-native-community/datetimepicker",
       "expo-asset",
-      "expo-localization"
+      "expo-localization",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

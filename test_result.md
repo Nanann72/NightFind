@@ -378,3 +378,9 @@ agent_communication:
       POST /api/messages/{id}/invite-response (yes/no, 403 expéditeur, 409 double), message invite avec
       payload invite (club_id/club_name/address), carte chat avec boutons J'y serai/Pas dispo + statut +
       message auto. Messages de test supprimés — démo Apple reviewer préservée.
+
+  - agent: "main"
+    message: |
+      VIP Stripe payment (pending_payment→webhook→confirmed, testé curl E2E), moments vidéo (object
+      storage upload/stream testés, capture native only), commentaires déjà existants. Smoke frontend OK.
+      Clé Stripe LIVE active — paiements réels. Test media med_cbe78cc5da conservé dans db.media (inoffensif).

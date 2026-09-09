@@ -16,7 +16,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { getToken } from '../lib/storage';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
@@ -74,6 +76,58 @@ export default function MomentCapture() {
   const [shooting, setShooting] = useState(false);
   const [retakesLeft, setRetakesLeft] = useState(1);
   const [camPerm, requestCamPerm] = useCameraPermissions();
+  const [micPerm, requestMicPerm] = useMicrophonePermissions();
+  const [mode, setMode] = useState<'photo' | 'video'>('photo');
+  const [recording, setRecording] = useState(false);
+  const [videoUri, setVideoUri] = useState<string | null>(null);
+  const previewPlayer = useVideoPlayer(null, (p) => {
+    p.loop = true;
+    p.muted = false;
+  });
+  useEffect(() => {
+    if (videoUri) {
+      try {
+        previewPlayer.replace(videoUri);
+        previewPlayer.play();
+      } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [videoUri]);
+
+  const switchMode = async (m: 'photo' | 'video') => {
+    if (m === 'video' && !micPerm?.granted) {
+      const r = await requestMicPerm();
+      if (!r.granted && !r.canAskAgain) {
+        setError('Micro requis pour la vidéo — active-le dans les réglages.');
+        return;
+      }
+      if (!r.granted) return;
+    }
+    setMode(m);
+  };
+
+  const recordVideo = async () => {
+    if (!cameraRef.current) return;
+    if (recording) {
+      cameraRef.current.stopRecording();
+      return;
+    }
+    setRecording(true);
+    setError(null);
+    buzz('medium');
+    try {
+      const v = await cameraRef.current.recordAsync({ maxDuration: 8 });
+      if (v?.uri) {
+        setVideoUri(v.uri);
+        setStep('preview');
+        buzz('success');
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Échec de la vidéo');
+    } finally {
+      setRecording(false);
+    }
+  };
 
   // 1) Verify window state on mount
   useEffect(() => {
@@ -330,6 +384,7 @@ export default function MomentCapture() {
     setFrontPhoto(null);
     setCompositeUri(null);
     setCompositeB64(null);
+    setVideoUri(null);
     setCaption('');
     setError(null);
     setFacing('back');
@@ -337,11 +392,29 @@ export default function MomentCapture() {
   };
 
   const submit = async () => {
-    if (!compositeB64 || !clubId || submitting) return;
+    if ((!compositeB64 && !videoUri) || !clubId || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
-      await api.uploadMoment(clubId, compositeB64, caption.trim() || undefined, frontPhoto || undefined, audience);
+      if (videoUri) {
+        // ── Moment vidéo : upload vers l'object storage puis création ──
+        const token = await getToken();
+        const fd = new FormData();
+        fd.append('file', { uri: videoUri, name: 'moment.mp4', type: 'video/mp4' } as any);
+        const up = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/moments/video-upload`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: fd,
+        });
+        if (!up.ok) {
+          const err = await up.json().catch(() => ({}));
+          throw new Error(err?.detail || 'Upload vidéo impossible');
+        }
+        const { media_id } = await up.json();
+        await api.uploadMoment(clubId, undefined, caption.trim() || undefined, undefined, audience, media_id);
+      } else {
+        await api.uploadMoment(clubId, compositeB64!, caption.trim() || undefined, frontPhoto || undefined, audience);
+      }
       buzz('success');
       router.replace({ pathname: '/(tabs)', params: { moment_posted: '1' } });
     } catch (e: any) {
@@ -418,6 +491,7 @@ export default function MomentCapture() {
               ref={cameraRef}
               style={styles.camera}
               facing={facing}
+              mode={mode === 'video' ? 'video' : 'picture'}
               flash={flashOn ? 'on' : 'off'}
               enableTorch={flashOn && facing === 'back'}
               onCameraReady={onCameraReady}
@@ -437,14 +511,32 @@ export default function MomentCapture() {
                   ? '🤳 Selfie automatique… ne bouge pas'
                   : 'Un seul déclenchement : arrière + selfie'}
               </Text>
+              {facing === 'back' && !shooting && !recording && (
+                <View style={styles.modeRow}>
+                  <TouchableOpacity
+                    style={[styles.modePill, mode === 'photo' && styles.modePillActive]}
+                    onPress={() => switchMode('photo')}
+                    testID="moment-mode-photo"
+                  >
+                    <Text style={[styles.modePillText, mode === 'photo' && { color: '#111' }]} allowFontScaling={false}>Photo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modePill, mode === 'video' && styles.modePillActive]}
+                    onPress={() => switchMode('video')}
+                    testID="moment-mode-video"
+                  >
+                    <Text style={[styles.modePillText, mode === 'video' && { color: '#111' }]} allowFontScaling={false}>Vidéo 8s</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               {facing === 'back' && !shooting && (
                 <TouchableOpacity
-                  style={styles.camShutter}
-                  onPress={onShutterPress}
+                  style={[styles.camShutter, recording && { borderColor: colors.primary }]}
+                  onPress={mode === 'video' ? recordVideo : onShutterPress}
                   activeOpacity={0.85}
                   testID="moment-shutter"
                 >
-                  <View style={styles.camShutterInner} />
+                  <View style={[styles.camShutterInner, recording && { backgroundColor: colors.primary, borderRadius: 8 }]} />
                 </TouchableOpacity>
               )}
               {shooting && facing === 'back' && (
@@ -452,11 +544,15 @@ export default function MomentCapture() {
               )}
             </View>
           </View>
-        ) : compositeUri ? (
+        ) : compositeUri || videoUri ? (
           // ---- PREVIEW STATE ----
           <Animated.View entering={FadeInDown.duration(420)} style={styles.previewWrap}>
             <View style={styles.previewFrame}>
-              <Image source={{ uri: compositeUri }} style={styles.preview} resizeMode="cover" />
+              {videoUri ? (
+                <VideoView player={previewPlayer} style={styles.preview} contentFit="cover" nativeControls={false} />
+              ) : (
+                <Image source={{ uri: compositeUri! }} style={styles.preview} resizeMode="cover" />
+              )}
               {/* If backend composite failed, still show selfie thumbnail */}
               {frontPhoto && !compositeB64?.includes('overlay') && (
                 <Image
@@ -557,7 +653,7 @@ export default function MomentCapture() {
       </View>
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 14 }]}>
-        {compositeUri && (
+        {(compositeUri || videoUri) && (
           <TouchableOpacity
             style={[styles.cta, submitting && styles.ctaDisabled]}
             onPress={submit}
@@ -608,6 +704,15 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     justifyContent: 'center',
   },
   flashBtnOn: { backgroundColor: '#FDE047' },
+  modeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  modePill: {
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  modePillActive: { backgroundColor: '#fff' },
+  modePillText: { color: '#fff', fontSize: 12.5, fontWeight: '800' },
   audienceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, flexWrap: 'wrap' },
   audienceChip: {
     flexDirection: 'row',

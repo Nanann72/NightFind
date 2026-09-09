@@ -2498,7 +2498,12 @@ class VipReserveBody(BaseModel):
 
 
 @api_router.post("/clubs/{club_id}/vip-reservations", status_code=201)
-async def vip_reserve(club_id: str, body: VipReserveBody, user: dict = Depends(get_current_user)):
+async def vip_reserve(
+    club_id: str,
+    body: VipReserveBody,
+    request: Request,
+    user: dict = Depends(get_current_user),
+):
     try:
         datetime.strptime(body.date, "%Y-%m-%d")
     except ValueError:
@@ -2528,11 +2533,41 @@ async def vip_reserve(club_id: str, body: VipReserveBody, user: dict = Depends(g
         "date": body.date,
         "party_size": body.party_size,
         "price": table["price"],
-        "status": "confirmed",
+        "status": "pending_payment",
         "created_at": datetime.now(timezone.utc),
     }
+    # ── Paiement Stripe (checkout hébergé) ──
+    checkout_url = None
+    try:
+        base = _public_base(request)
+        session = await asyncio.to_thread(
+            _stripe.checkout.Session.create,
+            mode="payment",
+            line_items=[{
+                "price_data": {
+                    "currency": "eur",
+                    "product_data": {
+                        "name": f"🍾 Carré VIP {table['name']} — {body.date}",
+                        "description": f"Jusqu'à {table['capacity']} personnes · bouteille incluse",
+                    },
+                    "unit_amount": int(table["price"] * 100),
+                },
+                "quantity": 1,
+            }],
+            metadata={"vip_reservation_id": doc["reservation_id"]},
+            success_url=f"{base}/api/payments/vip-success?reservation_id={doc['reservation_id']}",
+            cancel_url=f"{base}/api/payments/cancelled",
+        )
+        checkout_url = session.url
+        doc["checkout_session_id"] = session.id
+    except Exception as exc:
+        logging.warning("Stripe VIP checkout error: %s", exc)
+        # Fallback : réservation confirmée avec paiement sur place
+        doc["status"] = "confirmed"
+        doc["payment"] = "on_site"
     await db.vip_reservations.insert_one(doc)
     doc.pop("_id", None)
+    doc["checkout_url"] = checkout_url
     return doc
 
 
@@ -2561,6 +2596,102 @@ async def cancel_vip_reservation(reservation_id: str, user: dict = Depends(get_c
         {"reservation_id": reservation_id}, {"$set": {"status": "cancelled"}}
     )
     return {"ok": True}
+
+
+# ═══════════════ Moments vidéo — Emergent Object Storage ═══════════════
+import requests as _rq
+from fastapi import UploadFile, File
+
+_STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
+_STORAGE_URL = _STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
+_storage_key: Optional[str] = None
+
+
+def _init_storage() -> str:
+    global _storage_key
+    if _storage_key:
+        return _storage_key
+    resp = _rq.post(
+        f"{_STORAGE_URL}/init",
+        json={"emergent_key": os.environ.get("EMERGENT_LLM_KEY")},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    _storage_key = resp.json()["storage_key"]
+    return _storage_key
+
+
+def _put_object(path: str, data: bytes, content_type: str) -> dict:
+    resp = _rq.put(
+        f"{_STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": _init_storage(), "Content-Type": content_type},
+        data=data,
+        timeout=120,
+    )
+    if resp.status_code == 503:
+        global _storage_key
+        _storage_key = None
+        resp = _rq.put(
+            f"{_STORAGE_URL}/objects/{path}",
+            headers={"X-Storage-Key": _init_storage(), "Content-Type": content_type},
+            data=data,
+            timeout=120,
+        )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _get_object(path: str) -> tuple[bytes, str]:
+    resp = _rq.get(f"{_STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": _init_storage()}, timeout=60)
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "video/mp4")
+
+
+@api_router.post("/moments/video-upload", status_code=201)
+async def upload_moment_video(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    """Upload d'une courte vidéo de moment (max 20 Mo) vers l'object storage."""
+    data = await file.read()
+    if len(data) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Vidéo trop lourde (20 Mo max)")
+    ctype = file.content_type or "video/mp4"
+    if not ctype.startswith("video/"):
+        raise HTTPException(status_code=400, detail="Format vidéo attendu")
+    ext = "mp4" if "mp4" in ctype else (ctype.split("/")[-1] or "mp4")
+    path = f"night-finder/uploads/{user['user_id']}/{uuid.uuid4().hex}.{ext}"
+    try:
+        await asyncio.to_thread(_put_object, path, data, ctype)
+    except _rq.HTTPError as exc:
+        code = exc.response.status_code if exc.response is not None else 500
+        if code == 402:
+            raise HTTPException(status_code=402, detail="Stockage vidéo indisponible (crédits épuisés)")
+        raise HTTPException(status_code=502, detail="Upload vidéo impossible, réessaie")
+    media_id = f"med_{uuid.uuid4().hex[:10]}"
+    await db.media.insert_one({
+        "media_id": media_id,
+        "user_id": user["user_id"],
+        "path": path,
+        "content_type": ctype,
+        "created_at": datetime.now(timezone.utc),
+    })
+    return {"media_id": media_id}
+
+
+@api_router.get("/moments/video/{media_id}")
+async def stream_moment_video(media_id: str, token: str = ""):
+    """Sert la vidéo (auth par header OU ?token= pour les lecteurs web)."""
+    if token:
+        try:
+            jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+        except Exception:
+            raise HTTPException(status_code=401, detail="Token invalide")
+    m = await db.media.find_one({"media_id": media_id}, {"_id": 0})
+    if not m:
+        raise HTTPException(status_code=404, detail="Vidéo introuvable")
+    try:
+        content, ctype = await asyncio.to_thread(_get_object, m["path"])
+    except Exception:
+        raise HTTPException(status_code=502, detail="Vidéo indisponible")
+    return Response(content=content, media_type=ctype, headers={"Cache-Control": "private, max-age=3600"})
 
 
 @api_router.get("/matches/{match_id}/messages")
@@ -2711,10 +2842,11 @@ MOMENT_COOLDOWN_HOURS = 4  # min. delay between two moments (across all clubs)
 
 
 class MomentUploadBody(BaseModel):
-    image: str  # base64 (data URI ok) — composite or main photo
+    image: Optional[str] = None  # base64 (data URI ok) — composite ou photo principale
     caption: Optional[str] = None
     selfie: Optional[str] = None  # optional base64 selfie for BeReal-style dual view
     audience: Optional[str] = "public"  # "public" | "friends" (abonnés uniquement)
+    video_media_id: Optional[str] = None  # moment vidéo (object storage)
 
 
 @api_router.post("/clubs/{club_id}/moments")
@@ -2767,6 +2899,8 @@ async def upload_moment(
             ),
         )
 
+    if not body.image and not body.video_media_id:
+        raise HTTPException(status_code=400, detail="Photo ou vidéo requise")
     ttl_hours = MOMENT_TTL_PREMIUM_HOURS if user.get("is_premium") else MOMENT_TTL_FREE_HOURS
     moment = {
         "moment_id": f"mom_{uuid.uuid4().hex[:12]}",
@@ -2775,8 +2909,9 @@ async def upload_moment(
         "user_picture": (user.get("photos") or [None])[0],
         "club_id": club_id,
         "checkin_id": recent_ci.get("checkin_id"),
-        "image": body.image,
+        "image": body.image or None,
         "selfie": body.selfie or None,
+        "video_media_id": body.video_media_id or None,
         "caption": (body.caption or "")[:280],
         "audience": "friends" if body.audience == "friends" else "public",
         "is_premium_author": bool(user.get("is_premium")),
@@ -6510,6 +6645,33 @@ async def stripe_webhook(request: Request):
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid payload")
     if etype == "checkout.session.completed":
+        vip_id = (data.get("metadata") or {}).get("vip_reservation_id")
+        if vip_id:
+            r = await db.vip_reservations.find_one({"reservation_id": vip_id}, {"_id": 0})
+            if r and r["status"] == "pending_payment":
+                paid = data.get("payment_status") == "paid"
+                if not paid and r.get("checkout_session_id"):
+                    try:
+                        sess = await asyncio.to_thread(
+                            _stripe.checkout.Session.retrieve, r["checkout_session_id"]
+                        )
+                        paid = sess.get("payment_status") == "paid"
+                    except Exception:
+                        paid = False
+                if paid:
+                    await db.vip_reservations.update_one(
+                        {"reservation_id": vip_id},
+                        {"$set": {"status": "confirmed", "paid_at": datetime.now(timezone.utc)}},
+                    )
+                    await db.notifications.insert_one({
+                        "notification_id": f"ntf_{uuid.uuid4().hex[:10]}",
+                        "user_id": r["user_id"],
+                        "title": "🍾 Carré VIP confirmé !",
+                        "body": f"Carré {r['table_name']} réservé pour le {r['date']} — paiement validé.",
+                        "read": False,
+                        "created_at": datetime.now(timezone.utc),
+                    })
+            return {"received": True}
         order_id = (data.get("metadata") or {}).get("order_id")
         if order_id:
             order = await db.drink_orders.find_one({"order_id": order_id}, {"_id": 0})
@@ -6537,6 +6699,13 @@ async def payment_success_page(order_id: str = ""):
     return f"""<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Paiement confirmé</title><style>{_PAYMENT_PAGE_CSS}</style></head>
 <body><div class="card"><div class="emoji">🎉</div><div class="h">Paiement confirmé !</div>
 <p class="p">Ton verre à -10% est payé. Montre cet écran au bar si besoin.<br><br>Santé ! 🍸</p></div></body></html>"""
+
+
+@app.get("/api/payments/vip-success", response_class=HTMLResponse)
+async def vip_payment_success_page(reservation_id: str = ""):
+    return f"""<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Carré VIP confirmé</title><style>{_PAYMENT_PAGE_CSS}</style></head>
+<body><div class="card"><div class="emoji">🍾</div><div class="h">Carré VIP confirmé !</div>
+<p class="p">Ton paiement est validé. Retourne dans l'app Night Finder — ta réservation t'attend.<br><br>Bonne soirée ! 🎉</p></div></body></html>"""
 
 
 @app.get("/api/payments/cancelled", response_class=HTMLResponse)

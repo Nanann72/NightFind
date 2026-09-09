@@ -12,6 +12,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -26,12 +27,45 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { api, FeedMoment, StoryHighlight, MomentComment } from '../lib/api';
+import { getToken } from '../lib/storage';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAuth } from '../lib/auth';
 import { radius, spacing, type ThemeColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
 
 /** Photo BeReal : selfie en vignette DÉPLAÇABLE (drag) + TAP pour échanger
  *  la vignette et la photo principale — comme BeReal. */
+function MomentVideo({ mediaId }: { mediaId: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    getToken().then((t) =>
+      setUrl(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/moments/video/${mediaId}?token=${t || ''}`),
+    );
+  }, [mediaId]);
+  const player = useVideoPlayer(url, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
+  const [muted, setMuted] = useState(true);
+  if (!url) return <View style={{ width: '100%', aspectRatio: 3 / 4, backgroundColor: '#000' }} />;
+  return (
+    <Pressable
+      onPress={() => {
+        player.muted = !muted;
+        setMuted(!muted);
+      }}
+      style={{ width: '100%', aspectRatio: 3 / 4, backgroundColor: '#000' }}
+      testID={`moment-video-${mediaId}`}
+    >
+      <VideoView player={player} style={{ width: '100%', height: '100%' }} contentFit="cover" nativeControls={false} />
+      <View style={{ position: 'absolute', bottom: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 14, padding: 6 }}>
+        <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={16} color="#fff" />
+      </View>
+    </Pressable>
+  );
+}
+
 function BeRealPhoto({ image, selfie, momentId }: { image: string; selfie?: string | null; momentId: string }) {
   const [swapped, setSwapped] = useState(false);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -251,7 +285,11 @@ export default function MomentFeed() {
       </View>
 
       {/* Photo BeReal : selfie déplaçable + tap pour échanger */}
-      <BeRealPhoto image={m.image} selfie={m.selfie} momentId={m.moment_id} />
+      {m.video_media_id ? (
+        <MomentVideo mediaId={m.video_media_id} />
+      ) : (
+        <BeRealPhoto image={m.image} selfie={m.selfie} momentId={m.moment_id} />
+      )}
 
       {/* Actions */}
       <View style={styles.actionsRow}>
