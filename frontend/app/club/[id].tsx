@@ -10,6 +10,7 @@ import {
   Platform,
   Dimensions,
   ScrollView,
+  TextInput,
 } from 'react-native';
 import Animated, {
   useAnimatedScrollHandler,
@@ -48,6 +49,34 @@ export default function ClubDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { favorites, toggleFavorite } = useClubs();
   const [club, setClub] = useState<Club | null>(null);
+  const [reviews, setReviews] = useState<{ avg: number | null; count: number; my_review: any; reviews: any[] } | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [myRating, setMyRating] = useState(0);
+  const [myText, setMyText] = useState('');
+  const [sendingReview, setSendingReview] = useState(false);
+
+  const loadReviews = (cid: string) => {
+    api.clubReviews(cid)
+      .then((r) => {
+        setReviews(r);
+        if (r.my_review) {
+          setMyRating(r.my_review.rating);
+          setMyText(r.my_review.text || '');
+        }
+      })
+      .catch(() => {});
+  };
+
+  const sendReview = async () => {
+    if (!club || myRating < 1 || sendingReview) return;
+    setSendingReview(true);
+    try {
+      await api.submitClubReview(club.club_id, myRating, myText);
+      setReviewOpen(false);
+      loadReviews(club.club_id);
+    } catch {}
+    setSendingReview(false);
+  };
   const [loading, setLoading] = useState(true);
   const [checkingIn, setCheckingIn] = useState(false);
   const [checkinMsg, setCheckinMsg] = useState<string | null>(null);
@@ -56,6 +85,8 @@ export default function ClubDetail() {
   useEffect(() => {
     if (!id) return;
     api.listClubMoments(String(id)).then(setMoments).catch(() => {});
+    loadReviews(String(id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const timeAgo = (iso: string) => {
@@ -188,7 +219,7 @@ export default function ClubDetail() {
       </Animated.View>
 
       <Animated.ScrollView
-        contentContainerStyle={{ paddingBottom: 140 }}
+        contentContainerStyle={{ paddingBottom: 240 }}
         onScroll={onScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
@@ -354,6 +385,74 @@ export default function ClubDetail() {
               ))}
             </Section>
           )}
+
+          {/* ── Avis ── */}
+          <View style={styles.reviewsSection}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+              <Text style={styles.reviewsTitle}>Avis</Text>
+              {reviews?.avg != null && (
+                <Text style={styles.reviewsAvg}>  ⭐ {reviews.avg} · {reviews.count} avis</Text>
+              )}
+              <View style={{ flex: 1 }} />
+              <TouchableOpacity onPress={() => setReviewOpen((o) => !o)} testID="write-review-btn">
+                <Text style={styles.reviewsCta}>{reviews?.my_review ? 'Modifier mon avis' : 'Laisser un avis'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {reviewOpen && (
+              <View style={styles.reviewForm} testID="review-form">
+                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <TouchableOpacity key={n} onPress={() => setMyRating(n)} hitSlop={6} testID={`review-star-${n}`}>
+                      <Ionicons name={n <= myRating ? 'star' : 'star-outline'} size={28} color={n <= myRating ? '#FDE047' : colors.textTertiary} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput
+                  value={myText}
+                  onChangeText={setMyText}
+                  placeholder="Raconte ta soirée (optionnel)…"
+                  placeholderTextColor={colors.textTertiary}
+                  style={styles.reviewInput}
+                  multiline
+                  maxLength={500}
+                  testID="review-text-input"
+                />
+                <TouchableOpacity
+                  style={[styles.reviewSubmit, myRating < 1 && { opacity: 0.4 }]}
+                  onPress={sendReview}
+                  disabled={myRating < 1 || sendingReview}
+                  testID="review-submit"
+                >
+                  {sendingReview ? <ActivityIndicator color="#fff" size="small" /> : (
+                    <Text style={styles.reviewSubmitText}>Publier mon avis</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {(reviews?.reviews || []).slice(0, 5).map((r) => (
+              <View key={r.review_id || r.user_id} style={styles.reviewRow}>
+                {r.user_photo ? (
+                  <Image source={{ uri: r.user_photo }} style={styles.reviewAvatar} />
+                ) : (
+                  <View style={[styles.reviewAvatar, { backgroundColor: colors.surfaceElevated, alignItems: 'center', justifyContent: 'center' }]}>
+                    <Ionicons name="person" size={14} color={colors.textTertiary} />
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.reviewName} numberOfLines={1}>{r.user_name}</Text>
+                    <Text style={styles.reviewStars} allowFontScaling={false}>{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</Text>
+                  </View>
+                  {!!r.text && <Text style={styles.reviewText}>{r.text}</Text>}
+                </View>
+              </View>
+            ))}
+            {reviews && reviews.count === 0 && !reviewOpen && (
+              <Text style={styles.reviewEmpty}>Aucun avis pour l'instant — sois le premier ! ⭐</Text>
+            )}
+          </View>
         </View>
       </Animated.ScrollView>
 
@@ -376,6 +475,7 @@ export default function ClubDetail() {
             {checkingIn ? 'Vérification de ta position…' : 'Je suis ici — Check-in'}
           </Text>
         </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.vipBtn}
           onPress={() => router.push(`/vip-booking/${club.club_id}` as any)}
@@ -595,6 +695,44 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   vipEmoji: { fontSize: 22 },
   vipTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: '800' },
   vipSub: { color: colors.textSecondary, fontSize: 12, marginTop: 1 },
+  reviewsSection: { marginTop: 22 },
+  reviewsTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '800' },
+  reviewsAvg: { color: colors.textSecondary, fontSize: 13.5, fontWeight: '700' },
+  reviewsCta: { color: colors.primary, fontSize: 13.5, fontWeight: '800' },
+  reviewForm: {
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12,
+  },
+  reviewInput: {
+    color: colors.textPrimary,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 10,
+    minHeight: 70,
+    fontSize: 14,
+    textAlignVertical: 'top',
+  },
+  reviewSubmit: {
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  reviewSubmitText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  reviewRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  reviewAvatar: { width: 30, height: 30, borderRadius: 15 },
+  reviewName: { color: colors.textPrimary, fontSize: 13.5, fontWeight: '800', flexShrink: 1 },
+  reviewStars: { color: '#FDE047', fontSize: 12 },
+  reviewText: { color: colors.textSecondary, fontSize: 13.5, marginTop: 2, lineHeight: 18.5 },
+  reviewEmpty: { color: colors.textTertiary, fontSize: 13 },
   favBtn: {
     flex: 1,
     flexDirection: 'row',

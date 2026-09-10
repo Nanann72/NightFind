@@ -886,6 +886,13 @@ export const api = {
       body: JSON.stringify({ table_id, date, party_size }),
     }),
   myVipReservations: () => request<any[]>('/me/vip-reservations'),
+  clubReviews: (clubId: string) =>
+    request<{ avg: number | null; count: number; my_review: any; reviews: any[] }>(`/clubs/${clubId}/reviews`),
+  submitClubReview: (clubId: string, rating: number, text: string) =>
+    request<{ ok: boolean }>(`/clubs/${clubId}/reviews`, {
+      method: 'POST',
+      body: JSON.stringify({ rating, text }),
+    }),
   cancelVipReservation: (id: string) =>
     request<{ ok: boolean }>(`/vip-reservations/${id}`, { method: 'DELETE' }),
   searchFriends: (q: string) =>

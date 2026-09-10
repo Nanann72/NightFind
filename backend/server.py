@@ -2592,10 +2592,45 @@ async def cancel_vip_reservation(reservation_id: str, user: dict = Depends(get_c
     r = await db.vip_reservations.find_one({"reservation_id": reservation_id}, {"_id": 0})
     if not r or r["user_id"] != user["user_id"]:
         raise HTTPException(status_code=404, detail="Réservation introuvable")
-    await db.vip_reservations.update_one(
-        {"reservation_id": reservation_id}, {"$set": {"status": "cancelled"}}
+    return {"ok": True}
+
+
+# ═══════════════ Avis sur les boîtes de nuit ═══════════════
+
+class ClubReviewBody(BaseModel):
+    rating: int  # 1-5
+    text: str = ""
+
+
+@api_router.post("/clubs/{club_id}/reviews", status_code=201)
+async def submit_club_review(club_id: str, body: ClubReviewBody, user: dict = Depends(get_current_user)):
+    """Un avis (note 1-5 + commentaire) par utilisateur et par lieu — modifiable."""
+    if body.rating < 1 or body.rating > 5:
+        raise HTTPException(status_code=400, detail="Note entre 1 et 5")
+    doc = {
+        "club_id": club_id,
+        "user_id": user["user_id"],
+        "user_name": user.get("name") or "Anonyme",
+        "user_photo": (user.get("photos") or [None])[0],
+        "rating": body.rating,
+        "text": (body.text or "").strip()[:500],
+        "updated_at": datetime.now(timezone.utc),
+    }
+    await db.club_reviews.update_one(
+        {"club_id": club_id, "user_id": user["user_id"]},
+        {"$set": doc, "$setOnInsert": {"review_id": f"rev_{uuid.uuid4().hex[:10]}", "created_at": datetime.now(timezone.utc)}},
+        upsert=True,
     )
     return {"ok": True}
+
+
+@api_router.get("/clubs/{club_id}/reviews")
+async def list_club_reviews(club_id: str, user: dict = Depends(get_current_user)):
+    rows = await db.club_reviews.find({"club_id": club_id}, {"_id": 0}).sort("updated_at", -1).limit(50).to_list(50)
+    count = len(rows)
+    avg = round(sum(r["rating"] for r in rows) / count, 1) if count else None
+    mine = next((r for r in rows if r["user_id"] == user["user_id"]), None)
+    return {"avg": avg, "count": count, "my_review": mine, "reviews": rows}
 
 
 # ═══════════════ Moments vidéo — Emergent Object Storage ═══════════════

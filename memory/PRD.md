@@ -435,3 +435,8 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 
 ## ✅ AJOUT LIEUX LE MANS (sept 2026) — testé API PASS
 - db.places : « Le Pub Corner » (27 Pl. de la République, bar/pub, 4.3⭐) et « Le Moderne » (23 Pl. de la République, bar/brasserie/night_club, 4.2⭐) ajoutés manuellement (source: manual, club_id manual_*_lemans, photos Unsplash). Visibles via /api/clubs autour du Mans (0.8 km du centre).
+
+## ✅ AVIS SUR LES BOÎTES DE NUIT (sept 2026) — auto-testé backend curl PASS + e2e screenshots PASS
+- Backend : POST /api/clubs/{club_id}/reviews {rating 1-5, text ≤500} — upsert par (club_id, user_id) donc 1 avis modifiable par user/lieu (db.club_reviews, review_id rev_*, user_name/user_photo dénormalisés). GET /api/clubs/{club_id}/reviews → {avg, count, my_review, reviews[]} (50 max, tri updated_at desc). Validation 400 si note hors 1-5.
+- Frontend club/[id].tsx : section « Avis » DANS le ScrollView après « Soirées à venir » (⚠️ le WIP précédent l'avait mise dans le footer absolu — corrigé, bloc déplacé + reviewsSection sans marginHorizontal car body a déjà le padding + paddingBottom scroll 140→240). Header avis (⭐ avg · N avis + CTA « Laisser un avis »/« Modifier mon avis »), formulaire inline (5 étoiles jaunes #FDE047, TextInput multiline, bouton « Publier mon avis »), liste avis (avatar, nom, ★★★★☆, texte), état vide « Aucun avis pour l'instant — sois le premier ! ⭐ ». testIDs : write-review-btn, review-form, review-star-N, review-text-input, review-submit.
+- Testé e2e web : login reviewer → Concrete → état vide → formulaire 4★ + texte → publier → « ⭐ 4 · 1 avis » + avis affiché + CTA passe en « Modifier mon avis ».
