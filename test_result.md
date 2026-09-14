@@ -384,3 +384,21 @@ agent_communication:
       VIP Stripe payment (pending_payment→webhook→confirmed, testé curl E2E), moments vidéo (object
       storage upload/stream testés, capture native only), commentaires déjà existants. Smoke frontend OK.
       Clé Stripe LIVE active — paiements réels. Test media med_cbe78cc5da conservé dans db.media (inoffensif).
+
+  - agent: "main"
+    message: |
+      AVIS CLUBS + RÉPONSE GÉRANT + NOTES SUR CARTES + ANIMATIONS (sept 2026) — auto-testé curl + screenshots PASS.
+      Backend : POST/GET /api/clubs/{id}/reviews (upsert 1 avis/user, avg+count), POST /api/clubs/{id}/reviews/{review_id}/reply
+      (réservé au propriétaire vérifié, 403 sinon, notification à l'auteur), /api/clubs annote user_rating + user_rating_count.
+      Frontend : section Avis dans club/[id] (déplacée du footer vers le ScrollView), réponse gérant affichée (replyBox),
+      cartes accueil (ClubCard/TrendCard) + carte native affichent la note avis (x.x (N avis)), owner-dashboard section
+      "Avis clients ⭐" avec réponse publique inline. HapticButton sur cartes accueil, check-in, VIP, itinéraire, favoris,
+      agenda events, FAB events. FadeInDown sur les avis. Testé e2e web : avis Emma → réponse Lucas via dashboard → visible.
+
+  - agent: "main"
+    message: |
+      POP-UP COOLDOWN MOMENT 24H/ÉTABLISSEMENT — auto-testé PASS (curl + Playwright).
+      Backend : 429 par-club 24h (remplace le cooldown global 4h), window-state renvoie already_posted_here
+      + club_cooldown_hours_left + club_name. Frontend : Modal premium dans moment-capture (mount + submit 429/409),
+      boutons Changer d'établissement (→ carte) / OK. Changer d'établissement permet de reposter (testé 200).
+      Données de test nettoyées, comptes démo Apple intacts.

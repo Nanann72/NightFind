@@ -1117,6 +1117,22 @@ async def list_clubs(
     except Exception as exc:  # noqa: BLE001
         logging.warning("Promo annotate failed: %s", exc)
 
+    # Annotate with Night Finder user reviews (avg + count) for the cards
+    try:
+        ids = [c.get("club_id") for c in items if c.get("club_id")]
+        if ids:
+            agg = await db.club_reviews.aggregate([
+                {"$match": {"club_id": {"$in": ids}}},
+                {"$group": {"_id": "$club_id", "avg": {"$avg": "$rating"}, "count": {"$sum": 1}}},
+            ]).to_list(2000)
+            stats = {r["_id"]: r for r in agg}
+            for c in items:
+                s = stats.get(c.get("club_id"))
+                c["user_rating"] = round(s["avg"], 1) if s else None
+                c["user_rating_count"] = s["count"] if s else 0
+    except Exception as exc:  # noqa: BLE001
+        logging.warning("Review annotate failed: %s", exc)
+
     return items
 
 
@@ -2633,6 +2649,46 @@ async def list_club_reviews(club_id: str, user: dict = Depends(get_current_user)
     return {"avg": avg, "count": count, "my_review": mine, "reviews": rows}
 
 
+class ReviewReplyBody(BaseModel):
+    text: str
+
+
+@api_router.post("/clubs/{club_id}/reviews/{review_id}/reply")
+async def reply_club_review(club_id: str, review_id: str, body: ReviewReplyBody, user: dict = Depends(get_current_user)):
+    """Réponse publique du gérant à un avis — réservé au propriétaire vérifié du lieu."""
+    club = await _get_owned_club(user)
+    if club["club_id"] != club_id:
+        raise HTTPException(status_code=403, detail="Tu ne peux répondre qu'aux avis de ton établissement")
+    text = (body.text or "").strip()[:500]
+    if not text:
+        raise HTTPException(status_code=400, detail="Réponse vide")
+    review = await db.club_reviews.find_one({"club_id": club_id, "review_id": review_id}, {"_id": 0})
+    if not review:
+        raise HTTPException(status_code=404, detail="Avis introuvable")
+    await db.club_reviews.update_one(
+        {"club_id": club_id, "review_id": review_id},
+        {"$set": {"reply": {
+            "text": text,
+            "name": club.get("name") or "L'établissement",
+            "at": datetime.now(timezone.utc),
+        }}},
+    )
+    # Notifie l'auteur de l'avis
+    try:
+        await db.notifications.insert_one({
+            "notif_id": f"ntf_{uuid.uuid4().hex[:10]}",
+            "user_id": review["user_id"],
+            "title": "Réponse à ton avis 💬",
+            "body": f"{club.get('name') or 'Le gérant'} a répondu à ton avis.",
+            "type": "review_reply",
+            "data": {"club_id": club_id},
+            "created_at": datetime.now(timezone.utc),
+        })
+    except Exception:  # noqa: BLE001
+        pass
+    return {"ok": True}
+
+
 # ═══════════════ Moments vidéo — Emergent Object Storage ═══════════════
 import requests as _rq
 from fastapi import UploadFile, File
@@ -2873,7 +2929,7 @@ async def swipe_history(user: dict = Depends(get_current_user)):
 MOMENT_WINDOW_MIN = 5
 MOMENT_TTL_FREE_HOURS = 24
 MOMENT_TTL_PREMIUM_HOURS = 24 * 7
-MOMENT_COOLDOWN_HOURS = 4  # min. delay between two moments (across all clubs)
+MOMENT_CLUB_COOLDOWN_HOURS = 24  # un seul moment par établissement toutes les 24h
 
 
 class MomentUploadBody(BaseModel):
@@ -2913,26 +2969,28 @@ async def upload_moment(
     if existing:
         raise HTTPException(status_code=409, detail="Tu as déjà publié un moment pour ce check-in.")
 
-    # Global cooldown: one moment per user every MOMENT_COOLDOWN_HOURS across all clubs
-    cooldown_cutoff = now - timedelta(hours=MOMENT_COOLDOWN_HOURS)
-    recent_moment = await db.club_moments.find_one(
-        {"user_id": user["user_id"], "created_at": {"$gte": cooldown_cutoff}},
+    # Per-club cooldown: one moment per establishment every 24h
+    club_cutoff = now - timedelta(hours=MOMENT_CLUB_COOLDOWN_HOURS)
+    same_club = await db.club_moments.find_one(
+        {"user_id": user["user_id"], "club_id": club_id, "created_at": {"$gte": club_cutoff}},
         sort=[("created_at", -1)],
     )
-    if recent_moment:
-        rm_created = recent_moment["created_at"]
-        if rm_created.tzinfo is None:
-            rm_created = rm_created.replace(tzinfo=timezone.utc)
-        next_ok = rm_created + timedelta(hours=MOMENT_COOLDOWN_HOURS)
-        mins_left = max(1, int((next_ok - now).total_seconds() / 60))
-        hours_left = round(mins_left / 60, 1)
+    if same_club:
+        sc_created = same_club["created_at"]
+        if sc_created.tzinfo is None:
+            sc_created = sc_created.replace(tzinfo=timezone.utc)
+        next_ok = sc_created + timedelta(hours=MOMENT_CLUB_COOLDOWN_HOURS)
+        hours_left = max(1, math.ceil((next_ok - now).total_seconds() / 3600))
         raise HTTPException(
             status_code=429,
             detail=(
-                f"Tu as déjà posté un moment récemment. "
-                f"Reviens dans {hours_left}h pour en poster un nouveau."
+                f"Tu as déjà posté un moment dans cet établissement. "
+                f"Reviens dans {hours_left}h ou change d'établissement pour reposter."
             ),
         )
+
+    # (Le cooldown global inter-clubs a été remplacé par le cooldown de 24h
+    # par établissement ci-dessus : changer d'établissement permet de reposter.)
 
     if not body.image and not body.video_media_id:
         raise HTTPException(status_code=400, detail="Photo ou vidéo requise")
@@ -3382,12 +3440,34 @@ async def moment_window_state(user: dict = Depends(get_current_user)):
     if not ci:
         return {"in_window": False}
     already = await db.club_moments.find_one({"checkin_id": ci.get("checkin_id")})
+    # Cooldown par établissement : un seul moment toutes les 24h dans le même lieu
+    club_cutoff = now - timedelta(hours=MOMENT_CLUB_COOLDOWN_HOURS)
+    same_club = await db.club_moments.find_one(
+        {"user_id": user["user_id"], "club_id": ci["club_id"], "created_at": {"$gte": club_cutoff}},
+        sort=[("created_at", -1)],
+    )
+    already_posted_here = same_club is not None
+    club_hours_left = None
+    club_name = None
+    if same_club:
+        sc = same_club["created_at"]
+        if sc.tzinfo is None:
+            sc = sc.replace(tzinfo=timezone.utc)
+        club_hours_left = max(1, math.ceil(((sc + timedelta(hours=MOMENT_CLUB_COOLDOWN_HOURS)) - now).total_seconds() / 3600))
+        for coll in (db.clubs, db.places):
+            doc = await coll.find_one({"club_id": ci["club_id"]}, {"_id": 0, "name": 1})
+            if doc:
+                club_name = doc.get("name")
+                break
     ci_created = ci["created_at"]
     if ci_created.tzinfo is None:
         ci_created = ci_created.replace(tzinfo=timezone.utc)
     expires_at = ci_created + timedelta(minutes=MOMENT_WINDOW_MIN)
     return {
-        "in_window": not already,
+        "in_window": not already and not already_posted_here,
+        "already_posted_here": already_posted_here,
+        "club_cooldown_hours_left": club_hours_left,
+        "club_name": club_name,
         "club_id": ci["club_id"],
         "expires_at": expires_at.isoformat(),
         "seconds_left": max(0, int((expires_at - now).total_seconds())),

@@ -593,7 +593,7 @@ const MiniClubCard = memo(function MiniClubCard({ club, onPress }: { club: Club;
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
-    <TouchableOpacity style={styles.miniCard} activeOpacity={0.9} onPress={onPress} testID={`near-card-${club.club_id}`}>
+    <HapticButton haptic="soft" scale={0.97} style={styles.miniCard} onPress={onPress} testID={`near-card-${club.club_id}`}>
       <SafeImage uri={club.photos?.[0]} width={480} style={styles.miniImage} />
       {club.promoted && (
         <View style={styles.sponsoredChip}>
@@ -610,7 +610,7 @@ const MiniClubCard = memo(function MiniClubCard({ club, onPress }: { club: Club;
           {club.music_styles?.[0] || ''}
         </Text>
       </View>
-    </TouchableOpacity>
+    </HapticButton>
   );
 }, (prev, next) => prev.club === next.club);
 
@@ -618,7 +618,7 @@ const TrendCard = memo(function TrendCard({ club, live, onPress }: { club: Club;
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
-    <TouchableOpacity style={styles.trendCard} activeOpacity={0.9} onPress={onPress} testID={`trend-card-${club.club_id}`}>
+    <HapticButton haptic="soft" scale={0.97} style={styles.trendCard} onPress={onPress} testID={`trend-card-${club.club_id}`}>
       <SafeImage uri={club.photos?.[0]} width={480} style={styles.trendImage} />
       <View style={styles.trendOverlay} />
       {live != null && (
@@ -634,7 +634,9 @@ const TrendCard = memo(function TrendCard({ club, live, onPress }: { club: Club;
         </View>
         <View style={styles.trendMetaRow}>
           <Ionicons name="star" size={12} color={colors.secondary} />
-          <Text style={styles.trendMeta}>{club.rating.toFixed(1)}</Text>
+          <Text style={styles.trendMeta}>
+            {club.user_rating_count ? `${club.user_rating!.toFixed(1)} (${club.user_rating_count})` : club.rating.toFixed(1)}
+          </Text>
           <Text style={styles.trendMeta}>·</Text>
           <Text style={[styles.trendMeta, { flexShrink: 1 }]} numberOfLines={1}>{club.music_styles?.slice(0, 2).join(' / ')}</Text>
           <View style={{ flex: 1 }} />
@@ -643,7 +645,7 @@ const TrendCard = memo(function TrendCard({ club, live, onPress }: { club: Club;
           </View>
         </View>
       </View>
-    </TouchableOpacity>
+    </HapticButton>
   );
 }, (prev, next) => prev.club === next.club && prev.live === next.live);
 
@@ -661,9 +663,10 @@ const ClubCard = memo(function ClubCard({
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
-    <TouchableOpacity
+    <HapticButton
+      haptic="soft"
+      scale={0.98}
       style={styles.card}
-      activeOpacity={0.92}
       onPress={onPress}
       testID={`club-card-${club.club_id}`}
     >
@@ -686,7 +689,9 @@ const ClubCard = memo(function ClubCard({
           <Text style={styles.cardName}>{club.name}</Text>
           <View style={styles.cardMeta}>
             <Ionicons name="star" size={13} color={colors.secondary} />
-            <Text style={styles.cardMetaText}>{club.rating.toFixed(1)}</Text>
+            <Text style={styles.cardMetaText}>
+              {club.user_rating_count ? `${club.user_rating!.toFixed(1)} (${club.user_rating_count} avis)` : club.rating.toFixed(1)}
+            </Text>
             <Text style={styles.cardMetaText}>·</Text>
             <Text style={styles.cardMetaText}>{club.avg_price.toFixed(0)}€</Text>
             <Text style={styles.cardMetaText}>·</Text>
@@ -696,7 +701,7 @@ const ClubCard = memo(function ClubCard({
           </View>
         </View>
       </View>
-    </TouchableOpacity>
+    </HapticButton>
   );
 }, (prev, next) => prev.club === next.club && prev.isFav === next.isFav);
 

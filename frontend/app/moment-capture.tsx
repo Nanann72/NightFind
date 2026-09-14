@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,6 +51,7 @@ export default function MomentCapture() {
   const params = useLocalSearchParams<{ club_id?: string }>();
 
   const [checking, setChecking] = useState(true);
+  const [cooldownPopup, setCooldownPopup] = useState<{ title: string; message: string } | null>(null);
   const [clubId, setClubId] = useState<string | null>(
     typeof params.club_id === 'string' ? params.club_id : null,
   );
@@ -136,6 +138,14 @@ export default function MomentCapture() {
       try {
         const ws = await api.momentWindowState();
         if (cancelled) return;
+        if (ws.already_posted_here) {
+          setClubId(ws.club_id || clubId);
+          setCooldownPopup({
+            title: 'Tu as déjà posté ici 📸',
+            message: `Tu as déjà partagé un moment ${ws.club_name ? `au ${ws.club_name}` : 'dans cet établissement'} ces dernières 24h. Reviens dans ${ws.club_cooldown_hours_left ?? 24}h ou change d'établissement pour pouvoir reposter ✨`,
+          });
+          return;
+        }
         if (!ws.in_window) {
           router.replace('/(tabs)');
           return;
@@ -419,9 +429,13 @@ export default function MomentCapture() {
       router.replace({ pathname: '/(tabs)', params: { moment_posted: '1' } });
     } catch (e: any) {
       buzz('error');
-      // Nice message for cooldown / already-posted errors from backend
+      // Cooldown / already-posted → pop-up premium ; autres erreurs → message inline
       const msg = e?.message || "Échec de l'envoi. Réessaie dans un instant.";
-      setError(msg);
+      if (e?.status === 429 || e?.status === 409) {
+        setCooldownPopup({ title: 'Pas si vite ! ⏳', message: msg });
+      } else {
+        setError(msg);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -429,11 +443,43 @@ export default function MomentCapture() {
 
   const cancel = () => router.back();
 
-  if (checking) {
+  const dismissCooldown = () => {
+    setCooldownPopup(null);
+    router.replace('/(tabs)');
+  };
+
+  const goExplore = () => {
+    setCooldownPopup(null);
+    router.replace('/(tabs)/map');
+  };
+
+  const cooldownModal = (
+    <Modal visible={!!cooldownPopup} transparent animationType="fade" onRequestClose={dismissCooldown}>
+      <View style={styles.popupOverlay}>
+        <Animated.View entering={FadeInDown.duration(250)} style={styles.popupCard} testID="moment-cooldown-popup">
+          <View style={styles.popupIconWrap}>
+            <Ionicons name="hourglass-outline" size={28} color={colors.primary} />
+          </View>
+          <Text style={styles.popupTitle}>{cooldownPopup?.title}</Text>
+          <Text style={styles.popupMsg}>{cooldownPopup?.message}</Text>
+          <TouchableOpacity style={styles.popupPrimary} onPress={goExplore} testID="moment-popup-explore">
+            <Ionicons name="map-outline" size={17} color="#fff" />
+            <Text style={styles.popupPrimaryText}>Changer d&apos;établissement</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.popupSecondary} onPress={dismissCooldown} testID="moment-popup-ok">
+            <Text style={styles.popupSecondaryText}>OK, je reviendrai</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+
+  if (checking || cooldownPopup) {
     return (
       <View style={styles.loading}>
         <Ionicons name="aperture-outline" size={42} color={colors.tertiary} />
         <Text style={styles.loadingText}>Vérification de ta fenêtre…</Text>
+        {cooldownModal}
       </View>
     );
   }
@@ -848,6 +894,32 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   ctaDisabled: { opacity: 0.6 },
   ctaText: { color: colors.bg, fontSize: 16, fontWeight: '900' },
+  popupOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.72)',
+    alignItems: 'center', justifyContent: 'center', padding: 28,
+  },
+  popupCard: {
+    width: '100%', maxWidth: 360, backgroundColor: colors.surfaceElevated,
+    borderRadius: 24, padding: 24, alignItems: 'center',
+    borderWidth: 1, borderColor: colors.border,
+  },
+  popupIconWrap: {
+    width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(225,29,72,0.14)',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+  },
+  popupTitle: { color: colors.textPrimary, fontSize: 19, fontWeight: '900', textAlign: 'center' },
+  popupMsg: {
+    color: colors.textSecondary, fontSize: 14.5, lineHeight: 21,
+    textAlign: 'center', marginTop: 8, marginBottom: 20,
+  },
+  popupPrimary: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: colors.primary, borderRadius: radius.full,
+    paddingVertical: 14, alignSelf: 'stretch',
+  },
+  popupPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  popupSecondary: { paddingVertical: 14, alignSelf: 'stretch', alignItems: 'center' },
+  popupSecondaryText: { color: colors.textSecondary, fontSize: 14.5, fontWeight: '700' },
 });
 
 // Module-level fallback: sub-components that aren't theme-aware

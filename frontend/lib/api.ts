@@ -25,6 +25,8 @@ export type Club = {
   hours: Record<string, { open: boolean; from?: string; to?: string }>;
   photos: string[];
   distance_km?: number | null;
+  user_rating?: number | null;
+  user_rating_count?: number;
   events?: NFEvent[];
   verified?: boolean;
   promoted?: boolean;
@@ -893,6 +895,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ rating, text }),
     }),
+  replyClubReview: (clubId: string, reviewId: string, text: string) =>
+    request<{ ok: boolean }>(`/clubs/${clubId}/reviews/${reviewId}/reply`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
   cancelVipReservation: (id: string) =>
     request<{ ok: boolean }>(`/vip-reservations/${id}`, { method: 'DELETE' }),
   searchFriends: (q: string) =>
@@ -1019,6 +1026,9 @@ export const api = {
   momentWindowState: () =>
     request<{
       in_window: boolean;
+      already_posted_here?: boolean;
+      club_cooldown_hours_left?: number | null;
+      club_name?: string | null;
       club_id?: string;
       expires_at?: string;
       seconds_left?: number;

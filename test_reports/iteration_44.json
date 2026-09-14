@@ -1,0 +1,33 @@
+{
+  "summary": "Régression complète pre-release Night Finder (avis clubs + réponse gérant + haptics). Backend 16/16 pytest PASS (/app/backend/tests/test_reviews_and_reply.py) — création/upsert avis, 400 hors bornes (0 et 6), GET reviews {avg,count,my_review,reviews[]}, POST reply 403 non-owner (Apple sur Péniche, Lucas sur autre club), 200 owner Lucas sur Péniche, 400 reply vide, 404 review inconnue, annotation user_rating/user_rating_count sur /api/clubs?lat&lng (Péniche 4.5/2, Concrete 4.0/1), régressions /auth/login, /clubs/{id}, /matches, /notifications toutes OK. Frontend Playwright PASS : onboarding 'Passer' → login apple → home discover-screen, 13 club cards, Concrete affiche '4.0 (1 avis)' sur la carte (format demandé), tap Concrete → fiche club avec section 'Avis ⭐ 4 · 1 avis' INTÉGRÉE au scroll (pas dans footer fixe), CTA 'Modifier mon avis' (Apple a déjà un avis), review-form s'ouvre avec review-star-1..5 + review-text-input + review-submit tous présents (submit non déclenché pour préserver la donnée 4★), avis Apple Reviewer 4★ affiché dans la liste, footer avec manual-checkin-btn + vip-booking-btn + Itinéraire + Favoris tous présents et non-recouvrants avec la section Avis. Owner-dashboard (lucas.demo) accès direct /owner-dashboard OK, section 'Avis clients ⭐ 4.5 · 2 avis', 2 cartes owner-review-{id} (Emma 4★ + Apple 5★), les deux ont déjà 'Ta réponse publique' visible (les inputs owner-reply-input-{id}/send-{id} n'apparaissent donc pas — comportement attendu car chaque avis a déjà une reply). Nav 4 onglets (map/swipe/chats/profile) OK, aucune écran blanc, aucune red-screen React Native.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_reviews_and_reply.py",
+    "/app/test_reports/pytest/reviews_reply.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py list_clubs (l.1120-1134) : agrégation reviews faite en un seul $group sur tous les club_id → efficace, avec fallback safe (try/except). user_rating retourné à null si aucun avis (jamais NaN).",
+    "POST /clubs/{club_id}/reviews upsert idempotent (unique par (club_id,user_id)), $setOnInsert pour review_id + created_at → une seule ligne par user, updated_at écrasé — nickel.",
+    "POST /clubs/{club_id}/reviews/{review_id}/reply : ordre des checks OK (owner→text→review_exists), notification insérée en best-effort avec try/except. Attention : si le propriétaire change entre 2 replies, l'ancienne reply n'est pas invalidée (comportement acceptable produit).",
+    "server.py > 7600 lignes — le split modulaire reste à faire (déjà remonté itération 42).",
+    "Frontend club/[id].tsx (l.393-471) : section Avis rendue AVANT le footer fixe (position dans le ScrollView), donc bien 'dans le scroll' comme demandé.",
+    "Frontend owner-dashboard.tsx (l.302-350) : si reply existe → box lecture; sinon → input+send. Bien géré. Un futur ajout 'éditer ma réponse' serait un plus produit."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_reviews_and_reply.py (nouveau — 16 tests pytest)",
+    "db.club_reviews: reply.text Emma restaurée à 'Merci pour ton avis 🙏 — au plaisir de te revoir !' (après le test owner reply qui l'avait remplacée par 'TEST_regression reply')"
+  ],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% (toutes les vérifs demandées)"},
+  "seed_data_creation": "Aucun avis test résiduel. Le TEST_ créé sur gp_TEST_REVIEW_REGRESSION_XYZ a été supprimé. Concrete (1 avis Apple 4★) et Péniche Marcounet (Emma 4★ + Apple 5★ avec replies) intacts.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Comptes : apple.reviewer@nightfinder.app / Reviewer2026! (user standard, 1 avis 4★ sur Concrete + 1 avis 5★ sur Péniche), lucas.demo@nightfinder.app / DemoOnly2026! (owner Péniche gp_ChIJQUPlmeRx5kcRgdLD_VS7-h4). Concrete a club_id=club_4472d64798 (seed local, pas Google). testIDs avis : write-review-btn, review-form, review-star-1..5, review-text-input, review-submit, review-reply-{review_id}. testIDs owner : owner-review-{review_id}, owner-reply-input-{review_id}, owner-reply-send-{review_id}. Chips home utilisent keys 'all'/'open_now'/'techno'/'vip'/'terrasse' (testID chip-{key}), pas 'for-you'/'tonight'. Onboarding : cliquer testID onboarding-skip-btn au premier chargement web. NE PAS déclencher submit du bouton review-submit sur Concrete (écraserait le 4★ existant), utiliser un club_id de test comme dans test_reviews_and_reply.py.",
+  "rca_of_issue": "N/A — aucun bug détecté."
+}

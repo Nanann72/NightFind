@@ -18,12 +18,14 @@ import Animated, {
   useSharedValue,
   interpolate,
   Extrapolation,
+  FadeInDown,
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import * as Haptics from 'expo-haptics';
 import { api, Club } from '../../lib/api';
 import { useClubs } from '../../lib/clubs';
 import { trackClubView } from '../../lib/recentClubs';
@@ -72,6 +74,7 @@ export default function ClubDetail() {
     setSendingReview(true);
     try {
       await api.submitClubReview(club.club_id, myRating, myText);
+      if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       setReviewOpen(false);
       loadReviews(club.club_id);
     } catch {}
@@ -403,7 +406,15 @@ export default function ClubDetail() {
               <View style={styles.reviewForm} testID="review-form">
                 <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
                   {[1, 2, 3, 4, 5].map((n) => (
-                    <TouchableOpacity key={n} onPress={() => setMyRating(n)} hitSlop={6} testID={`review-star-${n}`}>
+                    <TouchableOpacity
+                      key={n}
+                      onPress={() => {
+                        if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
+                        setMyRating(n);
+                      }}
+                      hitSlop={6}
+                      testID={`review-star-${n}`}
+                    >
                       <Ionicons name={n <= myRating ? 'star' : 'star-outline'} size={28} color={n <= myRating ? '#FDE047' : colors.textTertiary} />
                     </TouchableOpacity>
                   ))}
@@ -431,8 +442,8 @@ export default function ClubDetail() {
               </View>
             )}
 
-            {(reviews?.reviews || []).slice(0, 5).map((r) => (
-              <View key={r.review_id || r.user_id} style={styles.reviewRow}>
+            {(reviews?.reviews || []).slice(0, 5).map((r, i) => (
+              <Animated.View entering={FadeInDown.delay(i * 50).duration(250)} key={r.review_id || r.user_id} style={styles.reviewRow}>
                 {r.user_photo ? (
                   <Image source={{ uri: r.user_photo }} style={styles.reviewAvatar} />
                 ) : (
@@ -446,8 +457,14 @@ export default function ClubDetail() {
                     <Text style={styles.reviewStars} allowFontScaling={false}>{'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}</Text>
                   </View>
                   {!!r.text && <Text style={styles.reviewText}>{r.text}</Text>}
+                  {!!r.reply?.text && (
+                    <View style={styles.replyBox} testID={`review-reply-${r.review_id}`}>
+                      <Text style={styles.replyName}>💬 Réponse de {r.reply.name || "l'établissement"}</Text>
+                      <Text style={styles.replyText}>{r.reply.text}</Text>
+                    </View>
+                  )}
                 </View>
-              </View>
+              </Animated.View>
             ))}
             {reviews && reviews.count === 0 && !reviewOpen && (
               <Text style={styles.reviewEmpty}>Aucun avis pour l'instant — sois le premier ! ⭐</Text>
@@ -460,7 +477,8 @@ export default function ClubDetail() {
         {checkinMsg && (
           <Text style={styles.checkinMsg} testID="manual-checkin-msg">{checkinMsg}</Text>
         )}
-        <TouchableOpacity
+        <HapticButton
+          haptic="medium"
           style={styles.checkinBtn}
           onPress={handleManualCheckIn}
           disabled={checkingIn}
@@ -474,9 +492,10 @@ export default function ClubDetail() {
           <Text style={styles.checkinText}>
             {checkingIn ? 'Vérification de ta position…' : 'Je suis ici — Check-in'}
           </Text>
-        </TouchableOpacity>
+        </HapticButton>
 
-        <TouchableOpacity
+        <HapticButton
+          haptic="light"
           style={styles.vipBtn}
           onPress={() => router.push(`/vip-booking/${club.club_id}` as any)}
           testID="vip-booking-btn"
@@ -487,17 +506,19 @@ export default function ClubDetail() {
             <Text style={styles.vipSub}>Choisis ta table sur le plan de salle</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-        </TouchableOpacity>
+        </HapticButton>
         <View style={styles.footerRow}>
-          <TouchableOpacity
+          <HapticButton
+            haptic="light"
             style={styles.directionsBtn}
             onPress={openDirections}
             testID="directions-btn"
           >
             <Ionicons name="navigate" size={18} color={colors.textPrimary} />
             <Text style={styles.directionsText}>Itinéraire</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </HapticButton>
+          <HapticButton
+            haptic={isFav ? 'light' : 'success'}
             style={styles.favBtn}
             onPress={() => toggleFavorite(club.club_id)}
             testID="footer-fav-btn"
@@ -506,7 +527,7 @@ export default function ClubDetail() {
             <Text style={styles.favText}>
               {isFav ? 'Dans vos favoris' : 'Ajouter aux favoris'}
             </Text>
-          </TouchableOpacity>
+          </HapticButton>
         </View>
       </View>
     </View>
@@ -732,6 +753,17 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   reviewName: { color: colors.textPrimary, fontSize: 13.5, fontWeight: '800', flexShrink: 1 },
   reviewStars: { color: '#FDE047', fontSize: 12 },
   reviewText: { color: colors.textSecondary, fontSize: 13.5, marginTop: 2, lineHeight: 18.5 },
+  replyBox: {
+    marginTop: 6,
+    backgroundColor: colors.surface,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  replyName: { color: colors.textPrimary, fontSize: 12.5, fontWeight: '800' },
+  replyText: { color: colors.textSecondary, fontSize: 13, marginTop: 2, lineHeight: 18 },
   reviewEmpty: { color: colors.textTertiary, fontSize: 13 },
   favBtn: {
     flex: 1,

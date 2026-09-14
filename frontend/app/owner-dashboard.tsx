@@ -49,6 +49,10 @@ export default function OwnerDashboard() {
   const [events, setEvents] = useState<NFEvent[]>([]);
   const [partner, setPartner] = useState<any>(null);
   const [redeemCode, setRedeemCode] = useState('');
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [reviewStats, setReviewStats] = useState<{ avg: number | null; count: number } | null>(null);
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [replyingId, setReplyingId] = useState<string | null>(null);
 
   // Event modal
   const [evtModal, setEvtModal] = useState(false);
@@ -76,6 +80,9 @@ export default function OwnerDashboard() {
       const full = await api.getClub(c.club_id);
       setEvents(full.events || []);
       api.ownerPartner().then(setPartner).catch(() => {});
+      api.clubReviews(c.club_id)
+        .then((r) => { setReviews(r.reviews || []); setReviewStats({ avg: r.avg, count: r.count }); })
+        .catch(() => {});
     } catch (e: any) {
       if (e?.status === 403) {
         Alert.alert('Accès réservé', 'Cette page est réservée aux propriétaires de bars vérifiés.');
@@ -213,6 +220,23 @@ export default function OwnerDashboard() {
     }
   };
 
+  const sendReply = async (reviewId: string) => {
+    const text = (replyDrafts[reviewId] || '').trim();
+    if (!club || !text || replyingId) return;
+    setReplyingId(reviewId);
+    try {
+      await api.replyClubReview(club.club_id, reviewId, text);
+      const r = await api.clubReviews(club.club_id);
+      setReviews(r.reviews || []);
+      setReviewStats({ avg: r.avg, count: r.count });
+      setReplyDrafts((prev) => ({ ...prev, [reviewId]: '' }));
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message || 'Envoi impossible');
+    } finally {
+      setReplyingId(null);
+    }
+  };
+
   const StatCard = ({ icon, value, label }: { icon: any; value: number; label: string }) => (    <View style={styles.statCard}>
       <Ionicons name={icon} size={18} color={colors.primary} />
       <Text style={styles.statValue}>{value}</Text>
@@ -274,6 +298,56 @@ export default function OwnerDashboard() {
               <StatCard icon="location-outline" value={stats?.checkins ?? 0} label="Check-ins" />
               <StatCard icon="musical-notes-outline" value={stats?.songs ?? 0} label="Musiques" />
             </View>
+
+            {/* Avis clients + réponses du gérant */}
+            <Text style={styles.sectionTitle}>
+              Avis clients ⭐{reviewStats?.avg != null ? `  ${reviewStats.avg} · ${reviewStats.count} avis` : ''}
+            </Text>
+            {reviews.length === 0 ? (
+              <Text style={styles.reviewEmpty}>Aucun avis pour l&apos;instant.</Text>
+            ) : (
+              reviews.map((r) => (
+                <View key={r.review_id} style={styles.reviewCard} testID={`owner-review-${r.review_id}`}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.reviewName} numberOfLines={1}>{r.user_name}</Text>
+                    <Text style={styles.reviewStars} allowFontScaling={false}>
+                      {'★'.repeat(r.rating)}{'☆'.repeat(5 - r.rating)}
+                    </Text>
+                  </View>
+                  {!!r.text && <Text style={styles.reviewBody}>{r.text}</Text>}
+                  {r.reply?.text ? (
+                    <View style={styles.replyBox}>
+                      <Text style={styles.replyLabel}>💬 Ta réponse publique</Text>
+                      <Text style={styles.replyText}>{r.reply.text}</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.replyRow}>
+                      <TextInput
+                        style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                        placeholder="Répondre publiquement…"
+                        placeholderTextColor={colors.textTertiary}
+                        value={replyDrafts[r.review_id] || ''}
+                        onChangeText={(t) => setReplyDrafts((prev) => ({ ...prev, [r.review_id]: t }))}
+                        maxLength={500}
+                        testID={`owner-reply-input-${r.review_id}`}
+                      />
+                      <TouchableOpacity
+                        style={[styles.replySend, !(replyDrafts[r.review_id] || '').trim() && { opacity: 0.4 }]}
+                        onPress={() => sendReply(r.review_id)}
+                        disabled={!(replyDrafts[r.review_id] || '').trim() || replyingId === r.review_id}
+                        testID={`owner-reply-send-${r.review_id}`}
+                      >
+                        {replyingId === r.review_id ? (
+                          <ActivityIndicator size="small" color="#fff" />
+                        ) : (
+                          <Ionicons name="send" size={16} color="#fff" />
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ))
+            )}
 
             {/* Encaissement verres -10% (Stripe) */}
             <Text style={styles.sectionTitle}>Encaissements 💶</Text>
@@ -608,6 +682,25 @@ const makeStyles = (colors: ThemeColors) =>
       marginTop: spacing.xl, marginBottom: spacing.sm,
     },
     statsRow: { flexDirection: 'row', gap: spacing.sm },
+    reviewEmpty: { color: colors.textTertiary, fontSize: 13 },
+    reviewCard: {
+      backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md,
+      borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm,
+    },
+    reviewName: { color: colors.textPrimary, fontSize: 13.5, fontWeight: '800', flexShrink: 1 },
+    reviewStars: { color: '#FDE047', fontSize: 12 },
+    reviewBody: { color: colors.textSecondary, fontSize: 13.5, marginTop: 4, lineHeight: 18.5 },
+    replyBox: {
+      marginTop: 8, backgroundColor: colors.bg, borderLeftWidth: 2, borderLeftColor: colors.primary,
+      borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
+    },
+    replyLabel: { color: colors.textPrimary, fontSize: 12.5, fontWeight: '800' },
+    replyText: { color: colors.textSecondary, fontSize: 13, marginTop: 2, lineHeight: 18 },
+    replyRow: { flexDirection: 'row', gap: 8, marginTop: 10, alignItems: 'center' },
+    replySend: {
+      width: 42, height: 42, borderRadius: 21, backgroundColor: colors.primary,
+      alignItems: 'center', justifyContent: 'center',
+    },
     chargeBtn: {
       flexDirection: 'row', alignItems: 'center', gap: 12,
       backgroundColor: colors.surface, borderRadius: radius.lg,

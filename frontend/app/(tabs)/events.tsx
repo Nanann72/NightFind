@@ -25,6 +25,7 @@ import { useTabBarScroll } from '../../lib/tabBarScroll';
 import { addToCalendar } from '../../lib/calendar';
 import { radius, spacing, type ThemeColors, darkColors } from '../../lib/theme';
 import { useThemeColors } from '../../lib/themeContext';
+import { HapticButton } from '../../components/ui/HapticButton';
 
 export default function Events() {
   const colors = useThemeColors();
@@ -233,12 +234,12 @@ export default function Events() {
                     {item.entry_price ? `${item.entry_price.toFixed(0)}€` : 'Libre'}
                   </Text>
                 </View>
-                <TouchableOpacity
+                <HapticButton
+                  haptic="success"
                   style={[styles.reserveBtn, added[item.event_id] && styles.reserveBtnDone]}
                   onPress={() => onAddToCalendar(item)}
                   disabled={adding === item.event_id}
                   testID={`agenda-btn-${item.event_id}`}
-                  activeOpacity={0.85}
                 >
                   {adding === item.event_id ? (
                     <ActivityIndicator color={colors.bg} />
@@ -253,7 +254,7 @@ export default function Events() {
                       <Text style={styles.reserveText}>Agenda</Text>
                     </>
                   )}
-                </TouchableOpacity>
+                </HapticButton>
               </View>
             </View>
           </View>
@@ -262,14 +263,15 @@ export default function Events() {
       />
 
       {/* FAB to create an event */}
-      <TouchableOpacity
+      <HapticButton
+        haptic="medium"
+        scale={0.9}
         style={[styles.fab, { bottom: insets.bottom + 90 }, !isPremium && styles.fabLocked]}
         onPress={onFabPress}
-        activeOpacity={0.85}
         testID="create-event-fab"
       >
         <Ionicons name={isPremium ? 'add' : 'lock-closed'} size={isPremium ? 28 : 22} color={colors.bg} />
-      </TouchableOpacity>
+      </HapticButton>
 
       {/* Create event modal */}
       <Modal

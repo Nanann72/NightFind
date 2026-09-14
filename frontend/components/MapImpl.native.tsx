@@ -206,7 +206,8 @@ export default function MapImpl() {
                   {c.name}{(c as any).verified ? ' ✓' : ''}
                 </Text>
                 <Text style={styles.calloutMeta}>
-                  ⭐ {c.rating.toFixed(1)} · {c.avg_price.toFixed(0)}€
+                  ⭐ {(((c as any).user_rating ?? c.rating) as number).toFixed(1)}
+                  {(c as any).user_rating_count ? ` (${(c as any).user_rating_count} avis)` : ''} · {c.avg_price.toFixed(0)}€
                 </Text>
                 <Text style={styles.calloutLink}>Voir le club ›</Text>
               </View>
@@ -344,7 +345,7 @@ export default function MapImpl() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.sheetName} numberOfLines={1}>{c.name}</Text>
                     <Text style={styles.sheetMeta} numberOfLines={1}>
-                      ⭐ {c.rating.toFixed(1)} · {c.music_styles[0] || 'club'}
+                      ⭐ {(((c as any).user_rating ?? c.rating) as number).toFixed(1)} · {c.music_styles[0] || 'club'}
                       {(c as any).distance_km != null ? ` · ${(c as any).distance_km.toFixed(1)} km` : ''}
                     </Text>
                   </View>
@@ -367,7 +368,8 @@ export default function MapImpl() {
           <View style={styles.bottomContent}>
             <Text style={styles.bottomName}>{selected.name}</Text>
             <Text style={styles.bottomMeta}>
-              ⭐ {selected.rating.toFixed(1)} · {selected.avg_price.toFixed(0)}€ ·{' '}
+              ⭐ {(((selected as any).user_rating ?? selected.rating) as number).toFixed(1)}
+              {(selected as any).user_rating_count ? ` (${(selected as any).user_rating_count} avis)` : ''} · {selected.avg_price.toFixed(0)}€ ·{' '}
               {selected.music_styles[0]}
             </Text>
             {liveSel != null && (
