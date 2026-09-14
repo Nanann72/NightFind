@@ -27,6 +27,7 @@ export type Club = {
   distance_km?: number | null;
   user_rating?: number | null;
   user_rating_count?: number;
+  top_rated?: boolean;
   events?: NFEvent[];
   verified?: boolean;
   promoted?: boolean;

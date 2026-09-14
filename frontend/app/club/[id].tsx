@@ -53,6 +53,7 @@ export default function ClubDetail() {
   const [club, setClub] = useState<Club | null>(null);
   const [reviews, setReviews] = useState<{ avg: number | null; count: number; my_review: any; reviews: any[] } | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewSort, setReviewSort] = useState<'recent' | 'best'>('recent');
   const [myRating, setMyRating] = useState(0);
   const [myText, setMyText] = useState('');
   const [sendingReview, setSendingReview] = useState(false);
@@ -68,6 +69,14 @@ export default function ClubDetail() {
       })
       .catch(() => {});
   };
+
+  const sortedReviews = useMemo(() => {
+    const rows = [...(reviews?.reviews || [])];
+    if (reviewSort === 'best') {
+      rows.sort((a, b) => (b.rating - a.rating) || (new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()));
+    }
+    return rows;
+  }, [reviews, reviewSort]);
 
   const sendReview = async () => {
     if (!club || myRating < 1 || sendingReview) return;
@@ -442,7 +451,25 @@ export default function ClubDetail() {
               </View>
             )}
 
-            {(reviews?.reviews || []).slice(0, 5).map((r, i) => (
+            {(reviews?.count || 0) > 1 && (
+              <View style={styles.sortRow}>
+                {([['recent', 'Plus récents'], ['best', 'Meilleures notes']] as const).map(([key, label]) => (
+                  <TouchableOpacity
+                    key={key}
+                    style={[styles.sortChip, reviewSort === key && styles.sortChipActive]}
+                    onPress={() => {
+                      if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
+                      setReviewSort(key);
+                    }}
+                    testID={`review-sort-${key}`}
+                  >
+                    <Text style={[styles.sortChipText, reviewSort === key && styles.sortChipTextActive]}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {sortedReviews.slice(0, 5).map((r, i) => (
               <Animated.View entering={FadeInDown.delay(i * 50).duration(250)} key={r.review_id || r.user_id} style={styles.reviewRow}>
                 {r.user_photo ? (
                   <Image source={{ uri: r.user_photo }} style={styles.reviewAvatar} />
@@ -720,6 +747,18 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   reviewsTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '800' },
   reviewsAvg: { color: colors.textSecondary, fontSize: 13.5, fontWeight: '700' },
   reviewsCta: { color: colors.primary, fontSize: 13.5, fontWeight: '800' },
+  sortRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  sortChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radius.full,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  sortChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  sortChipText: { color: colors.textSecondary, fontSize: 12.5, fontWeight: '700' },
+  sortChipTextActive: { color: '#fff' },
   reviewForm: {
     backgroundColor: colors.surfaceElevated,
     borderWidth: 1,

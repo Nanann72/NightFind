@@ -402,3 +402,9 @@ agent_communication:
       + club_cooldown_hours_left + club_name. Frontend : Modal premium dans moment-capture (mount + submit 429/409),
       boutons Changer d'établissement (→ carte) / OK. Changer d'établissement permet de reposter (testé 200).
       Données de test nettoyées, comptes démo Apple intacts.
+
+  - agent: "main"
+    message: |
+      TRI AVIS + BADGE COUP DE CŒUR — auto-testé PASS (curl + Playwright screenshots).
+      /api/clubs annote top_rated (moyenne avis 7j >= 4.5). Chips tri Plus récents/Meilleures notes sur fiche club.
+      Badge « ❤️ Coup de cœur » sur ClubCard + TrendCard accueil. Avis démo Emma 5★ ajouté sur Concrete (conservé).

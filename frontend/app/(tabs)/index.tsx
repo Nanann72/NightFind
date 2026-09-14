@@ -627,6 +627,11 @@ const TrendCard = memo(function TrendCard({ club, live, onPress }: { club: Club;
           <Text style={styles.liveText} allowFontScaling={false}>{live}</Text>
         </View>
       )}
+      {club.top_rated && (
+        <View style={[styles.topRatedBadge, { top: live != null ? 42 : 10, left: 10 }]}>
+          <Text style={styles.topRatedText} allowFontScaling={false}>❤️ Coup de cœur</Text>
+        </View>
+      )}
       <View style={styles.trendBody}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Text style={[styles.trendName, { flexShrink: 1 }]} numberOfLines={1}>{club.name}</Text>
@@ -683,6 +688,11 @@ const ClubCard = memo(function ClubCard({
           <View style={styles.distanceBadge}>
             <Ionicons name="navigate" size={11} color="#fff" />
             <Text style={styles.distanceText}>{club.distance_km.toFixed(1)} km</Text>
+          </View>
+        )}
+        {club.top_rated && (
+          <View style={[styles.topRatedBadge, { top: club.distance_km != null ? 52 : 14 }]} testID={`top-rated-${club.club_id}`}>
+            <Text style={styles.topRatedText} allowFontScaling={false}>❤️ Coup de cœur</Text>
           </View>
         )}
         <View style={styles.cardContent}>
@@ -965,6 +975,17 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.14)',
   },
   distanceText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  topRatedBadge: {
+    position: 'absolute',
+    left: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+  },
+  topRatedText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   cardContent: { position: 'absolute', left: 16, right: 16, bottom: 14 },
   cardName: { color: '#fff', fontSize: 21, fontWeight: '700', letterSpacing: -0.3, marginBottom: 6 },
   cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },

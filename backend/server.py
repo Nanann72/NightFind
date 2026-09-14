@@ -1126,10 +1126,19 @@ async def list_clubs(
                 {"$group": {"_id": "$club_id", "avg": {"$avg": "$rating"}, "count": {"$sum": 1}}},
             ]).to_list(2000)
             stats = {r["_id"]: r for r in agg}
+            # « Coup de cœur » : clubs les mieux notés de la semaine (avg 7j ≥ 4.5)
+            week_cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+            agg_week = await db.club_reviews.aggregate([
+                {"$match": {"club_id": {"$in": ids}, "updated_at": {"$gte": week_cutoff}}},
+                {"$group": {"_id": "$club_id", "avg": {"$avg": "$rating"}, "count": {"$sum": 1}}},
+            ]).to_list(2000)
+            week_stats = {r["_id"]: r for r in agg_week}
             for c in items:
                 s = stats.get(c.get("club_id"))
                 c["user_rating"] = round(s["avg"], 1) if s else None
                 c["user_rating_count"] = s["count"] if s else 0
+                w = week_stats.get(c.get("club_id"))
+                c["top_rated"] = bool(w and w["avg"] >= 4.5)
     except Exception as exc:  # noqa: BLE001
         logging.warning("Review annotate failed: %s", exc)
 
