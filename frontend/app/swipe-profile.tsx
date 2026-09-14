@@ -21,6 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { MaskedDOBInput } from '../components/MaskedDOBInput';
+import { MUSIC_GENRES } from '../lib/musicGenres';
 import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
 import { useThemeColors } from '../lib/themeContext';
 
@@ -52,6 +53,81 @@ export default function SwipeProfileEdit() {
   const [savingState, setSavingState] = useState<'idle' | 'moderating' | 'saving'>('idle');
   const [completion, setCompletion] = useState<number | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
+
+  // Navigation vers les sections + aperçu photo + goûts musicaux
+  const scrollRef = useRef<ScrollView>(null);
+  const cityRef = useRef<TextInput>(null);
+  const bioRef = useRef<TextInput>(null);
+  const igRef = useRef<TextInput>(null);
+  const sectionY = useRef<Record<string, number>>({});
+  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [musicOpen, setMusicOpen] = useState(false);
+  const [musicSel, setMusicSel] = useState<string[]>(Array.isArray(u.music_prefs) ? u.music_prefs : []);
+  const [musicSaving, setMusicSaving] = useState(false);
+
+  const refreshCompletion = () => {
+    api.profileCompletion()
+      .then((r) => {
+        setCompletion(r.percent);
+        setMissing(r.missing || []);
+      })
+      .catch(() => {});
+  };
+
+  const scrollToSection = (key: string, ref?: React.RefObject<TextInput | null>) => {
+    scrollRef.current?.scrollTo({ y: Math.max(0, (sectionY.current[key] || 0) - 70), animated: true });
+    if (ref) setTimeout(() => ref.current?.focus(), 380);
+  };
+
+  const normalizeGenres = (arr: string[]) =>
+    Array.from(new Set(arr.map((m) => MUSIC_GENRES.find((o) => o.id === m || o.label === m)?.id || m)));
+  const genreLabel = (m: string) => MUSIC_GENRES.find((o) => o.id === m || o.label === m)?.label || m;
+
+  const saveMusic = async () => {
+    if (musicSaving) return;
+    setMusicSaving(true);
+    try {
+      await api.updateProfile({ music_prefs: musicSel } as any);
+      await refresh();
+      refreshCompletion();
+      setMusicOpen(false);
+    } catch (e: any) {
+      Alert.alert('Erreur', e?.message || 'Enregistrement impossible');
+    } finally {
+      setMusicSaving(false);
+    }
+  };
+
+  const handleMissing = (label: string) => {
+    switch (label) {
+      case 'Ajoute une photo':
+      case 'Ajoute 3 photos':
+        scrollToSection('photos');
+        pickPhoto();
+        break;
+      case 'Écris une bio':
+        scrollToSection('bio', bioRef);
+        break;
+      case 'Renseigne ta date de naissance':
+        scrollToSection('dob');
+        break;
+      case 'Indique ta ville':
+        scrollToSection('city', cityRef);
+        break;
+      case 'Ajoute tes goûts musicaux':
+        setMusicSel(normalizeGenres(Array.isArray((user as any)?.music_prefs) ? (user as any).music_prefs : []));
+        setMusicOpen(true);
+        break;
+      case 'Lie ton Instagram':
+        scrollToSection('instagram', igRef);
+        break;
+      case 'Ajoute tes clubs favoris':
+        router.push('/(tabs)' as any);
+        break;
+      default:
+        break;
+    }
+  };
 
   useEffect(() => {
     api.profileCompletion()
@@ -213,7 +289,7 @@ export default function SwipeProfileEdit() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 80 }}>
+      <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.lg, paddingBottom: 80 }}>
         {/* ── Héro Tinder-like : avatar + nom + badge ── */}
         <View style={styles.hero}>
           {photos[0] ? (
@@ -238,11 +314,17 @@ export default function SwipeProfileEdit() {
 
         {/* ── Complétez votre profil (pill Tinder) ── */}
         {completion != null && completion < 100 && (
-          <View style={styles.completionPillBanner} testID="sf-completion-banner">
+          <TouchableOpacity
+            style={styles.completionPillBanner}
+            testID="sf-completion-banner"
+            onPress={() => missing[0] && handleMissing(missing[0])}
+            activeOpacity={0.8}
+          >
             <Ionicons name="alert-circle" size={18} color={colors.primary} />
             <Text style={styles.completionPillText}>Complète ton profil</Text>
             <Text style={styles.completionPct}>{completion}%</Text>
-          </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
         )}
 
         {/* ── Chips des infos manquantes ── */}
@@ -254,18 +336,27 @@ export default function SwipeProfileEdit() {
             style={{ marginBottom: 20 }}
           >
             {missing.map((m) => (
-              <View key={m} style={styles.missingChip}>
+              <TouchableOpacity
+                key={m}
+                style={styles.missingChip}
+                onPress={() => handleMissing(m)}
+                testID={`sf-missing-${MISSING_LABELS[m] || m}`}
+                activeOpacity={0.75}
+              >
                 <Text style={styles.missingChipText} allowFontScaling={false}>
                   {MISSING_LABELS[m] || m}
                 </Text>
                 <Ionicons name="add" size={15} color={colors.textPrimary} />
                 <View style={styles.missingDot} />
-              </View>
+              </TouchableOpacity>
             ))}
           </ScrollView>
         )}
 
-        <Text style={styles.photosTitle}>
+        <Text
+          style={styles.photosTitle}
+          onLayout={(e) => { sectionY.current.photos = e.nativeEvent.layout.y; }}
+        >
           Mes photos {photos.length < 3 ? '❗' : ''}
         </Text>
         {photos.length < 3 && (
@@ -276,7 +367,14 @@ export default function SwipeProfileEdit() {
         <View style={styles.photosRow}>
           {photos.map((p, i) => (
             <View key={i} style={styles.photoCell}>
-              <Image source={{ uri: p }} style={styles.photoImg} />
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setPreviewUri(p)}
+                testID={`sf-photo-preview-${i}`}
+                style={{ width: '100%', height: '100%' }}
+              >
+                <Image source={{ uri: p }} style={styles.photoImg} />
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.photoRemove}
                 onPress={() => removePhoto(i)}
@@ -306,7 +404,12 @@ export default function SwipeProfileEdit() {
         </View>
         <Text style={styles.helper}>La première photo est ta photo principale.</Text>
 
-        <Text style={styles.label}>Date de naissance *</Text>
+        <Text
+          style={styles.label}
+          onLayout={(e) => { sectionY.current.dob = e.nativeEvent.layout.y; }}
+        >
+          Date de naissance *
+        </Text>
         <MaskedDOBInput
           value={dob}
           onChange={setDob}
@@ -405,8 +508,14 @@ export default function SwipeProfileEdit() {
           ))}
         </View>
 
-        <Text style={styles.label}>Ville</Text>
+        <Text
+          style={styles.label}
+          onLayout={(e) => { sectionY.current.city = e.nativeEvent.layout.y; }}
+        >
+          Ville
+        </Text>
         <TextInput
+          ref={cityRef}
           value={city}
           onChangeText={setCity}
           placeholder="Paris, Lyon, Marseille..."
@@ -415,8 +524,14 @@ export default function SwipeProfileEdit() {
           testID="sf-city"
         />
 
-        <Text style={styles.label}>Bio</Text>
+        <Text
+          style={styles.label}
+          onLayout={(e) => { sectionY.current.bio = e.nativeEvent.layout.y; }}
+        >
+          Bio
+        </Text>
         <TextInput
+          ref={bioRef}
           value={bio}
           onChangeText={setBio}
           placeholder="Parle de toi en quelques mots..."
@@ -428,8 +543,14 @@ export default function SwipeProfileEdit() {
         />
         <Text style={styles.helper}>{bio.length} / 500</Text>
 
-        <Text style={styles.label}>Instagram</Text>
+        <Text
+          style={styles.label}
+          onLayout={(e) => { sectionY.current.instagram = e.nativeEvent.layout.y; }}
+        >
+          Instagram
+        </Text>
         <TextInput
+          ref={igRef}
           value={instagram}
           onChangeText={setInstagram}
           placeholder="@ton.handle (sans le @)"
@@ -438,7 +559,84 @@ export default function SwipeProfileEdit() {
           autoCapitalize="none"
           testID="sf-instagram"
         />
+
+        <Text style={styles.label}>Goûts musicaux</Text>
+        <TouchableOpacity
+          style={styles.musicRow}
+          onPress={() => {
+            setMusicSel(normalizeGenres(Array.isArray((user as any)?.music_prefs) ? (user as any).music_prefs : []));
+            setMusicOpen(true);
+          }}
+          testID="sf-music-row"
+          activeOpacity={0.8}
+        >
+          <Ionicons name="musical-notes" size={18} color={colors.primary} />
+          <Text style={styles.musicRowText} numberOfLines={1}>
+            {(((user as any)?.music_prefs || []) as string[]).length > 0
+              ? normalizeGenres((user as any).music_prefs as string[]).map(genreLabel).join(' · ')
+              : 'Choisis tes styles préférés'}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+        </TouchableOpacity>
       </ScrollView>
+
+      {/* Aperçu photo plein écran */}
+      <Modal visible={!!previewUri} transparent animationType="fade" onRequestClose={() => setPreviewUri(null)}>
+        <View style={styles.previewOverlay}>
+          <TouchableOpacity style={styles.previewBackdrop} activeOpacity={1} onPress={() => setPreviewUri(null)} />
+          {previewUri && <Image source={{ uri: previewUri }} style={styles.previewImg} resizeMode="contain" />}
+          <TouchableOpacity
+            style={[styles.previewClose, { top: insets.top + 14 }]}
+            onPress={() => setPreviewUri(null)}
+            testID="sf-preview-close"
+          >
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Sélection des goûts musicaux */}
+      <Modal visible={musicOpen} transparent animationType="slide" onRequestClose={() => setMusicOpen(false)}>
+        <View style={styles.musicOverlay}>
+          <View style={[styles.musicSheet, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.musicSheetHeader}>
+              <Text style={styles.musicSheetTitle}>Tes goûts musicaux 🎧</Text>
+              <TouchableOpacity onPress={() => setMusicOpen(false)} hitSlop={10} testID="sf-music-close">
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={styles.chipsRow}>
+              {MUSIC_GENRES.map((g) => {
+                const on = musicSel.includes(g.id);
+                return (
+                  <TouchableOpacity
+                    key={g.id}
+                    style={[styles.chip, on && styles.chipActive]}
+                    onPress={() => setMusicSel((prev) => (on ? prev.filter((x) => x !== g.id) : [...prev, g.id]))}
+                    testID={`sf-music-${g.id}`}
+                  >
+                    <Text style={[styles.chipText, on && styles.chipTextActive]}>
+                      {g.emoji} {g.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity
+              style={[styles.musicSaveBtn, musicSel.length === 0 && { opacity: 0.5 }]}
+              onPress={saveMusic}
+              disabled={musicSaving}
+              testID="sf-music-save"
+            >
+              {musicSaving ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.musicSaveText}>Enregistrer ({musicSel.length})</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Moderation in-progress overlay */}
       <Modal visible={saving} transparent animationType="fade">
@@ -525,6 +723,32 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     position: 'relative',
   },
   photoImg: { width: '100%', height: '100%' },
+  musicRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: colors.surface, borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.borderStrong,
+    paddingHorizontal: 16, paddingVertical: 14, minHeight: 48,
+  },
+  musicRowText: { color: colors.textPrimary, fontSize: 14.5, fontWeight: '600', flex: 1 },
+  previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', alignItems: 'center', justifyContent: 'center' },
+  previewBackdrop: { ...StyleSheet.absoluteFillObject },
+  previewImg: { width: '92%', height: '78%' },
+  previewClose: {
+    position: 'absolute', right: 16, width: 42, height: 42, borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center',
+  },
+  musicOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  musicSheet: {
+    backgroundColor: colors.surfaceElevated, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: spacing.lg, borderWidth: 1, borderColor: colors.border,
+  },
+  musicSheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  musicSheetTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '900' },
+  musicSaveBtn: {
+    backgroundColor: colors.primary, borderRadius: 999, paddingVertical: 15,
+    alignItems: 'center', marginTop: 18, minHeight: 48, justifyContent: 'center',
+  },
+  musicSaveText: { color: '#fff', fontSize: 15, fontWeight: '900' },
   modOverlay: {
     flex: 1,
     backgroundColor: 'rgba(7,5,18,0.85)',

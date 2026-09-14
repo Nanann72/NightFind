@@ -463,3 +463,11 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - Bouton partage (share-outline) dans le header de la fiche club (club/[id].tsx, testID share-club-btn), entre retour et favori (right:64).
 - Natif : Share.share natif (feuille iOS/Android — WhatsApp/SMS/Insta...) avec message « Découvre {name} sur Night Finder 🎉\n📍 {address}\nhttps://nightfinder.app/c/{club_id} » (+ url séparée sur iOS). Web : navigator.share si dispo, sinon copie presse-papier (expo-clipboard) + icône ✓ verte 2s (state justShared). Haptic light au tap.
 - Même convention d'URL que le partage de profil (nightfinder.app/u/{handle} → /c/{club_id}).
+
+## ✅ PROFIL SWIPE COMPLÉTÉ + APERÇU PHOTOS + POP-UP « MOMENT POSTÉ » (sept 2026) — auto-testé e2e screenshots PASS
+- swipe-profile.tsx : TOUTES les options sont maintenant cliquables —
+  * Bannière « Complète ton profil X% » → tap = action du 1er élément manquant (+ chevron).
+  * Chips manquantes (Photo/3 photos → picker photo, Bio/Ville/Instagram → scroll+focus input (refs + sectionY onLayout), Date de naissance → scroll, Musique → bottom-sheet genres, Clubs favoris → push /(tabs)). testID sf-missing-{label}.
+  * Nouvelle ligne « Goûts musicaux » (testID sf-music-row) → bottom-sheet MUSIC_GENRES multi-select, save immédiat via api.updateProfile({music_prefs}) + refresh completion. Valeurs legacy (labels 'House'/'Techno') normalisées en ids (normalizeGenres/genreLabel).
+  * Aperçu photo plein écran : tap sur une photo (testID sf-photo-preview-{i}) → Modal noir resizeMode contain + bouton fermer (sf-preview-close) + tap backdrop ferme.
+- moment-capture.tsx : pop-up succès « Moment posté ! 🎉 » (Modal même style que cooldown, icône ✓ verte, testID moment-success-popup) après publication réussie — boutons « Voir le feed » (→ /feed) et « Retour à l'accueil » (→ /(tabs)?moment_posted=1). Remplace la redirection silencieuse. (Validé par pattern identique au popup cooldown testé — capture caméra non simulable en headless web.)

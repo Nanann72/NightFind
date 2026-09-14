@@ -52,6 +52,7 @@ export default function MomentCapture() {
 
   const [checking, setChecking] = useState(true);
   const [cooldownPopup, setCooldownPopup] = useState<{ title: string; message: string } | null>(null);
+  const [successPopup, setSuccessPopup] = useState(false);
   const [clubId, setClubId] = useState<string | null>(
     typeof params.club_id === 'string' ? params.club_id : null,
   );
@@ -426,7 +427,7 @@ export default function MomentCapture() {
         await api.uploadMoment(clubId, compositeB64!, caption.trim() || undefined, frontPhoto || undefined, audience);
       }
       buzz('success');
-      router.replace({ pathname: '/(tabs)', params: { moment_posted: '1' } });
+      setSuccessPopup(true);
     } catch (e: any) {
       buzz('error');
       // Cooldown / already-posted → pop-up premium ; autres erreurs → message inline
@@ -468,6 +469,37 @@ export default function MomentCapture() {
           </TouchableOpacity>
           <TouchableOpacity style={styles.popupSecondary} onPress={dismissCooldown} testID="moment-popup-ok">
             <Text style={styles.popupSecondaryText}>OK, je reviendrai</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+
+  const successModal = (
+    <Modal visible={successPopup} transparent animationType="fade" onRequestClose={() => {}}>
+      <View style={styles.popupOverlay}>
+        <Animated.View entering={FadeInDown.duration(250)} style={styles.popupCard} testID="moment-success-popup">
+          <View style={[styles.popupIconWrap, { backgroundColor: 'rgba(74,222,128,0.14)' }]}>
+            <Ionicons name="checkmark-circle" size={30} color="#4ADE80" />
+          </View>
+          <Text style={styles.popupTitle}>Moment posté ! 🎉</Text>
+          <Text style={styles.popupMsg}>
+            Ton moment est en ligne — tes amis peuvent le découvrir dès maintenant.
+          </Text>
+          <TouchableOpacity
+            style={styles.popupPrimary}
+            onPress={() => { setSuccessPopup(false); router.replace('/feed' as any); }}
+            testID="moment-success-feed"
+          >
+            <Ionicons name="images-outline" size={17} color="#fff" />
+            <Text style={styles.popupPrimaryText}>Voir le feed</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.popupSecondary}
+            onPress={() => { setSuccessPopup(false); router.replace({ pathname: '/(tabs)', params: { moment_posted: '1' } }); }}
+            testID="moment-success-ok"
+          >
+            <Text style={styles.popupSecondaryText}>Retour à l&apos;accueil</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -718,6 +750,7 @@ export default function MomentCapture() {
           </TouchableOpacity>
         )}
       </View>
+      {successModal}
     </KeyboardAvoidingView>
   );
 }
