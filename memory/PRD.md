@@ -458,3 +458,8 @@ Auth (login/register/forgot), swipe, chats, moments, clubs, recherche+filtres, c
 - Tri avis (club/[id].tsx) : chips « Plus récents » (défaut, ordre serveur updated_at desc) / « Meilleures notes » (rating desc puis date), visibles si count > 1, haptic selection, actif = fond primary. testIDs review-sort-recent / review-sort-best. Tri client-side (sortedReviews useMemo).
 - Badge « Coup de cœur » : /api/clubs annote top_rated=true si moyenne des avis des 7 derniers jours ≥ 4.5 (aggregation club_reviews updated_at ≥ now-7j). Affiché sur ClubCard (sous le badge distance, testID top-rated-{id}) et TrendCard (sous le compteur live) — pill rose primary « ❤️ Coup de cœur » (styles topRatedBadge/topRatedText).
 - Donnée démo ajoutée : avis Emma 5★ sur Concrete (club_4472d64798) → Concrete 4.5 (2 avis) + badge. Péniche Marcounet aussi top_rated (4.5).
+
+## ✅ PARTAGE DE CLUB EN UN TAP (sept 2026) — auto-testé screenshot PASS
+- Bouton partage (share-outline) dans le header de la fiche club (club/[id].tsx, testID share-club-btn), entre retour et favori (right:64).
+- Natif : Share.share natif (feuille iOS/Android — WhatsApp/SMS/Insta...) avec message « Découvre {name} sur Night Finder 🎉\n📍 {address}\nhttps://nightfinder.app/c/{club_id} » (+ url séparée sur iOS). Web : navigator.share si dispo, sinon copie presse-papier (expo-clipboard) + icône ✓ verte 2s (state justShared). Haptic light au tap.
+- Même convention d'URL que le partage de profil (nightfinder.app/u/{handle} → /c/{club_id}).

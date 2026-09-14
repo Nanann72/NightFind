@@ -11,6 +11,7 @@ import {
   Dimensions,
   ScrollView,
   TextInput,
+  Share,
 } from 'react-native';
 import Animated, {
   useAnimatedScrollHandler,
@@ -26,6 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
 import { api, Club } from '../../lib/api';
 import { useClubs } from '../../lib/clubs';
 import { trackClubView } from '../../lib/recentClubs';
@@ -54,6 +56,28 @@ export default function ClubDetail() {
   const [reviews, setReviews] = useState<{ avg: number | null; count: number; my_review: any; reviews: any[] } | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewSort, setReviewSort] = useState<'recent' | 'best'>('recent');
+  const [justShared, setJustShared] = useState(false);
+
+  const shareClub = async () => {
+    if (!club) return;
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    const url = `https://nightfinder.app/c/${club.club_id}`;
+    const message = `Découvre ${club.name} sur Night Finder 🎉\n📍 ${club.address}\n${url}`;
+    try {
+      if (Platform.OS === 'web') {
+        const nav: any = typeof navigator !== 'undefined' ? navigator : null;
+        if (nav?.share) {
+          await nav.share({ title: club.name, text: message, url });
+        } else {
+          await Clipboard.setStringAsync(message);
+          setJustShared(true);
+          setTimeout(() => setJustShared(false), 2000);
+        }
+      } else {
+        await Share.share(Platform.OS === 'ios' ? { message, url } : { message });
+      }
+    } catch {}
+  };
   const [myRating, setMyRating] = useState(0);
   const [myText, setMyText] = useState('');
   const [sendingReview, setSendingReview] = useState(false);
@@ -248,6 +272,18 @@ export default function ClubDetail() {
             testID="back-btn"
           >
             <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
+          </HapticButton>
+          <HapticButton
+            haptic="light"
+            style={[styles.headerBtn, { top: insets.top + 12, right: 64 }]}
+            onPress={shareClub}
+            testID="share-club-btn"
+          >
+            <Ionicons
+              name={justShared ? 'checkmark' : 'share-outline'}
+              size={20}
+              color={justShared ? '#4ADE80' : colors.textPrimary}
+            />
           </HapticButton>
           <HapticButton
             haptic={isFav ? 'success' : 'light'}
