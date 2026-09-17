@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Linking,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -254,6 +255,13 @@ export default function Paywall() {
           <TouchableOpacity onPress={() => router.push({ pathname: '/legal', params: { doc: 'privacy' } })}>
             <Text style={styles.legalLink}>Confidentialité</Text>
           </TouchableOpacity>
+          <Text style={styles.legalSep}>·</Text>
+          <TouchableOpacity
+            onPress={() => Linking.openURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/').catch(() => {})}
+            testID="paywall-eula-link"
+          >
+            <Text style={styles.legalLink}>Conditions d&apos;utilisation (EULA)</Text>
+          </TouchableOpacity>
         </View>
         {__DEV__ && devMode ? (
           <Text style={styles.devNote}>⚙️ Mode DEV — achat simulé. Build natif requis pour vrais paiements.</Text>
@@ -457,6 +465,7 @@ const styles = StyleSheet.create({
   },
   legalLinksRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
