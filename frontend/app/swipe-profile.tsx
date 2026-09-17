@@ -13,13 +13,16 @@ import {
   KeyboardAvoidingView,
   Modal,
   Linking,
+  Switch,
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { usePremium } from '../lib/premium';
 import { MaskedDOBInput } from '../components/MaskedDOBInput';
 import { MUSIC_GENRES } from '../lib/musicGenres';
 import { radius, spacing, type ThemeColors, darkColors } from '../lib/theme';
@@ -36,12 +39,22 @@ const MISSING_LABELS: Record<string, string> = {
   'Ajoute tes clubs favoris': 'Clubs favoris',
 };
 
+const MAX_PHOTOS = 6;
+
+const INTEREST_OPTIONS = [
+  '🍣 Sushi', '👨‍🍳 Cuisine', '✈️ Voyages', '🏋️ Sport', '⚽ Foot', '🎬 Cinéma',
+  '📺 Séries', '🎮 Gaming', '👗 Mode', '📷 Photo', '🎨 Art', '💃 Danse',
+  '🎪 Festivals', '🍹 Cocktails', '☕ Café', '🥾 Rando', '🏍️ Moto', '🐶 Animaux',
+  '🖋️ Tatouages', '🎤 Concerts', '🎙️ Karaoké', '🎱 Billard', '🛍️ Shopping', '🏖️ Plage',
+];
+
 export default function SwipeProfileEdit() {
   const colors = useThemeColors();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, refresh } = useAuth();
+  const { isPremium } = usePremium();
   const u = (user || {}) as any;
 
   const [dob, setDob] = useState<string>(u.dob || '');
@@ -49,6 +62,15 @@ export default function SwipeProfileEdit() {
   const [city, setCity] = useState<string>(u.city || '');
   const [instagram, setInstagram] = useState<string>(u.instagram || '');
   const [photos, setPhotos] = useState<string[]>(Array.isArray(u.photos) ? u.photos : []);
+  const [interests, setInterests] = useState<string[]>(Array.isArray(u.interests) ? u.interests : []);
+  const [job, setJob] = useState<string>(u.job || '');
+  const [education, setEducation] = useState<string>(u.education || '');
+  const [heightCm, setHeightCm] = useState<string>(u.height_cm ? String(u.height_cm) : '');
+  const [smartPhotos, setSmartPhotos] = useState<boolean>(!!u.smart_photos);
+  const [hideAge, setHideAge] = useState<boolean>(!!u.hide_age);
+  const [hideDistance, setHideDistance] = useState<boolean>(!!u.hide_distance);
+  const [interestsOpen, setInterestsOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingState, setSavingState] = useState<'idle' | 'moderating' | 'saving'>('idle');
   const [completion, setCompletion] = useState<number | null>(null);
@@ -153,11 +175,18 @@ export default function SwipeProfileEdit() {
     setCity((user as any).city || '');
     setInstagram((user as any).instagram || '');
     setPhotos(Array.isArray((user as any).photos) ? (user as any).photos : []);
+    setInterests(Array.isArray((user as any).interests) ? (user as any).interests : []);
+    setJob((user as any).job || '');
+    setEducation((user as any).education || '');
+    setHeightCm((user as any).height_cm ? String((user as any).height_cm) : '');
+    setSmartPhotos(!!(user as any).smart_photos);
+    setHideAge(!!(user as any).hide_age);
+    setHideDistance(!!(user as any).hide_distance);
   }, [user]);
 
   const pickPhoto = async () => {
-    if (photos.length >= 3) {
-      Alert.alert('Maximum atteint', '3 photos maximum.');
+    if (photos.length >= MAX_PHOTOS) {
+      Alert.alert('Maximum atteint', `${MAX_PHOTOS} photos maximum.`);
       return;
     }
     if (Platform.OS !== 'web') {
@@ -257,6 +286,12 @@ export default function SwipeProfileEdit() {
         pref_age_min: prefAgeMin,
         pref_age_max: prefAgeMax,
         pref_distance_km: prefDist,
+        interests,
+        job,
+        education,
+        height_cm: heightCm ? parseInt(heightCm, 10) || 0 : 0,
+        smart_photos: smartPhotos,
+        ...(isPremium ? { hide_age: hideAge, hide_distance: hideDistance } : {}),
       });
       await refresh();
       router.back();
@@ -309,6 +344,14 @@ export default function SwipeProfileEdit() {
             {completion != null && (
               <Text style={styles.heroSub}>Profil complété à {completion}%</Text>
             )}
+            <TouchableOpacity
+              onPress={() => setPreviewOpen(true)}
+              style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}
+              testID="sf-preview-btn"
+            >
+              <Text style={styles.heroPreview}>Aperçu</Text>
+              <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -359,9 +402,9 @@ export default function SwipeProfileEdit() {
         >
           Mes photos {photos.length < 3 ? '❗' : ''}
         </Text>
-        {photos.length < 3 && (
+        {photos.length < MAX_PHOTOS && (
           <Text style={styles.photosHint}>
-            Ajoute {3 - photos.length} autre{3 - photos.length > 1 ? 's' : ''} photo{3 - photos.length > 1 ? 's' : ''} et augmente tes chances d&apos;être liké·e.
+            Ajoute {MAX_PHOTOS - photos.length} autre{MAX_PHOTOS - photos.length > 1 ? 's' : ''} photo{MAX_PHOTOS - photos.length > 1 ? 's' : ''} et augmente tes chances d&apos;être liké·e.
           </Text>
         )}
         <View style={styles.photosRow}>
@@ -389,7 +432,7 @@ export default function SwipeProfileEdit() {
               )}
             </View>
           ))}
-          {Array.from({ length: Math.max(0, 3 - photos.length) }).map((_, i) => (
+          {Array.from({ length: Math.max(0, MAX_PHOTOS - photos.length) }).map((_, i) => (
             <TouchableOpacity
               key={`add-${i}`}
               style={styles.photoAdd}
@@ -403,6 +446,57 @@ export default function SwipeProfileEdit() {
           ))}
         </View>
         <Text style={styles.helper}>La première photo est ta photo principale.</Text>
+
+        {/* ── Mes passions (Tinder-like) ── */}
+        <Text style={styles.label}>Mes passions</Text>
+        <TouchableOpacity
+          style={styles.musicRow}
+          onPress={() => setInterestsOpen(true)}
+          testID="sf-interests-row"
+          activeOpacity={0.8}
+        >
+          <Ionicons name="heart-circle" size={18} color={colors.primary} />
+          <Text style={styles.musicRowText} numberOfLines={1}>
+            {interests.length > 0
+              ? `${interests.slice(0, 3).map((i) => i.replace(/^[^\s]+\s/, '')).join(', ')}${interests.length > 3 ? ` +${interests.length - 3}` : ''}`
+              : 'Ajoute tes passions (Sushi, Voyages…)'}
+          </Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+        </TouchableOpacity>
+
+        {/* ── Infos Tinder-like : Taf / Études / Taille ── */}
+        <Text style={styles.label}>Taf</Text>
+        <TextInput
+          value={job}
+          onChangeText={setJob}
+          placeholder="Ton métier (ex : Barman, Étudiant…)"
+          placeholderTextColor={colors.textTertiary}
+          style={styles.input}
+          maxLength={60}
+          testID="sf-job"
+        />
+
+        <Text style={styles.label}>Niveau d&apos;études</Text>
+        <TextInput
+          value={education}
+          onChangeText={setEducation}
+          placeholder="Ex : BTS, Licence, Master…"
+          placeholderTextColor={colors.textTertiary}
+          style={styles.input}
+          maxLength={60}
+          testID="sf-education"
+        />
+
+        <Text style={styles.label}>Taille (cm)</Text>
+        <TextInput
+          value={heightCm}
+          onChangeText={(t) => setHeightCm(t.replace(/[^0-9]/g, '').slice(0, 3))}
+          placeholder="Ex : 180"
+          placeholderTextColor={colors.textTertiary}
+          style={styles.input}
+          keyboardType="number-pad"
+          testID="sf-height"
+        />
 
         <Text
           style={styles.label}
@@ -578,7 +672,146 @@ export default function SwipeProfileEdit() {
           </Text>
           <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
         </TouchableOpacity>
+
+        {/* ── Réglages profil (Tinder-like) ── */}
+        <Text style={styles.label}>Réglages profil</Text>
+        <View style={styles.settingsCard}>
+          <View style={styles.settingRow}>
+            <Text style={styles.settingText}>Smart Photos</Text>
+            <Switch
+              value={smartPhotos}
+              onValueChange={setSmartPhotos}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor="#fff"
+              testID="sf-smart-photos"
+            />
+          </View>
+          <Text style={styles.settingHint}>
+            Smart Photos teste tes photos et affiche en premier celle qui te fait le plus liker.
+          </Text>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 16, marginBottom: 4 }}>
+            <Text style={styles.settingSection}>Gère ta visibilité</Text>
+            <View style={styles.premiumChip}>
+              <Text style={styles.premiumChipText} allowFontScaling={false}>Premium ✨</Text>
+            </View>
+          </View>
+          <View style={styles.settingRow}>
+            <Text style={styles.settingText}>Masquer mon âge</Text>
+            <Switch
+              value={hideAge}
+              onValueChange={(v) => {
+                if (!isPremium) { router.push('/paywall' as any); return; }
+                setHideAge(v);
+              }}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor="#fff"
+              testID="sf-hide-age"
+            />
+          </View>
+          <View style={styles.settingRow}>
+            <Text style={styles.settingText}>Masquer ma distance</Text>
+            <Switch
+              value={hideDistance}
+              onValueChange={(v) => {
+                if (!isPremium) { router.push('/paywall' as any); return; }
+                setHideDistance(v);
+              }}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor="#fff"
+              testID="sf-hide-distance"
+            />
+          </View>
+        </View>
       </ScrollView>
+
+      {/* Sélection des passions */}
+      <Modal visible={interestsOpen} transparent animationType="slide" onRequestClose={() => setInterestsOpen(false)}>
+        <View style={styles.musicOverlay}>
+          <View style={[styles.musicSheet, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.musicSheetHeader}>
+              <Text style={styles.musicSheetTitle}>Tes passions ❤️</Text>
+              <TouchableOpacity onPress={() => setInterestsOpen(false)} hitSlop={10} testID="sf-interests-close">
+                <Ionicons name="close" size={24} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 400 }} contentContainerStyle={styles.chipsRow}>
+              {INTEREST_OPTIONS.map((opt) => {
+                const on = interests.includes(opt);
+                return (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.chip, on && styles.chipActive]}
+                    onPress={() =>
+                      setInterests((prev) =>
+                        on ? prev.filter((x) => x !== opt) : prev.length < 10 ? [...prev, opt] : prev,
+                      )
+                    }
+                    testID={`sf-interest-${opt.replace(/^[^\s]+\s/, '')}`}
+                  >
+                    <Text style={[styles.chipText, on && styles.chipTextActive]}>{opt}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity
+              style={styles.musicSaveBtn}
+              onPress={() => setInterestsOpen(false)}
+              testID="sf-interests-done"
+            >
+              <Text style={styles.musicSaveText}>OK ({interests.length}/10)</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Aperçu de ma carte swipe */}
+      <Modal visible={previewOpen} animationType="slide" onRequestClose={() => setPreviewOpen(false)}>
+        <View style={styles.prevContainer}>
+          {photos[0] ? (
+            <Image source={{ uri: photos[0] }} style={StyleSheet.absoluteFillObject as any} resizeMode="cover" />
+          ) : (
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }]}>
+              <Ionicons name="person" size={64} color={colors.textTertiary} />
+            </View>
+          )}
+          <LinearGradient colors={['transparent', 'rgba(0,0,0,0.92)']} style={styles.prevGradient} />
+          <TouchableOpacity
+            style={[styles.previewClose, { top: insets.top + 14 }]}
+            onPress={() => setPreviewOpen(false)}
+            testID="sf-preview-close-card"
+          >
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+          <View style={[styles.prevBadge, { top: insets.top + 18 }]}>
+            <Text style={styles.prevBadgeText} allowFontScaling={false}>👀 Aperçu — ce que les autres voient</Text>
+          </View>
+          <View style={[styles.prevInfo, { paddingBottom: insets.bottom + 28 }]}>
+            <Text style={styles.prevName}>
+              {((u.name as string) || 'Toi').split(' ')[0]}
+              {!hideAge && dob ? `, ${Math.max(0, new Date().getFullYear() - parseInt(dob.slice(0, 4), 10) - (new Date() < new Date(new Date().getFullYear(), parseInt(dob.slice(5, 7), 10) - 1, parseInt(dob.slice(8, 10), 10)) ? 1 : 0))}` : ''}
+              {verified ? '  ' : ''}
+              {verified ? <Ionicons name="checkmark-circle" size={22} color="#3B82F6" /> : null}
+            </Text>
+            {!!city && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 }}>
+                <Ionicons name="location" size={14} color="rgba(255,255,255,0.85)" />
+                <Text style={styles.prevCity}>{city}</Text>
+              </View>
+            )}
+            {interests.length > 0 && (
+              <View style={styles.prevChips}>
+                {interests.slice(0, 5).map((i) => (
+                  <View key={i} style={styles.prevChip}>
+                    <Text style={styles.prevChipText} allowFontScaling={false}>{i}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            {!!bio && <Text style={styles.prevBio} numberOfLines={3}>{bio}</Text>}
+          </View>
+        </View>
+      </Modal>
 
       {/* Aperçu photo plein écran */}
       <Modal visible={!!previewUri} transparent animationType="fade" onRequestClose={() => setPreviewUri(null)}>
@@ -713,7 +946,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     fontSize: 15,
   },
   area: { minHeight: 100, textAlignVertical: 'top' },
-  photosRow: { flexDirection: 'row', gap: 10 },
+  photosRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   photoCell: {
     width: 100,
     height: 140,
@@ -749,6 +982,42 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
     alignItems: 'center', marginTop: 18, minHeight: 48, justifyContent: 'center',
   },
   musicSaveText: { color: '#fff', fontSize: 15, fontWeight: '900' },
+  heroPreview: { color: colors.primary, fontSize: 13.5, fontWeight: '800' },
+  settingsCard: {
+    backgroundColor: colors.surface, borderRadius: radius.lg, padding: spacing.md,
+    borderWidth: 1, borderColor: colors.border,
+  },
+  settingRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    minHeight: 44,
+  },
+  settingText: { color: colors.textPrimary, fontSize: 15, fontWeight: '600', flex: 1 },
+  settingHint: { color: colors.textTertiary, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  settingSection: { color: colors.textPrimary, fontSize: 16, fontWeight: '900' },
+  premiumChip: {
+    backgroundColor: colors.primary, borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 3,
+  },
+  premiumChipText: { color: '#fff', fontSize: 11, fontWeight: '900' },
+  prevContainer: { flex: 1, backgroundColor: '#000' },
+  prevGradient: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 340 },
+  prevBadge: {
+    position: 'absolute', alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 999,
+    paddingHorizontal: 14, paddingVertical: 7,
+  },
+  prevBadgeText: { color: '#fff', fontSize: 12.5, fontWeight: '800' },
+  prevInfo: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.lg },
+  prevName: { color: '#fff', fontSize: 32, fontWeight: '900' },
+  prevCity: { color: 'rgba(255,255,255,0.85)', fontSize: 14, fontWeight: '600' },
+  prevChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  prevChip: {
+    backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 999,
+    paddingHorizontal: 11, paddingVertical: 5,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
+  },
+  prevChipText: { color: '#fff', fontSize: 12.5, fontWeight: '700' },
+  prevBio: { color: 'rgba(255,255,255,0.9)', fontSize: 14, lineHeight: 19, marginTop: 10 },
   modOverlay: {
     flex: 1,
     backgroundColor: 'rgba(7,5,18,0.85)',

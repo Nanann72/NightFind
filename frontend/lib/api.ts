@@ -560,6 +560,13 @@ export const api = {
     fav_clubs?: string[];
     gender?: string;
     pref_gender?: string;
+    interests?: string[];
+    job?: string;
+    education?: string;
+    height_cm?: number;
+    smart_photos?: boolean;
+    hide_age?: boolean;
+    hide_distance?: boolean;
     pref_age_min?: number;
     pref_age_max?: number;
     pref_distance_km?: number;

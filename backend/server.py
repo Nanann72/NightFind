@@ -457,6 +457,19 @@ def public_user(user: dict) -> dict:
         "instagram": user.get("instagram"),
         "photos": user.get("photos", []),
         "fav_clubs": user.get("fav_clubs", []),
+        "gender": user.get("gender"),
+        "pref_gender": user.get("pref_gender"),
+        "pref_age_min": user.get("pref_age_min"),
+        "pref_age_max": user.get("pref_age_max"),
+        "pref_distance_km": user.get("pref_distance_km"),
+        "verified": bool(user.get("verified")),
+        "interests": user.get("interests", []),
+        "job": user.get("job", ""),
+        "education": user.get("education", ""),
+        "height_cm": user.get("height_cm", 0),
+        "smart_photos": bool(user.get("smart_photos")),
+        "hide_age": bool(user.get("hide_age")),
+        "hide_distance": bool(user.get("hide_distance")),
         "is_premium": bool(user.get("is_premium")),
         "premium_expires_at": user.get("premium_expires_at"),
         "is_admin": bool(user.get("is_admin")),
@@ -1437,13 +1450,18 @@ def _profile_for_swipe(u: dict) -> dict:
         "user_id": u["user_id"],
         "name": u.get("name", ""),
         "username": u.get("username"),
-        "age": age,
+        "age": None if u.get("hide_age") else age,
         "bio": u.get("bio", ""),
         "city": u.get("city", ""),
         "instagram": u.get("instagram", ""),
         "photos": u.get("photos") or [],
         "music_prefs": u.get("music_prefs") or [],
         "fav_clubs": u.get("fav_clubs") or [],
+        "interests": u.get("interests") or [],
+        "job": u.get("job", ""),
+        "education": u.get("education", ""),
+        "height_cm": u.get("height_cm") or 0,
+        "hide_distance": bool(u.get("hide_distance")),
         "verified": bool(u.get("verified")),
     }
 
@@ -2050,7 +2068,7 @@ class SwipeFieldsBody(BaseModel):
     bio: Optional[str] = None
     city: Optional[str] = None
     instagram: Optional[str] = None
-    photos: Optional[list[str]] = None  # base64 strings, max 3
+    photos: Optional[list[str]] = None  # base64 strings, max 6
     fav_clubs: Optional[list[str]] = None  # club_ids
     # Préférences de découverte (Tinder-like)
     gender: Optional[str] = None  # femme | homme | autre
@@ -2058,6 +2076,15 @@ class SwipeFieldsBody(BaseModel):
     pref_age_min: Optional[int] = None  # 18-99
     pref_age_max: Optional[int] = None
     pref_distance_km: Optional[int] = None  # 0 = illimité
+    # Profil enrichi (Tinder-like)
+    interests: Optional[list[str]] = None  # passions, max 10
+    job: Optional[str] = None
+    education: Optional[str] = None
+    height_cm: Optional[int] = None  # 0 = non renseigné
+    # Réglages profil
+    smart_photos: Optional[bool] = None
+    hide_age: Optional[bool] = None  # Premium
+    hide_distance: Optional[bool] = None  # Premium
 
 
 @api_router.put("/profile/swipe-fields")
@@ -2104,9 +2131,32 @@ async def update_swipe_fields(body: SwipeFieldsBody, user: dict = Depends(get_cu
         updates["pref_age_max"] = max(18, min(99, body.pref_age_max))
     if body.pref_distance_km is not None:
         updates["pref_distance_km"] = max(0, min(500, body.pref_distance_km))
+    # Profil enrichi
+    if body.interests is not None:
+        cleaned = [str(i).strip()[:30] for i in body.interests if str(i).strip()][:10]
+        updates["interests"] = cleaned
+    if body.job is not None:
+        updates["job"] = body.job.strip()[:60]
+    if body.education is not None:
+        updates["education"] = body.education.strip()[:60]
+    if body.height_cm is not None:
+        h = int(body.height_cm)
+        if h != 0 and not (120 <= h <= 230):
+            raise HTTPException(status_code=400, detail="Taille invalide (120-230 cm)")
+        updates["height_cm"] = h
+    # Réglages profil
+    if body.smart_photos is not None:
+        updates["smart_photos"] = bool(body.smart_photos)
+    if body.hide_age is not None or body.hide_distance is not None:
+        if (body.hide_age or body.hide_distance) and not user.get("is_premium"):
+            raise HTTPException(status_code=403, detail="Masquer l'âge ou la distance est réservé aux membres Premium ✨")
+        if body.hide_age is not None:
+            updates["hide_age"] = bool(body.hide_age)
+        if body.hide_distance is not None:
+            updates["hide_distance"] = bool(body.hide_distance)
     if body.photos is not None:
-        if len(body.photos) > 3:
-            raise HTTPException(status_code=400, detail="3 photos maximum")
+        if len(body.photos) > 6:
+            raise HTTPException(status_code=400, detail="6 photos maximum")
         # Reject photos heavier than ~2MB each (base64 inflate ~33%)
         for p in body.photos:
             if not isinstance(p, str) or len(p) > 3_000_000:

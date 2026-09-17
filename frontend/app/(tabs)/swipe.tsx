@@ -55,6 +55,8 @@ type SwipeProfile = {
   photos?: string[];
   music_prefs?: string[];
   fav_clubs?: string[];
+  interests?: string[];
+  job?: string;
   verified?: boolean;
   superliked_you?: boolean;
 };
@@ -635,6 +637,15 @@ export default function SwipePeople() {
                       <Text style={styles.city}>{top.city}</Text>
                     </View>
                   )}
+                  {!!top.interests?.length && (
+                    <View style={styles.interestChips}>
+                      {top.interests.slice(0, 4).map((i) => (
+                        <View key={i} style={styles.interestChip}>
+                          <Text style={styles.interestChipText} allowFontScaling={false}>{i}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
               </Animated.View>
             </GestureDetector>
@@ -954,6 +965,13 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   modeChips: { flex: 1, flexDirection: 'row', gap: 6, justifyContent: 'center' },
   cityRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
+  interestChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  interestChip: {
+    backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
+  },
+  interestChipText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   statsRoot: { flex: 1, justifyContent: 'flex-end' },
   statsBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)' },
   statsSheet: {
