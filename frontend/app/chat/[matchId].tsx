@@ -427,7 +427,13 @@ export default function Chat() {
                   ) : (
                     <>
                       {item.invite ? (
-                        <View style={styles.inviteCard}>
+                        <TouchableOpacity
+                          style={styles.inviteCard}
+                          activeOpacity={0.85}
+                          disabled={!item.invite.club_id}
+                          onPress={() => item.invite?.club_id && router.push(`/club/${item.invite.club_id}` as any)}
+                          testID={`invite-card-${item.message_id}`}
+                        >
                           <Text style={[styles.inviteTitle, mine && { color: 'rgba(255,255,255,0.9)' }]} allowFontScaling={false}>
                             🎉 Invitation soirée
                           </Text>
@@ -471,7 +477,7 @@ export default function Chat() {
                                 : (mine ? 'Réponse : Pas dispo 😔' : 'Tu as répondu : Pas dispo 😔')}
                             </Text>
                           )}
-                        </View>
+                        </TouchableOpacity>
                       ) : null}
                       {item.gif_url ? (
                         <Image

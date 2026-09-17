@@ -12,6 +12,7 @@ import {
   ScrollView,
   TextInput,
   Share,
+  Modal,
 } from 'react-native';
 import Animated, {
   useAnimatedScrollHandler,
@@ -57,6 +58,37 @@ export default function ClubDetail() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewSort, setReviewSort] = useState<'recent' | 'best'>('recent');
   const [justShared, setJustShared] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareMatches, setShareMatches] = useState<any[]>([]);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [sentTo, setSentTo] = useState<Record<string, boolean>>({});
+  const [sendingTo, setSendingTo] = useState<string | null>(null);
+
+  const openShare = () => {
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    setShareOpen(true);
+    setShareLoading(true);
+    api.listMatches()
+      .then((r) => setShareMatches(r || []))
+      .catch(() => setShareMatches([]))
+      .finally(() => setShareLoading(false));
+  };
+
+  const sendToMatch = async (matchId: string) => {
+    if (!club || sentTo[matchId] || sendingTo) return;
+    setSendingTo(matchId);
+    try {
+      await api.sendMessage(
+        matchId,
+        `👀 Regarde ce club : ${club.name} !\n📍 ${club.address || ''}`.trim(),
+        undefined,
+        { club_id: club.club_id, club_name: club.name, address: club.address || '' },
+      );
+      if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      setSentTo((prev) => ({ ...prev, [matchId]: true }));
+    } catch {}
+    setSendingTo(null);
+  };
 
   const shareClub = async () => {
     if (!club) return;
@@ -276,7 +308,7 @@ export default function ClubDetail() {
           <HapticButton
             haptic="light"
             style={[styles.headerBtn, { top: insets.top + 12, right: 64 }]}
-            onPress={shareClub}
+            onPress={openShare}
             testID="share-club-btn"
           >
             <Ionicons
@@ -593,6 +625,66 @@ export default function ClubDetail() {
           </HapticButton>
         </View>
       </View>
+
+      {/* ── Feuille de partage : envoyer à un match ou hors de l'app ── */}
+      <Modal visible={shareOpen} transparent animationType="slide" onRequestClose={() => setShareOpen(false)}>
+        <View style={styles.shareOverlay}>
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setShareOpen(false)} />
+          <View style={[styles.shareSheet, { paddingBottom: insets.bottom + 16 }]} testID="share-sheet">
+            <View style={styles.shareHandle} />
+            <Text style={styles.shareTitle}>Partager {club.name}</Text>
+
+            <Text style={styles.shareSection}>Envoyer à un match 💬</Text>
+            {shareLoading ? (
+              <ActivityIndicator color={colors.primary} style={{ marginVertical: 18 }} />
+            ) : shareMatches.length === 0 ? (
+              <Text style={styles.shareEmpty}>Pas encore de matchs — va faire des rencontres ! 🔥</Text>
+            ) : (
+              <ScrollView style={{ maxHeight: 260 }}>
+                {shareMatches.map((m) => (
+                  <TouchableOpacity
+                    key={m.match_id}
+                    style={styles.shareRow}
+                    onPress={() => sendToMatch(m.match_id)}
+                    disabled={!!sentTo[m.match_id] || sendingTo === m.match_id}
+                    testID={`share-match-${m.match_id}`}
+                  >
+                    {m.photo ? (
+                      <Image source={{ uri: m.photo }} style={styles.shareAvatar} />
+                    ) : (
+                      <View style={[styles.shareAvatar, { backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }]}>
+                        <Ionicons name="person" size={16} color={colors.textTertiary} />
+                      </View>
+                    )}
+                    <Text style={styles.shareName} numberOfLines={1}>{m.name}</Text>
+                    {sendingTo === m.match_id ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : sentTo[m.match_id] ? (
+                      <View style={styles.shareSentChip}>
+                        <Ionicons name="checkmark" size={13} color="#4ADE80" />
+                        <Text style={styles.shareSentText}>Envoyé</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.shareSendBtn}>
+                        <Ionicons name="paper-plane" size={14} color="#fff" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+
+            <TouchableOpacity
+              style={styles.shareExternal}
+              onPress={() => { setShareOpen(false); setTimeout(shareClub, 300); }}
+              testID="share-external-btn"
+            >
+              <Ionicons name="share-outline" size={18} color={colors.textPrimary} />
+              <Text style={styles.shareExternalText}>Partager en dehors de l&apos;app</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -839,6 +931,41 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   replyName: { color: colors.textPrimary, fontSize: 12.5, fontWeight: '800' },
   replyText: { color: colors.textSecondary, fontSize: 13, marginTop: 2, lineHeight: 18 },
+  shareOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
+  shareSheet: {
+    backgroundColor: colors.surfaceElevated,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: spacing.lg, borderWidth: 1, borderColor: colors.border,
+  },
+  shareHandle: {
+    alignSelf: 'center', width: 40, height: 4, borderRadius: 2,
+    backgroundColor: colors.border, marginBottom: 14,
+  },
+  shareTitle: { color: colors.textPrimary, fontSize: 18, fontWeight: '900', marginBottom: 14 },
+  shareSection: { color: colors.textTertiary, fontSize: 12, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10 },
+  shareEmpty: { color: colors.textSecondary, fontSize: 13.5, marginVertical: 12 },
+  shareRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingVertical: 10, minHeight: 52,
+  },
+  shareAvatar: { width: 40, height: 40, borderRadius: 20 },
+  shareName: { color: colors.textPrimary, fontSize: 15, fontWeight: '700', flex: 1 },
+  shareSendBtn: {
+    width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  shareSentChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: 'rgba(74,222,128,0.12)', borderRadius: radius.pill,
+    paddingHorizontal: 10, paddingVertical: 6,
+  },
+  shareSentText: { color: '#4ADE80', fontSize: 12.5, fontWeight: '800' },
+  shareExternal: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill,
+    paddingVertical: 13, marginTop: 14, minHeight: 46,
+  },
+  shareExternalText: { color: colors.textPrimary, fontSize: 14.5, fontWeight: '800' },
   reviewEmpty: { color: colors.textTertiary, fontSize: 13 },
   favBtn: {
     flex: 1,
