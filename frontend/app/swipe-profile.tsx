@@ -19,6 +19,7 @@ import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import Sortable from 'react-native-sortables';
 import * as ImagePicker from 'expo-image-picker';
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -83,6 +84,7 @@ export default function SwipeProfileEdit() {
   const igRef = useRef<TextInput>(null);
   const sectionY = useRef<Record<string, number>>({});
   const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [previewIdx, setPreviewIdx] = useState<number | null>(null);
   const [musicOpen, setMusicOpen] = useState(false);
   const [musicSel, setMusicSel] = useState<string[]>(Array.isArray(u.music_prefs) ? u.music_prefs : []);
   const [musicSaving, setMusicSaving] = useState(false);
@@ -407,31 +409,42 @@ export default function SwipeProfileEdit() {
             Ajoute {MAX_PHOTOS - photos.length} autre{MAX_PHOTOS - photos.length > 1 ? 's' : ''} photo{MAX_PHOTOS - photos.length > 1 ? 's' : ''} et augmente tes chances d&apos;être liké·e.
           </Text>
         )}
-        <View style={styles.photosRow}>
-          {photos.map((p, i) => (
-            <View key={i} style={styles.photoCell}>
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={() => setPreviewUri(p)}
-                testID={`sf-photo-preview-${i}`}
-                style={{ width: '100%', height: '100%' }}
-              >
-                <Image source={{ uri: p }} style={styles.photoImg} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.photoRemove}
-                onPress={() => removePhoto(i)}
-                testID={`sf-remove-photo-${i}`}
-              >
-                <Ionicons name="close" size={14} color="#fff" />
-              </TouchableOpacity>
-              {i === 0 && (
-                <View style={styles.mainBadge}>
-                  <Text style={styles.mainBadgeText} allowFontScaling={false}>Principale</Text>
-                </View>
-              )}
-            </View>
-          ))}
+        {photos.length > 0 && (
+          <Sortable.Grid
+            columns={3}
+            rowGap={10}
+            columnGap={10}
+            data={photos}
+            keyExtractor={(item) => item.slice(-32)}
+            onDragEnd={({ data }) => setPhotos([...data])}
+            hapticsEnabled={Platform.OS !== 'web'}
+            renderItem={({ item, index }) => (
+              <View style={styles.photoCell}>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => { setPreviewUri(item); setPreviewIdx(index); }}
+                  testID={`sf-photo-preview-${index}`}
+                  style={{ width: '100%', height: '100%' }}
+                >
+                  <Image source={{ uri: item }} style={styles.photoImg} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.photoRemove}
+                  onPress={() => removePhoto(index)}
+                  testID={`sf-remove-photo-${index}`}
+                >
+                  <Ionicons name="close" size={14} color="#fff" />
+                </TouchableOpacity>
+                {index === 0 && (
+                  <View style={styles.mainBadge}>
+                    <Text style={styles.mainBadgeText} allowFontScaling={false}>Principale</Text>
+                  </View>
+                )}
+              </View>
+            )}
+          />
+        )}
+        <View style={[styles.photosRow, photos.length > 0 && { marginTop: 10 }]}>
           {Array.from({ length: Math.max(0, MAX_PHOTOS - photos.length) }).map((_, i) => (
             <TouchableOpacity
               key={`add-${i}`}
@@ -445,7 +458,9 @@ export default function SwipeProfileEdit() {
             </TouchableOpacity>
           ))}
         </View>
-        <Text style={styles.helper}>La première photo est ta photo principale.</Text>
+        <Text style={styles.helper}>
+          Maintiens une photo et glisse-la pour changer l&apos;ordre — la première est ta photo principale.
+        </Text>
 
         {/* ── Mes passions (Tinder-like) ── */}
         <Text style={styles.label}>Mes passions</Text>
@@ -814,17 +829,36 @@ export default function SwipeProfileEdit() {
       </Modal>
 
       {/* Aperçu photo plein écran */}
-      <Modal visible={!!previewUri} transparent animationType="fade" onRequestClose={() => setPreviewUri(null)}>
+      <Modal visible={!!previewUri} transparent animationType="fade" onRequestClose={() => { setPreviewUri(null); setPreviewIdx(null); }}>
         <View style={styles.previewOverlay}>
-          <TouchableOpacity style={styles.previewBackdrop} activeOpacity={1} onPress={() => setPreviewUri(null)} />
+          <TouchableOpacity style={styles.previewBackdrop} activeOpacity={1} onPress={() => { setPreviewUri(null); setPreviewIdx(null); }} />
           {previewUri && <Image source={{ uri: previewUri }} style={styles.previewImg} resizeMode="contain" />}
           <TouchableOpacity
             style={[styles.previewClose, { top: insets.top + 14 }]}
-            onPress={() => setPreviewUri(null)}
+            onPress={() => { setPreviewUri(null); setPreviewIdx(null); }}
             testID="sf-preview-close"
           >
             <Ionicons name="close" size={24} color="#fff" />
           </TouchableOpacity>
+          {previewIdx != null && previewIdx > 0 && (
+            <TouchableOpacity
+              style={[styles.makeMainBtn, { bottom: insets.bottom + 30 }]}
+              onPress={() => {
+                setPhotos((prev) => {
+                  const next = [...prev];
+                  const [ph] = next.splice(previewIdx, 1);
+                  next.unshift(ph);
+                  return next;
+                });
+                setPreviewUri(null);
+                setPreviewIdx(null);
+              }}
+              testID="sf-make-main"
+            >
+              <Ionicons name="star" size={16} color="#fff" />
+              <Text style={styles.makeMainText}>Définir comme photo principale</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </Modal>
 
@@ -948,7 +982,7 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   area: { minHeight: 100, textAlignVertical: 'top' },
   photosRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   photoCell: {
-    width: 100,
+    width: '100%',
     height: 140,
     borderRadius: radius.md,
     overflow: 'hidden',
@@ -966,6 +1000,13 @@ const makeStyles = (colors: ThemeColors) => StyleSheet.create({
   previewOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', alignItems: 'center', justifyContent: 'center' },
   previewBackdrop: { ...StyleSheet.absoluteFillObject },
   previewImg: { width: '92%', height: '78%' },
+  makeMainBtn: {
+    position: 'absolute', alignSelf: 'center',
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: colors.primary, borderRadius: 999,
+    paddingHorizontal: 20, paddingVertical: 13, minHeight: 46,
+  },
+  makeMainText: { color: '#fff', fontSize: 14.5, fontWeight: '800' },
   previewClose: {
     position: 'absolute', right: 16, width: 42, height: 42, borderRadius: 21,
     backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center',
